@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/sp3640/opspilot/backend/internal/config"
+	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -29,5 +30,11 @@ func Connect(cfg *config.Config) {
 		log.Fatal("Failed to connect to PostgreSQL: ", err)
 	}
 
-	fmt.Println("✅ Connected to PostgreSQL")
+	err = DB.AutoMigrate(&models.User{})
+	if err != nil {
+		log.Fatal("Failed to migrate User model: ", err)
+}
+
+fmt.Println("✅ Connected to PostgreSQL")
+fmt.Println("✅ Database migrated successfully")
 }
