@@ -6,11 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/sp3640/opspilot/backend/internal/config"
+	"github.com/sp3640/opspilot/backend/internal/database"
 	"github.com/sp3640/opspilot/backend/internal/router"
 )
 
 func main() {
 	cfg := config.Load()
+	database.Connect(cfg)
 
 	r := gin.Default()
 

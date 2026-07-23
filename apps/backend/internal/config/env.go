@@ -8,4 +8,4 @@ func getEnv(key, fallback string) string {
 	}
 
 	return fallback
-}	
+}

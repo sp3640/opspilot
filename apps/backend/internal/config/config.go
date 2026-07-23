@@ -10,6 +10,13 @@ type Config struct {
 	AppName string
 	AppEnv  string
 	Port    string
+
+	DBHost     string
+	DBPort     string
+	DBUser     string
+	DBPassword string
+	DBName     string
+	DBSSLMode  string
 }
 
 func Load() *Config {
@@ -21,5 +28,12 @@ func Load() *Config {
 		AppName: getEnv("APP_NAME", "OpsPilot Backend"),
 		AppEnv:  getEnv("APP_ENV", "development"),
 		Port:    getEnv("PORT", "8080"),
+
+		DBHost:     getEnv("DB_HOST", "localhost"),
+		DBPort:     getEnv("DB_PORT", "5432"),
+		DBUser:     getEnv("DB_USER", "postgres"),
+		DBPassword: getEnv("DB_PASSWORD", ""),
+		DBName:     getEnv("DB_NAME", "postgres"),
+		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
 	}
 }
