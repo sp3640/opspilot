@@ -13,23 +13,38 @@ func RegisterRoutes(
 	cfg *config.Config,
 	authHandler *handlers.AuthHandler,
 	userHandler *handlers.UserHandler,
+	projectHandler *handlers.ProjectHandler,
 ) {
 	r.GET("/health", handlers.HealthCheck)
 
 	api := r.Group("/api/v1")
 	{
+		// =========================
 		// Public Routes
+		// =========================
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 		}
 
-		// Protected Routes
+		// =========================
+		// Protected User Routes
+		// =========================
 		users := api.Group("/users")
 		users.Use(middleware.AuthMiddleware(cfg))
 		{
 			users.GET("/me", userHandler.Me)
+		}
+
+		// =========================
+		// Protected Project Routes
+		// =========================
+		projects := api.Group("/projects")
+		projects.Use(middleware.AuthMiddleware(cfg))
+		{
+			projects.POST("", projectHandler.Create)
+			projects.GET("", projectHandler.List)
 		}
 	}
 }

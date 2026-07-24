@@ -30,7 +30,10 @@ func Connect(cfg *config.Config) {
 		log.Fatal("Failed to connect to PostgreSQL: ", err)
 	}
 
-	err = DB.AutoMigrate(&models.User{})
+	err = DB.AutoMigrate(
+	&models.User{},
+	&models.Project{},
+)
 	if err != nil {
 		log.Fatal("Failed to migrate User model: ", err)
 }

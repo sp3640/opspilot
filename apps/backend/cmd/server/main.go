@@ -19,19 +19,23 @@ func main() {
 	database.Connect(cfg)
 
 	repo := repository.NewUserRepository(database.DB)
+	projectRepo := repository.NewProjectRepository(database.DB)
 
 	userService := services.NewUserService(repo, cfg)
+	projectService := services.NewProjectService(projectRepo)
 
 	authHandler := handlers.NewAuthHandler(userService)
 	userHandler := handlers.NewUserHandler(userService)
+	projectHandler := handlers.NewProjectHandler(projectService)
 
 	r := gin.Default()
 
 	router.RegisterRoutes(
-		r,
-		cfg,
-		authHandler,
-		userHandler,
+	r,
+	cfg,
+	authHandler,
+	userHandler,
+	projectHandler,
 	)
 
 	log.Printf(
