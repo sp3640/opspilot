@@ -17,7 +17,7 @@ func main() {
 	cfg := config.Load()
 	database.Connect(cfg)
 	repo := repository.NewUserRepository(database.DB)
-	userService := services.NewUserService(repo)
+	userService := services.NewUserService(repo,cfg)
 	authHandler := handlers.NewAuthHandler(userService)
 
 	r := gin.Default()

@@ -17,6 +17,9 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
+
+	JWTSecret string
+	JWTExpiry string
 }
 
 func Load() *Config {
@@ -35,5 +38,8 @@ func Load() *Config {
 		DBPassword: getEnv("DB_PASSWORD", ""),
 		DBName:     getEnv("DB_NAME", "postgres"),
 		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
+
+		JWTSecret: getEnv("JWT_SECRET", "your-super-secret-key-change-this"),
+		JWTExpiry: getEnv("JWT_EXPIRY", "24h"),
 	}
 }
