@@ -90,3 +90,12 @@ func (s *UserService) Login(email, password string) (string, error) {
 
 	return token, nil
 }
+func (s *UserService) GetCurrentUser(id uint) (*models.User, error) {
+
+	user, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, apperrors.ErrUserNotFound
+	}
+
+	return user, nil
+}

@@ -30,3 +30,13 @@ func (r *UserRepository) GetByEmail(email string) (*models.User, error) {
 
 	return &user, nil
 }
+func (r *UserRepository) GetByID(id uint) (*models.User, error) {
+	var user models.User
+
+	err := r.db.First(&user, id).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}

@@ -15,14 +15,24 @@ import (
 
 func main() {
 	cfg := config.Load()
+
 	database.Connect(cfg)
+
 	repo := repository.NewUserRepository(database.DB)
-	userService := services.NewUserService(repo,cfg)
+
+	userService := services.NewUserService(repo, cfg)
+
 	authHandler := handlers.NewAuthHandler(userService)
+	userHandler := handlers.NewUserHandler(userService)
 
 	r := gin.Default()
 
-	router.RegisterRoutes(r, authHandler)
+	router.RegisterRoutes(
+		r,
+		cfg,
+		authHandler,
+		userHandler,
+	)
 
 	log.Printf(
 		"🚀 %s running in %s mode on port %s",
