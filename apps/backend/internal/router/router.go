@@ -14,6 +14,7 @@ func RegisterRoutes(
 	authHandler *handlers.AuthHandler,
 	userHandler *handlers.UserHandler,
 	projectHandler *handlers.ProjectHandler,
+	incidentHandler *handlers.IncidentHandler,
 ) {
 	r.GET("/health", handlers.HealthCheck)
 
@@ -45,6 +46,22 @@ func RegisterRoutes(
 		{
 			projects.POST("", projectHandler.Create)
 			projects.GET("", projectHandler.List)
+			projects.GET("/:id", projectHandler.GetByID)
+			projects.PUT("/:id", projectHandler.Update)
+			projects.DELETE("/:id", projectHandler.Delete)
+		}
+
+		// =========================
+		// Protected Incident Routes
+		// =========================
+		incidents := api.Group("/incidents")
+		incidents.Use(middleware.AuthMiddleware(cfg))
+		{
+			incidents.POST("", incidentHandler.Create)
+			incidents.GET("", incidentHandler.List)
+			incidents.GET("/:id", incidentHandler.GetByID)
+			incidents.PUT("/:id", incidentHandler.Update)
+			incidents.DELETE("/:id", incidentHandler.Delete)
 		}
 	}
 }

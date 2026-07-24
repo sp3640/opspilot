@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -30,6 +31,21 @@ func (r *ProjectRepository) GetByID(id uint) (*models.Project, error) {
 	return &project, nil
 }
 
+func (r *ProjectRepository) GetByIDAndUserID(id, userID uint) (*models.Project, error) {
+	var project models.Project
+
+	err := r.db.Where("id = ?", id).First(&project).Error
+	if err != nil {
+		return nil, err
+	}
+
+	if project.UserID != userID {
+		return nil, apperrors.ErrProjectForbidden
+	}
+
+	return &project, nil
+}
+
 func (r *ProjectRepository) GetAllByUserID(userID uint) ([]models.Project, error) {
 	var projects []models.Project
 
@@ -39,4 +55,12 @@ func (r *ProjectRepository) GetAllByUserID(userID uint) ([]models.Project, error
 	}
 
 	return projects, nil
+}
+
+func (r *ProjectRepository) Update(project *models.Project) error {
+	return r.db.Save(project).Error
+}
+
+func (r *ProjectRepository) Delete(id uint) error {
+	return r.db.Delete(&models.Project{}, id).Error
 }

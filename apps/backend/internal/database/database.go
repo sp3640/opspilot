@@ -31,13 +31,14 @@ func Connect(cfg *config.Config) {
 	}
 
 	err = DB.AutoMigrate(
-	&models.User{},
-	&models.Project{},
-)
+		&models.User{},
+		&models.Project{},
+		&models.Incident{},
+	)
 	if err != nil {
-		log.Fatal("Failed to migrate User model: ", err)
-}
+		log.Fatal("Failed to migrate database models: ", err)
+	}
 
-fmt.Println("✅ Connected to PostgreSQL")
-fmt.Println("✅ Database migrated successfully")
+	fmt.Println("✅ Connected to PostgreSQL")
+	fmt.Println("✅ Database migrated successfully")
 }
