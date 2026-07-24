@@ -34,6 +34,7 @@ func Connect(cfg *config.Config) {
 		&models.User{},
 		&models.Project{},
 		&models.Incident{},
+		&models.Comment{},
 	)
 	if err != nil {
 		log.Fatal("Failed to migrate database models: ", err)
