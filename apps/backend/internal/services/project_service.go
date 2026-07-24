@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
@@ -10,12 +11,14 @@ import (
 )
 
 type ProjectService struct {
-	repo *repository.ProjectRepository
+	repo      *repository.ProjectRepository
+	auditRepo *AuditService
 }
 
-func NewProjectService(repo *repository.ProjectRepository) *ProjectService {
+func NewProjectService(repo *repository.ProjectRepository, auditService *AuditService) *ProjectService {
 	return &ProjectService{
-		repo: repo,
+		repo:      repo,
+		auditRepo: auditService,
 	}
 }
 
@@ -27,7 +30,19 @@ func (s *ProjectService) Create(name, description string, userID uint) error {
 		UserID:      userID,
 	}
 
-	return s.repo.Create(project)
+	if err := s.repo.Create(project); err != nil {
+		return err
+	}
+
+	if s.auditRepo != nil {
+		projectIDValue := project.ID
+		projectIDPtr := &projectIDValue
+		if err := s.auditRepo.LogCreate(userID, "project", project.ID, projectIDPtr, nil); err != nil {
+			log.Printf("audit create failed: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *ProjectService) GetMyProjects(userID uint) ([]models.Project, error) {
@@ -61,11 +76,29 @@ func (s *ProjectService) UpdateProject(id, userID uint, name, description string
 		return nil, err
 	}
 
+	previousName := project.Name
+	previousDescription := project.Description
+
 	project.Name = name
 	project.Description = description
 
 	if err := s.repo.Update(project); err != nil {
 		return nil, err
+	}
+
+	if s.auditRepo != nil {
+		projectIDValue := project.ID
+		projectIDPtr := &projectIDValue
+		if previousName != name {
+			if err := s.auditRepo.LogUpdate(userID, "project", project.ID, projectIDPtr, nil, "name", previousName, name); err != nil {
+				log.Printf("audit update failed: %v", err)
+			}
+		}
+		if previousDescription != description {
+			if err := s.auditRepo.LogUpdate(userID, "project", project.ID, projectIDPtr, nil, "description", previousDescription, description); err != nil {
+				log.Printf("audit update failed: %v", err)
+			}
+		}
 	}
 
 	return project, nil
@@ -83,5 +116,17 @@ func (s *ProjectService) DeleteProject(id, userID uint) error {
 		return err
 	}
 
-	return s.repo.Delete(project.ID)
+	if err := s.repo.Delete(project.ID); err != nil {
+		return err
+	}
+
+	if s.auditRepo != nil {
+		projectIDValue := project.ID
+		projectIDPtr := &projectIDValue
+		if err := s.auditRepo.LogDelete(userID, "project", project.ID, projectIDPtr, nil); err != nil {
+			log.Printf("audit delete failed: %v", err)
+		}
+	}
+
+	return nil
 }

@@ -16,6 +16,7 @@ func RegisterRoutes(
 	projectHandler *handlers.ProjectHandler,
 	incidentHandler *handlers.IncidentHandler,
 	commentHandler *handlers.CommentHandler,
+	auditHandler *handlers.AuditHandler,
 ) {
 	r.GET("/health", handlers.HealthCheck)
 
@@ -50,6 +51,7 @@ func RegisterRoutes(
 			projects.GET("/:id", projectHandler.GetByID)
 			projects.PUT("/:id", projectHandler.Update)
 			projects.DELETE("/:id", projectHandler.Delete)
+			projects.GET("/:id/audit-logs", auditHandler.GetProjectAuditLogs)
 		}
 
 		// =========================
@@ -65,6 +67,7 @@ func RegisterRoutes(
 			incidents.DELETE("/:id", incidentHandler.Delete)
 			incidents.POST("/:id/comments", commentHandler.Create)
 			incidents.GET("/:id/comments", commentHandler.List)
+			incidents.GET("/:id/audit-logs", auditHandler.GetIncidentAuditLogs)
 		}
 
 		comments := api.Group("/comments")

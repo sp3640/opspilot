@@ -1,0 +1,68 @@
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/response"
+	"github.com/sp3640/opspilot/backend/internal/services"
+)
+
+type AuditHandler struct {
+	service *services.AuditService
+}
+
+func NewAuditHandler(service *services.AuditService) *AuditHandler {
+	return &AuditHandler{service: service}
+}
+
+func (h *AuditHandler) GetIncidentAuditLogs(c *gin.Context) {
+	incidentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid incident id")
+		return
+	}
+
+	userID := c.MustGet("userID").(uint)
+	logs, err := h.service.GetIncidentAuditLogs(userID, uint(incidentID))
+	if err != nil {
+		switch err {
+		case apperrors.ErrIncidentNotFound:
+			response.Error(c, http.StatusNotFound, err.Error())
+		case apperrors.ErrProjectForbidden:
+			response.Error(c, http.StatusForbidden, err.Error())
+		default:
+			response.InternalServerError(c)
+		}
+		return
+	}
+
+	response.OK(c, "Audit logs fetched successfully", logs)
+}
+
+func (h *AuditHandler) GetProjectAuditLogs(c *gin.Context) {
+	projectID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid project id")
+		return
+	}
+
+	userID := c.MustGet("userID").(uint)
+	logs, err := h.service.GetProjectAuditLogs(userID, uint(projectID))
+	if err != nil {
+		switch err {
+		case apperrors.ErrProjectNotFound:
+			response.Error(c, http.StatusNotFound, err.Error())
+		case apperrors.ErrProjectForbidden:
+			response.Error(c, http.StatusForbidden, err.Error())
+		default:
+			response.InternalServerError(c)
+		}
+		return
+	}
+
+	response.OK(c, "Audit logs fetched successfully", logs)
+}

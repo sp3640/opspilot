@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"log"
 	"strings"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -13,12 +14,14 @@ import (
 type CommentService struct {
 	commentRepo  *repository.CommentRepository
 	incidentRepo *repository.IncidentRepository
+	auditRepo    *AuditService
 }
 
-func NewCommentService(commentRepo *repository.CommentRepository, incidentRepo *repository.IncidentRepository) *CommentService {
+func NewCommentService(commentRepo *repository.CommentRepository, incidentRepo *repository.IncidentRepository, auditService *AuditService) *CommentService {
 	return &CommentService{
 		commentRepo:  commentRepo,
 		incidentRepo: incidentRepo,
+		auditRepo:    auditService,
 	}
 }
 
@@ -46,6 +49,14 @@ func (s *CommentService) CreateComment(content string, incidentID, userID uint) 
 
 	if err := s.commentRepo.Create(comment); err != nil {
 		return nil, err
+	}
+
+	if s.auditRepo != nil {
+		incidentIDValue := incidentID
+		incidentIDPtr := &incidentIDValue
+		if err := s.auditRepo.LogCreate(userID, "comment", comment.ID, nil, incidentIDPtr); err != nil {
+			log.Printf("audit create failed: %v", err)
+		}
 	}
 
 	return comment, nil
@@ -83,9 +94,18 @@ func (s *CommentService) UpdateComment(id, userID uint, content string) (*models
 		return nil, apperrors.ErrInvalidCommentContent
 	}
 
+	previousContent := comment.Content
 	comment.Content = trimmedContent
 	if err := s.commentRepo.Update(comment); err != nil {
 		return nil, err
+	}
+
+	if s.auditRepo != nil && previousContent != trimmedContent {
+		incidentIDValue := comment.IncidentID
+		incidentIDPtr := &incidentIDValue
+		if err := s.auditRepo.LogUpdate(userID, "comment", comment.ID, nil, incidentIDPtr, "content", previousContent, trimmedContent); err != nil {
+			log.Printf("audit update failed: %v", err)
+		}
 	}
 
 	return comment, nil
@@ -104,7 +124,19 @@ func (s *CommentService) DeleteComment(id, userID uint) error {
 		return apperrors.ErrCommentForbidden
 	}
 
-	return s.commentRepo.Delete(comment.ID)
+	if err := s.commentRepo.Delete(comment.ID); err != nil {
+		return err
+	}
+
+	if s.auditRepo != nil {
+		incidentIDValue := comment.IncidentID
+		incidentIDPtr := &incidentIDValue
+		if err := s.auditRepo.LogDelete(userID, "comment", comment.ID, nil, incidentIDPtr); err != nil {
+			log.Printf("audit delete failed: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func isValidCommentContent(content string) bool {

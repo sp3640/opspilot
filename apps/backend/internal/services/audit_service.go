@@ -1,16 +1,32 @@
 package services
 
 import (
+	"errors"
+
+	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
+	"gorm.io/gorm"
 )
 
 type AuditService struct {
-	repo *repository.AuditRepository
+	repo         *repository.AuditRepository
+	projectRepo  *repository.ProjectRepository
+	incidentRepo *repository.IncidentRepository
 }
 
 func NewAuditService(repo *repository.AuditRepository) *AuditService {
 	return &AuditService{repo: repo}
+}
+
+func (s *AuditService) WithProjectRepo(projectRepo *repository.ProjectRepository) *AuditService {
+	s.projectRepo = projectRepo
+	return s
+}
+
+func (s *AuditService) WithIncidentRepo(incidentRepo *repository.IncidentRepository) *AuditService {
+	s.incidentRepo = incidentRepo
+	return s
 }
 
 func (s *AuditService) LogCreate(userID uint, entityType string, entityID uint, projectID *uint, incidentID *uint) error {
@@ -53,4 +69,36 @@ func (s *AuditService) LogDelete(userID uint, entityType string, entityID uint, 
 	}
 
 	return s.repo.Create(log)
+}
+
+func (s *AuditService) GetIncidentAuditLogs(userID uint, incidentID uint) ([]models.AuditLog, error) {
+	incident, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrProjectForbidden) {
+			return nil, apperrors.ErrProjectForbidden
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrIncidentNotFound
+		}
+		return nil, err
+	}
+
+	_ = incident
+	return s.repo.GetByIncidentID(incidentID)
+}
+
+func (s *AuditService) GetProjectAuditLogs(userID uint, projectID uint) ([]models.AuditLog, error) {
+	project, err := s.projectRepo.GetByIDAndUserID(projectID, userID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrProjectForbidden) {
+			return nil, apperrors.ErrProjectForbidden
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrProjectNotFound
+		}
+		return nil, err
+	}
+
+	_ = project
+	return s.repo.GetByProjectID(projectID)
 }
