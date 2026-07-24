@@ -22,10 +22,12 @@ func main() {
 	projectRepo := repository.NewProjectRepository(database.DB)
 	incidentRepo := repository.NewIncidentRepository(database.DB)
 	commentRepo := repository.NewCommentRepository(database.DB)
+	auditRepo := repository.NewAuditRepository(database.DB)
 
 	userService := services.NewUserService(repo, cfg)
 	projectService := services.NewProjectService(projectRepo)
-	incidentService := services.NewIncidentService(incidentRepo)
+	auditService := services.NewAuditService(auditRepo)
+	incidentService := services.NewIncidentService(incidentRepo, auditService)
 	commentService := services.NewCommentService(commentRepo, incidentRepo)
 
 	authHandler := handlers.NewAuthHandler(userService)
