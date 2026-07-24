@@ -20,6 +20,11 @@ var (
 	ErrInvalidStatus    = errors.New("invalid status")
 	ErrInvalidProject   = errors.New("invalid project")
 
+	// Comment errors
+	ErrCommentNotFound       = errors.New("comment not found")
+	ErrCommentForbidden      = errors.New("forbidden")
+	ErrInvalidCommentContent = errors.New("invalid comment content")
+
 	// Generic errors
 	ErrInternal = errors.New("internal server error")
 )

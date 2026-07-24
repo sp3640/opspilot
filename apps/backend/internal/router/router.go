@@ -15,6 +15,7 @@ func RegisterRoutes(
 	userHandler *handlers.UserHandler,
 	projectHandler *handlers.ProjectHandler,
 	incidentHandler *handlers.IncidentHandler,
+	commentHandler *handlers.CommentHandler,
 ) {
 	r.GET("/health", handlers.HealthCheck)
 
@@ -62,6 +63,15 @@ func RegisterRoutes(
 			incidents.GET("/:id", incidentHandler.GetByID)
 			incidents.PUT("/:id", incidentHandler.Update)
 			incidents.DELETE("/:id", incidentHandler.Delete)
+			incidents.POST("/:id/comments", commentHandler.Create)
+			incidents.GET("/:id/comments", commentHandler.List)
+		}
+
+		comments := api.Group("/comments")
+		comments.Use(middleware.AuthMiddleware(cfg))
+		{
+			comments.PUT("/:id", commentHandler.Update)
+			comments.DELETE("/:id", commentHandler.Delete)
 		}
 	}
 }
