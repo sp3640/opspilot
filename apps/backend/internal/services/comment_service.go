@@ -76,6 +76,31 @@ func (s *CommentService) GetCommentsByIncidentID(incidentID, userID uint) ([]mod
 	return s.commentRepo.GetByIncidentID(incidentID)
 }
 
+func (s *CommentService) ListCommentsByIncidentID(incidentID, userID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	if _, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID); err != nil {
+		if errors.Is(err, apperrors.ErrProjectForbidden) {
+			return nil, apperrors.ErrProjectForbidden
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrIncidentNotFound
+		}
+		return nil, err
+	}
+
+	items, total, err := s.commentRepo.ListByIncidentID(req, incidentID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PaginationResponse{
+		Page:       req.Page,
+		Limit:      req.Limit,
+		Total:      total,
+		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
+		Items:      items,
+	}, nil
+}
+
 func (s *CommentService) UpdateComment(id, userID uint, content string) (*models.Comment, error) {
 	comment, err := s.commentRepo.GetByID(id)
 	if err != nil {

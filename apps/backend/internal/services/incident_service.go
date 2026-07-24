@@ -63,6 +63,21 @@ func (s *IncidentService) GetMyIncidents(userID uint) ([]models.Incident, error)
 	return s.repo.GetAllByUserID(userID)
 }
 
+func (s *IncidentService) ListMyIncidents(userID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	items, total, err := s.repo.ListByUserID(req, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PaginationResponse{
+		Page:       req.Page,
+		Limit:      req.Limit,
+		Total:      total,
+		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
+		Items:      items,
+	}, nil
+}
+
 func (s *IncidentService) GetIncidentByID(id, userID uint) (*models.Incident, error) {
 	incident, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {

@@ -87,6 +87,31 @@ func (s *AuditService) GetIncidentAuditLogs(userID uint, incidentID uint) ([]mod
 	return s.repo.GetByIncidentID(incidentID)
 }
 
+func (s *AuditService) ListIncidentAuditLogs(userID uint, incidentID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	if _, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID); err != nil {
+		if errors.Is(err, apperrors.ErrProjectForbidden) {
+			return nil, apperrors.ErrProjectForbidden
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrIncidentNotFound
+		}
+		return nil, err
+	}
+
+	items, total, err := s.repo.ListByIncidentID(req, incidentID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PaginationResponse{
+		Page:       req.Page,
+		Limit:      req.Limit,
+		Total:      total,
+		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
+		Items:      items,
+	}, nil
+}
+
 func (s *AuditService) GetProjectAuditLogs(userID uint, projectID uint) ([]models.AuditLog, error) {
 	project, err := s.projectRepo.GetByIDAndUserID(projectID, userID)
 	if err != nil {
@@ -101,4 +126,29 @@ func (s *AuditService) GetProjectAuditLogs(userID uint, projectID uint) ([]model
 
 	_ = project
 	return s.repo.GetByProjectID(projectID)
+}
+
+func (s *AuditService) ListProjectAuditLogs(userID uint, projectID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	if _, err := s.projectRepo.GetByIDAndUserID(projectID, userID); err != nil {
+		if errors.Is(err, apperrors.ErrProjectForbidden) {
+			return nil, apperrors.ErrProjectForbidden
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrProjectNotFound
+		}
+		return nil, err
+	}
+
+	items, total, err := s.repo.ListByProjectID(req, projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PaginationResponse{
+		Page:       req.Page,
+		Limit:      req.Limit,
+		Total:      total,
+		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
+		Items:      items,
+	}, nil
 }

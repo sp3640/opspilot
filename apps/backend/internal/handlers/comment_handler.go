@@ -69,7 +69,11 @@ func (h *CommentHandler) List(c *gin.Context) {
 
 	userID := c.MustGet("userID").(uint)
 
-	comments, err := h.service.GetCommentsByIncidentID(uint(incidentID), userID)
+	req, ok := parsePagination(c, "created_at", "updated_at")
+	if !ok {
+		return
+	}
+	result, err := h.service.ListCommentsByIncidentID(uint(incidentID), userID, req)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectForbidden:
@@ -82,7 +86,7 @@ func (h *CommentHandler) List(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "Comments fetched successfully", comments)
+	response.OK(c, "Comments fetched successfully", result)
 }
 
 func (h *CommentHandler) Update(c *gin.Context) {

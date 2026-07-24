@@ -45,6 +45,60 @@ func (r *IncidentRepository) GetAllByUserID(userID uint) ([]models.Incident, err
 	return incidents, nil
 }
 
+func (r *IncidentRepository) ListByUserID(req *models.PaginationRequest, userID uint) ([]models.Incident, int64, error) {
+	if err := req.Validate("title", "severity", "status", "created_at", "updated_at"); err != nil {
+		return nil, 0, err
+	}
+	query := r.db.Model(&models.Incident{}).Where("user_id = ?", userID)
+
+	if req.Search != "" {
+		query = query.Where("title ILIKE ? OR description ILIKE ?", "%"+req.Search+"%", "%"+req.Search+"%")
+	}
+	if req.Status != "" {
+		query = query.Where("status = ?", req.Status)
+	}
+	if req.Severity != "" {
+		query = query.Where("severity = ?", req.Severity)
+	}
+	if req.ProjectID != 0 {
+		query = query.Where("project_id = ?", req.ProjectID)
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	sortField := "created_at"
+	if req.Sort != "" {
+		switch req.Sort {
+		case "title":
+			sortField = "title"
+		case "severity":
+			sortField = "severity"
+		case "status":
+			sortField = "status"
+		case "created_at":
+			sortField = "created_at"
+		case "updated_at":
+			sortField = "updated_at"
+		}
+	}
+
+	order := "DESC"
+	if req.Order == "asc" {
+		order = "ASC"
+	}
+
+	var incidents []models.Incident
+	err := query.Order(sortField + " " + order).Limit(req.Limit).Offset((req.Page - 1) * req.Limit).Find(&incidents).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return incidents, total, nil
+}
+
 func (r *IncidentRepository) Update(incident *models.Incident) error {
 	return r.db.Save(incident).Error
 }

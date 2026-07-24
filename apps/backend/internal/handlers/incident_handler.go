@@ -72,13 +72,20 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 func (h *IncidentHandler) List(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
-	incidents, err := h.service.GetMyIncidents(userID)
+	req, ok := parsePagination(c, "title", "severity", "status", "created_at", "updated_at")
+	if !ok {
+		return
+	}
+	projectID, _ := strconv.Atoi(c.Query("projectID"))
+
+	req.ProjectID = uint(projectID)
+	result, err := h.service.ListMyIncidents(userID, req)
 	if err != nil {
 		response.InternalServerError(c)
 		return
 	}
 
-	response.OK(c, "Incidents fetched successfully", incidents)
+	response.OK(c, "Incidents fetched successfully", result)
 }
 
 func (h *IncidentHandler) GetByID(c *gin.Context) {

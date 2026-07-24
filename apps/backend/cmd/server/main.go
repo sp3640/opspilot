@@ -23,6 +23,7 @@ func main() {
 	incidentRepo := repository.NewIncidentRepository(database.DB)
 	commentRepo := repository.NewCommentRepository(database.DB)
 	auditRepo := repository.NewAuditRepository(database.DB)
+	dashboardRepo := repository.NewDashboardRepository(database.DB)
 
 	userService := services.NewUserService(repo, cfg)
 	auditService := services.NewAuditService(auditRepo).
@@ -31,6 +32,7 @@ func main() {
 	projectService := services.NewProjectService(projectRepo, auditService)
 	incidentService := services.NewIncidentService(incidentRepo, auditService)
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
+	dashboardService := services.NewDashboardService(dashboardRepo)
 
 	authHandler := handlers.NewAuthHandler(userService)
 	userHandler := handlers.NewUserHandler(userService)
@@ -38,6 +40,7 @@ func main() {
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
 	commentHandler := handlers.NewCommentHandler(commentService)
 	auditHandler := handlers.NewAuditHandler(auditService)
+	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 
 	r := gin.Default()
 
@@ -50,6 +53,7 @@ func main() {
 		incidentHandler,
 		commentHandler,
 		auditHandler,
+		dashboardHandler,
 	)
 
 	log.Printf(

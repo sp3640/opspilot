@@ -1,15 +1,21 @@
 package config
 
 import (
-	"log"
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	AppName string
-	AppEnv  string
-	Port    string
+	AppName   string
+	AppEnv    string
+	Port      string
+	Version   string
+	DBURL     string
+	RateLimit int
 
 	DBHost     string
 	DBPort     string
@@ -22,24 +28,146 @@ type Config struct {
 	JWTExpiry string
 }
 
-func Load() *Config {
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using system environment variables")
+// Load reads environment configuration and validates all startup-critical values.
+// DATABASE_URL is preferred, while the legacy DB_* variables remain supported for
+// backwards compatibility.
+func Load() (*Config, error) {
+	// A missing .env file is normal in containers and production. Environment
+	// variables that are already set always take precedence over values in .env.
+	_ = godotenv.Load()
+
+	rateLimit, err := getPositiveIntEnv([]string{
+		"RATE_LIMIT_REQUESTS_PER_MINUTE",
+		"RATE_LIMIT_REQUESTS",
+		"RATE_LIMIT_PER_MINUTE",
+	}, 100)
+	if err != nil {
+		return nil, err
 	}
 
-	return &Config{
-		AppName: getEnv("APP_NAME", "OpsPilot Backend"),
-		AppEnv:  getEnv("APP_ENV", "development"),
-		Port:    getEnv("PORT", "8080"),
+	cfg := &Config{
+		AppName:   getEnv("APP_NAME", "OpsPilot Backend"),
+		AppEnv:    getEnv("APP_ENV", "development"),
+		Port:      getEnv("PORT", "8080"),
+		Version:   getEnv("APP_VERSION", "dev"),
+		DBURL:     strings.TrimSpace(getEnv("DATABASE_URL", "")),
+		RateLimit: rateLimit,
 
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBUser:     getEnv("DB_USER", "postgres"),
+		DBHost:     strings.TrimSpace(getEnv("DB_HOST", "")),
+		DBPort:     strings.TrimSpace(getEnv("DB_PORT", "5432")),
+		DBUser:     strings.TrimSpace(getEnv("DB_USER", "")),
 		DBPassword: getEnv("DB_PASSWORD", ""),
-		DBName:     getEnv("DB_NAME", "postgres"),
+		DBName:     strings.TrimSpace(getEnv("DB_NAME", "")),
 		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
 
-		JWTSecret: getEnv("JWT_SECRET", "your-super-secret-key-change-this"),
+		JWTSecret: strings.TrimSpace(getEnv("JWT_SECRET", "")),
 		JWTExpiry: getEnv("JWT_EXPIRY", "24h"),
 	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+// Validate fails fast for configuration that would otherwise cause an unsafe or
+// unavailable service at runtime.
+func (c *Config) Validate() error {
+	if c == nil {
+		return fmt.Errorf("configuration is required")
+	}
+
+	c.AppEnv = strings.ToLower(strings.TrimSpace(c.AppEnv))
+	switch c.AppEnv {
+	case "development", "test", "staging", "production":
+	default:
+		return fmt.Errorf("APP_ENV must be one of development, test, staging, or production")
+	}
+
+	if _, err := validatePort(c.Port, "PORT"); err != nil {
+		return err
+	}
+
+	if len(c.JWTSecret) < 32 {
+		return fmt.Errorf("JWT_SECRET must be set and contain at least 32 characters")
+	}
+
+	if c.DBURL != "" {
+		if err := validateDatabaseURL(c.DBURL); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if c.DBHost == "" || c.DBUser == "" || c.DBName == "" {
+		return fmt.Errorf("DATABASE_URL or DB_HOST, DB_USER, and DB_NAME must be configured")
+	}
+	if _, err := validatePort(c.DBPort, "DB_PORT"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validatePort(value, name string) (int, error) {
+	port, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || port < 1 || port > 65535 {
+		return 0, fmt.Errorf("%s must be a valid port between 1 and 65535", name)
+	}
+	return port, nil
+}
+
+func validateDatabaseURL(value string) error {
+	databaseURL, err := url.ParseRequestURI(value)
+	if err != nil || databaseURL.Host == "" {
+		return fmt.Errorf("DATABASE_URL must be a valid PostgreSQL connection URL")
+	}
+	if databaseURL.Scheme != "postgres" && databaseURL.Scheme != "postgresql" {
+		return fmt.Errorf("DATABASE_URL must use the postgres or postgresql scheme")
+	}
+	if port := databaseURL.Port(); port != "" {
+		if _, err := validatePort(port, "DATABASE_URL port"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func getPositiveIntEnv(keys []string, fallback int) (int, error) {
+	value := ""
+	key := keys[0]
+	for _, candidate := range keys {
+		if configured := strings.TrimSpace(getEnv(candidate, "")); configured != "" {
+			value = configured
+			key = candidate
+			break
+		}
+	}
+	if value == "" {
+		value = strconv.Itoa(fallback)
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 1 {
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+	return parsed, nil
+}
+
+// DatabaseDSN returns the preferred database URL or a PostgreSQL DSN composed
+// from the backwards-compatible DB_* configuration fields.
+func (c *Config) DatabaseDSN() string {
+	if c.DBURL != "" {
+		return c.DBURL
+	}
+
+	return fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		c.DBHost,
+		c.DBUser,
+		c.DBPassword,
+		c.DBName,
+		c.DBPort,
+		c.DBSSLMode,
+	)
 }

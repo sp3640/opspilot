@@ -57,6 +57,47 @@ func (r *ProjectRepository) GetAllByUserID(userID uint) ([]models.Project, error
 	return projects, nil
 }
 
+func (r *ProjectRepository) ListByUserID(req *models.PaginationRequest, userID uint) ([]models.Project, int64, error) {
+	if err := req.Validate("name", "created_at", "updated_at"); err != nil {
+		return nil, 0, err
+	}
+	query := r.db.Model(&models.Project{}).Where("user_id = ?", userID)
+
+	if req.Search != "" {
+		query = query.Where("name ILIKE ?", "%"+req.Search+"%")
+	}
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	sortField := "created_at"
+	if req.Sort != "" {
+		switch req.Sort {
+		case "name":
+			sortField = "name"
+		case "created_at":
+			sortField = "created_at"
+		case "updated_at":
+			sortField = "updated_at"
+		}
+	}
+
+	order := "DESC"
+	if req.Order == "asc" {
+		order = "ASC"
+	}
+
+	var projects []models.Project
+	err := query.Order(sortField + " " + order).Limit(req.Limit).Offset((req.Page - 1) * req.Limit).Find(&projects).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return projects, total, nil
+}
+
 func (r *ProjectRepository) Update(project *models.Project) error {
 	return r.db.Save(project).Error
 }

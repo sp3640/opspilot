@@ -27,7 +27,11 @@ func (h *AuditHandler) GetIncidentAuditLogs(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
-	logs, err := h.service.GetIncidentAuditLogs(userID, uint(incidentID))
+	req, ok := parsePagination(c, "created_at", "entity_type", "action")
+	if !ok {
+		return
+	}
+	result, err := h.service.ListIncidentAuditLogs(userID, uint(incidentID), req)
 	if err != nil {
 		switch err {
 		case apperrors.ErrIncidentNotFound:
@@ -40,7 +44,7 @@ func (h *AuditHandler) GetIncidentAuditLogs(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "Audit logs fetched successfully", logs)
+	response.OK(c, "Audit logs fetched successfully", result)
 }
 
 func (h *AuditHandler) GetProjectAuditLogs(c *gin.Context) {
@@ -51,7 +55,11 @@ func (h *AuditHandler) GetProjectAuditLogs(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
-	logs, err := h.service.GetProjectAuditLogs(userID, uint(projectID))
+	req, ok := parsePagination(c, "created_at", "entity_type", "action")
+	if !ok {
+		return
+	}
+	result, err := h.service.ListProjectAuditLogs(userID, uint(projectID), req)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:
@@ -64,5 +72,5 @@ func (h *AuditHandler) GetProjectAuditLogs(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, "Audit logs fetched successfully", logs)
+	response.OK(c, "Audit logs fetched successfully", result)
 }

@@ -58,13 +58,17 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 func (h *ProjectHandler) List(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
-	projects, err := h.service.GetMyProjects(userID)
+	req, ok := parsePagination(c, "name", "created_at", "updated_at")
+	if !ok {
+		return
+	}
+	result, err := h.service.ListMyProjects(userID, req)
 	if err != nil {
 		response.InternalServerError(c)
 		return
 	}
 
-	response.OK(c, "Projects fetched successfully", projects)
+	response.OK(c, "Projects fetched successfully", result)
 }
 
 func (h *ProjectHandler) GetByID(c *gin.Context) {

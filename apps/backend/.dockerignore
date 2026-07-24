@@ -1,0 +1,22 @@
+# Source-control and local tooling
+.git
+.agents
+.codex
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Build and test output
+bin
+coverage
+*.out
+*.test
+
+# Deployment/editor artifacts not needed by the Go build context
+k8s
+Dockerfile
+docker-compose.yml
+README.md
+.DS_Store

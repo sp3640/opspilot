@@ -17,6 +17,7 @@ func RegisterRoutes(
 	incidentHandler *handlers.IncidentHandler,
 	commentHandler *handlers.CommentHandler,
 	auditHandler *handlers.AuditHandler,
+	dashboardHandler *handlers.DashboardHandler,
 ) {
 	r.GET("/health", handlers.HealthCheck)
 
@@ -75,6 +76,15 @@ func RegisterRoutes(
 		{
 			comments.PUT("/:id", commentHandler.Update)
 			comments.DELETE("/:id", commentHandler.Delete)
+		}
+
+		dashboard := api.Group("/dashboard")
+		dashboard.Use(middleware.AuthMiddleware(cfg))
+		{
+			dashboard.GET("/summary", dashboardHandler.Summary)
+			dashboard.GET("/recent-incidents", dashboardHandler.RecentIncidents)
+			dashboard.GET("/activity", dashboardHandler.Activity)
+			dashboard.GET("/stats", dashboardHandler.Stats)
 		}
 	}
 }

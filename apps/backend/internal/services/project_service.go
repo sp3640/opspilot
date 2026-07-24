@@ -49,6 +49,21 @@ func (s *ProjectService) GetMyProjects(userID uint) ([]models.Project, error) {
 	return s.repo.GetAllByUserID(userID)
 }
 
+func (s *ProjectService) ListMyProjects(userID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	items, total, err := s.repo.ListByUserID(req, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PaginationResponse{
+		Page:       req.Page,
+		Limit:      req.Limit,
+		Total:      total,
+		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
+		Items:      items,
+	}, nil
+}
+
 func (s *ProjectService) GetProjectByID(id, userID uint) (*models.Project, error) {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
