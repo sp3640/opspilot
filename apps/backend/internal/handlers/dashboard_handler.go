@@ -21,7 +21,7 @@ func (h *DashboardHandler) Summary(c *gin.Context) {
 
 	summary, err := h.service.GetSummary(userID)
 	if err != nil {
-		response.InternalServerError(c)
+		response.InternalServerError(c, err)
 		return
 	}
 
@@ -39,7 +39,7 @@ func (h *DashboardHandler) RecentIncidents(c *gin.Context) {
 
 	incidents, err := h.service.GetRecentIncidents(userID, limit)
 	if err != nil {
-		response.InternalServerError(c)
+		response.InternalServerError(c, err)
 		return
 	}
 
@@ -57,7 +57,7 @@ func (h *DashboardHandler) Activity(c *gin.Context) {
 
 	activity, err := h.service.GetRecentActivity(userID, limit)
 	if err != nil {
-		response.InternalServerError(c)
+		response.InternalServerError(c, err)
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *DashboardHandler) Stats(c *gin.Context) {
 
 	stats, err := h.service.GetStats(userID)
 	if err != nil {
-		response.InternalServerError(c)
+		response.InternalServerError(c, err)
 		return
 	}
 

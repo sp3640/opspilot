@@ -48,7 +48,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			response.Conflict(c, err.Error())
 
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 
 		return
@@ -83,7 +83,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			response.Unauthorized(c, err.Error())
 
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 
 		return

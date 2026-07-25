@@ -42,13 +42,14 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
 	err := h.service.Create(
+		c.Request.Context(),
 		req.Name,
 		req.Description,
 		userID,
 	)
 
 	if err != nil {
-		response.InternalServerError(c)
+		response.InternalServerError(c, err)
 		return
 	}
 
@@ -64,7 +65,7 @@ func (h *ProjectHandler) List(c *gin.Context) {
 	}
 	result, err := h.service.ListMyProjects(userID, req)
 	if err != nil {
-		response.InternalServerError(c)
+		response.InternalServerError(c, err)
 		return
 	}
 
@@ -88,7 +89,7 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -111,7 +112,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	project, err := h.service.UpdateProject(uint(projectID), userID, req.Name, req.Description)
+	project, err := h.service.UpdateProject(c.Request.Context(), uint(projectID), userID, req.Name, req.Description)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:
@@ -119,7 +120,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -136,7 +137,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteProject(uint(projectID), userID)
+	err = h.service.DeleteProject(c.Request.Context(), uint(projectID), userID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:
@@ -144,7 +145,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}

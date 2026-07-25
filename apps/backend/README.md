@@ -53,11 +53,11 @@ your platform's secret mechanism in deployed environments.
 | JWT_SECRET | none | Required. Use a high-entropy secret in every environment. |
 | JWT_EXPIRY | 24h | JWT lifetime accepted by Go duration parsing. |
 | DATABASE_URL | none | Preferred PostgreSQL connection URL. Takes precedence when set. |
-| DB_HOST | localhost | Legacy PostgreSQL host when DATABASE_URL is not set. |
-| DB_PORT | 5432 | Legacy PostgreSQL port. |
-| DB_USER | postgres | Legacy PostgreSQL user. |
-| DB_PASSWORD | none | Legacy PostgreSQL password. |
-| DB_NAME | postgres | Legacy PostgreSQL database name. |
+| DB_HOST | none | Required legacy PostgreSQL host when DATABASE_URL is not set. |
+	| DB_PORT | 5432 | Legacy PostgreSQL port. |
+| DB_USER | none | Required legacy PostgreSQL user when DATABASE_URL is not set. |
+	| DB_PASSWORD | none | Legacy PostgreSQL password. |
+| DB_NAME | none | Required legacy PostgreSQL database name when DATABASE_URL is not set. |
 | DB_SSLMODE | disable | PostgreSQL SSL mode; use require or stronger in production. |
 | RATE_LIMIT_REQUESTS | 100 | Maximum requests per IP per rate-limit window. |
 | RATE_LIMIT_WINDOW | 1m | Go duration for the rate-limit window. |
@@ -148,4 +148,3 @@ credentials.
   latency, and readiness failures.
 - Tune replica counts and resource values from observed production load; retain
   the readiness probe so unavailable pods receive no traffic during rollouts.
-

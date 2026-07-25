@@ -33,7 +33,8 @@ type rateLimitClient struct {
 type IPRateLimiter struct {
 	mu          sync.Mutex
 	clients     map[string]*rateLimitClient
-	perMinute   int
+	limit       int
+	window      time.Duration
 	now         func() time.Time
 	lastCleanup time.Time
 }
@@ -41,14 +42,24 @@ type IPRateLimiter struct {
 // NewIPRateLimiter creates a limiter that permits requestsPerMinute requests
 // per client IP. Non-positive values fall back to the documented default.
 func NewIPRateLimiter(requestsPerMinute int) *IPRateLimiter {
-	if requestsPerMinute <= 0 {
-		requestsPerMinute = DefaultRequestsPerMinute
+	return NewIPRateLimiterWithWindow(requestsPerMinute, time.Minute)
+}
+
+// NewIPRateLimiterWithWindow creates an IP token bucket with a configurable
+// refill window. A one-minute window is the documented production default.
+func NewIPRateLimiterWithWindow(requests int, window time.Duration) *IPRateLimiter {
+	if requests <= 0 {
+		requests = DefaultRequestsPerMinute
+	}
+	if window <= 0 {
+		window = time.Minute
 	}
 
 	return &IPRateLimiter{
-		clients:   make(map[string]*rateLimitClient),
-		perMinute: requestsPerMinute,
-		now:       time.Now,
+		clients: make(map[string]*rateLimitClient),
+		limit:   requests,
+		window:  window,
+		now:     time.Now,
 	}
 }
 
@@ -69,7 +80,7 @@ func (l *IPRateLimiter) Allow(clientIP string) (allowed bool, retryAfterSeconds 
 	if !found {
 		l.makeRoom()
 		client = &rateLimitClient{
-			tokens:   float64(l.perMinute),
+			tokens:   float64(l.limit),
 			lastSeen: now,
 		}
 		l.clients[clientIP] = client
@@ -78,8 +89,8 @@ func (l *IPRateLimiter) Allow(clientIP string) (allowed bool, retryAfterSeconds 
 	elapsed := now.Sub(client.lastSeen).Seconds()
 	if elapsed > 0 {
 		client.tokens = math.Min(
-			float64(l.perMinute),
-			client.tokens+elapsed*float64(l.perMinute)/time.Minute.Seconds(),
+			float64(l.limit),
+			client.tokens+elapsed*float64(l.limit)/l.window.Seconds(),
 		)
 	}
 	client.lastSeen = now
@@ -89,7 +100,7 @@ func (l *IPRateLimiter) Allow(clientIP string) (allowed bool, retryAfterSeconds 
 		return true, 0
 	}
 
-	retryAfter := int(math.Ceil((1 - client.tokens) * time.Minute.Seconds() / float64(l.perMinute)))
+	retryAfter := int(math.Ceil((1 - client.tokens) * l.window.Seconds() / float64(l.limit)))
 	if retryAfter < 1 {
 		retryAfter = 1
 	}
@@ -102,11 +113,19 @@ func (l *IPRateLimiter) cleanup(now time.Time) {
 	}
 
 	for clientIP, client := range l.clients {
-		if now.Sub(client.lastSeen) > clientIdleTTL {
+		if now.Sub(client.lastSeen) > l.idleTTL() {
 			delete(l.clients, clientIP)
 		}
 	}
 	l.lastCleanup = now
+}
+
+func (l *IPRateLimiter) idleTTL() time.Duration {
+	ttl := 2 * l.window
+	if ttl < clientIdleTTL {
+		return clientIdleTTL
+	}
+	return ttl
 }
 
 func (l *IPRateLimiter) makeRoom() {
@@ -152,7 +171,7 @@ func RateLimit(limiter *IPRateLimiter) gin.HandlerFunc {
 // RATE_LIMIT_PER_MINUTE are accepted as aliases. Invalid values use the safe
 // default.
 func RateLimitFromEnvironment() gin.HandlerFunc {
-	return RateLimit(NewIPRateLimiter(RateLimitPerMinuteFromEnvironment()))
+	return RateLimit(NewIPRateLimiterWithWindow(RateLimitPerMinuteFromEnvironment(), rateLimitWindowFromEnvironment()))
 }
 
 // RateLimitPerMinuteFromEnvironment returns the configured limit or the
@@ -172,4 +191,17 @@ func RateLimitPerMinuteFromEnvironment() int {
 	}
 
 	return requestsPerMinute
+}
+
+func rateLimitWindowFromEnvironment() time.Duration {
+	value := strings.TrimSpace(os.Getenv("RATE_LIMIT_WINDOW"))
+	if value == "" {
+		return time.Minute
+	}
+
+	window, err := time.ParseDuration(value)
+	if err != nil || window <= 0 {
+		return time.Minute
+	}
+	return window
 }

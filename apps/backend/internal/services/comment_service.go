@@ -1,8 +1,8 @@
 package services
 
 import (
+	"context"
 	"errors"
-	"log"
 	"strings"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -25,7 +25,7 @@ func NewCommentService(commentRepo *repository.CommentRepository, incidentRepo *
 	}
 }
 
-func (s *CommentService) CreateComment(content string, incidentID, userID uint) (*models.Comment, error) {
+func (s *CommentService) CreateComment(ctx context.Context, content string, incidentID, userID uint) (*models.Comment, error) {
 	trimmedContent := strings.TrimSpace(content)
 	if !isValidCommentContent(trimmedContent) {
 		return nil, apperrors.ErrInvalidCommentContent
@@ -55,7 +55,7 @@ func (s *CommentService) CreateComment(content string, incidentID, userID uint) 
 		incidentIDValue := incidentID
 		incidentIDPtr := &incidentIDValue
 		if err := s.auditRepo.LogCreate(userID, "comment", comment.ID, nil, incidentIDPtr); err != nil {
-			log.Printf("audit create failed: %v", err)
+			logAuditFailure(ctx, "create", "comment", comment.ID, err)
 		}
 	}
 
@@ -101,7 +101,7 @@ func (s *CommentService) ListCommentsByIncidentID(incidentID, userID uint, req *
 	}, nil
 }
 
-func (s *CommentService) UpdateComment(id, userID uint, content string) (*models.Comment, error) {
+func (s *CommentService) UpdateComment(ctx context.Context, id, userID uint, content string) (*models.Comment, error) {
 	comment, err := s.commentRepo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -129,14 +129,14 @@ func (s *CommentService) UpdateComment(id, userID uint, content string) (*models
 		incidentIDValue := comment.IncidentID
 		incidentIDPtr := &incidentIDValue
 		if err := s.auditRepo.LogUpdate(userID, "comment", comment.ID, nil, incidentIDPtr, "content", previousContent, trimmedContent); err != nil {
-			log.Printf("audit update failed: %v", err)
+			logAuditFailure(ctx, "update", "comment", comment.ID, err)
 		}
 	}
 
 	return comment, nil
 }
 
-func (s *CommentService) DeleteComment(id, userID uint) error {
+func (s *CommentService) DeleteComment(ctx context.Context, id, userID uint) error {
 	comment, err := s.commentRepo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -157,7 +157,7 @@ func (s *CommentService) DeleteComment(id, userID uint) error {
 		incidentIDValue := comment.IncidentID
 		incidentIDPtr := &incidentIDValue
 		if err := s.auditRepo.LogDelete(userID, "comment", comment.ID, nil, incidentIDPtr); err != nil {
-			log.Printf("audit delete failed: %v", err)
+			logAuditFailure(ctx, "delete", "comment", comment.ID, err)
 		}
 	}
 

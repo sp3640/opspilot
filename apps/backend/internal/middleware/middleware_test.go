@@ -143,7 +143,7 @@ func TestRecoveryReturnsSanitizedResponseAndLogsStack(t *testing.T) {
 	if strings.Contains(recorder.Body.String(), "sensitive implementation detail") {
 		t.Fatal("panic detail was exposed in response")
 	}
-	for _, field := range []string{`"message":"panic recovered"`, `"stack_trace":`, `"request_id":"`} {
+	for _, field := range []string{`"msg":"panic recovered"`, `"stack_trace":`, `"request_id":"`} {
 		if !strings.Contains(logs.String(), field) {
 			t.Errorf("recovery log does not contain %s: %s", field, logs.String())
 		}

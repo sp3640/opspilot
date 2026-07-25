@@ -33,7 +33,7 @@ func (h *UserHandler) Me(c *gin.Context) {
 			response.Error(c, http.StatusNotFound, err.Error())
 
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 
 		return

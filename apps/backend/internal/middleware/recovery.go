@@ -12,13 +12,27 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/response"
 )
 
+// PanicRecorder receives a notification when Recovery catches a panic. The
+// metrics collector implements this interface without creating a package cycle.
+type PanicRecorder interface {
+	RecordPanic()
+}
+
 // Recovery catches unhandled panics, logs diagnostic details internally, and
 // sends the application's standard error response without exposing the panic
 // or stack trace to clients.
-func Recovery() gin.HandlerFunc {
+func Recovery(recorders ...PanicRecorder) gin.HandlerFunc {
+	var recorder PanicRecorder
+	if len(recorders) > 0 {
+		recorder = recorders[0]
+	}
+
 	return func(c *gin.Context) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
+				if recorder != nil {
+					recorder.RecordPanic()
+				}
 				logger.Error(
 					c.Request.Context(),
 					"panic recovered",

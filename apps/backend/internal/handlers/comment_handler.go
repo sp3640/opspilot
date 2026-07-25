@@ -42,7 +42,7 @@ func (h *CommentHandler) Create(c *gin.Context) {
 
 	userID := c.MustGet("userID").(uint)
 
-	comment, err := h.service.CreateComment(req.Content, uint(incidentID), userID)
+	comment, err := h.service.CreateComment(c.Request.Context(), req.Content, uint(incidentID), userID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrInvalidCommentContent:
@@ -52,7 +52,7 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		case apperrors.ErrIncidentNotFound:
 			response.Error(c, http.StatusNotFound, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -81,7 +81,7 @@ func (h *CommentHandler) List(c *gin.Context) {
 		case apperrors.ErrIncidentNotFound:
 			response.Error(c, http.StatusNotFound, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -104,7 +104,7 @@ func (h *CommentHandler) Update(c *gin.Context) {
 
 	userID := c.MustGet("userID").(uint)
 
-	comment, err := h.service.UpdateComment(uint(commentID), userID, req.Content)
+	comment, err := h.service.UpdateComment(c.Request.Context(), uint(commentID), userID, req.Content)
 	if err != nil {
 		switch err {
 		case apperrors.ErrInvalidCommentContent:
@@ -114,7 +114,7 @@ func (h *CommentHandler) Update(c *gin.Context) {
 		case apperrors.ErrCommentForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -131,7 +131,7 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 
 	userID := c.MustGet("userID").(uint)
 
-	err = h.service.DeleteComment(uint(commentID), userID)
+	err = h.service.DeleteComment(c.Request.Context(), uint(commentID), userID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrCommentNotFound:
@@ -139,7 +139,7 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 		case apperrors.ErrCommentForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}

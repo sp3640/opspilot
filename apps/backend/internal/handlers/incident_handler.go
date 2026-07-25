@@ -45,6 +45,7 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
 	incident, err := h.service.CreateIncident(
+		c.Request.Context(),
 		req.Title,
 		req.Description,
 		req.Severity,
@@ -61,7 +62,7 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 		case apperrors.ErrInvalidProject:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -76,12 +77,15 @@ func (h *IncidentHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectID, _ := strconv.Atoi(c.Query("projectID"))
+	projectID, ok := parseOptionalPositiveUint(c, "projectID")
+	if !ok {
+		return
+	}
 
-	req.ProjectID = uint(projectID)
+	req.ProjectID = projectID
 	result, err := h.service.ListMyIncidents(userID, req)
 	if err != nil {
-		response.InternalServerError(c)
+		response.InternalServerError(c, err)
 		return
 	}
 
@@ -105,7 +109,7 @@ func (h *IncidentHandler) GetByID(c *gin.Context) {
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -129,6 +133,7 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 	}
 
 	incident, err := h.service.UpdateIncident(
+		c.Request.Context(),
 		uint(incidentID),
 		userID,
 		req.Title,
@@ -150,7 +155,7 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 		case apperrors.ErrInvalidProject:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -167,7 +172,7 @@ func (h *IncidentHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteIncident(uint(incidentID), userID)
+	err = h.service.DeleteIncident(c.Request.Context(), uint(incidentID), userID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrIncidentNotFound:
@@ -175,7 +180,7 @@ func (h *IncidentHandler) Delete(c *gin.Context) {
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}

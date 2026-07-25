@@ -39,7 +39,7 @@ func (h *AuditHandler) GetIncidentAuditLogs(c *gin.Context) {
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}
@@ -67,7 +67,7 @@ func (h *AuditHandler) GetProjectAuditLogs(c *gin.Context) {
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
-			response.InternalServerError(c)
+			response.InternalServerError(c, err)
 		}
 		return
 	}

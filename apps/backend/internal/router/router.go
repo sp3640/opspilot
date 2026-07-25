@@ -5,6 +5,7 @@ import (
 
 	"github.com/sp3640/opspilot/backend/internal/config"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
+	"github.com/sp3640/opspilot/backend/internal/metrics"
 	"github.com/sp3640/opspilot/backend/internal/middleware"
 )
 
@@ -18,8 +19,17 @@ func RegisterRoutes(
 	commentHandler *handlers.CommentHandler,
 	auditHandler *handlers.AuditHandler,
 	dashboardHandler *handlers.DashboardHandler,
+	healthHandler *handlers.HealthHandler,
+	collector *metrics.Collector,
 ) {
-	r.GET("/health", handlers.HealthCheck)
+	if healthHandler != nil {
+		r.GET("/health", healthHandler.HealthCheck)
+		r.GET("/ready", healthHandler.Ready)
+		r.GET("/live", healthHandler.Live)
+	}
+	if collector != nil {
+		r.GET("/metrics", collector.Handler)
+	}
 
 	api := r.Group("/api/v1")
 	{

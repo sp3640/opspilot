@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"strconv"
 
@@ -19,7 +20,7 @@ func NewIncidentService(repo *repository.IncidentRepository, auditService *Audit
 	return &IncidentService{repo: repo, auditRepo: auditService}
 }
 
-func (s *IncidentService) CreateIncident(title, description, severity, status string, projectID, userID uint) (*models.Incident, error) {
+func (s *IncidentService) CreateIncident(ctx context.Context, title, description, severity, status string, projectID, userID uint) (*models.Incident, error) {
 	if !isValidSeverity(severity) {
 		return nil, apperrors.ErrInvalidSeverity
 	}
@@ -52,7 +53,7 @@ func (s *IncidentService) CreateIncident(title, description, severity, status st
 		projectIDValue := projectID
 		projectIDPtr := &projectIDValue
 		if err := s.auditRepo.LogCreate(userID, "incident", incident.ID, projectIDPtr, nil); err != nil {
-			_ = err
+			logAuditFailure(ctx, "create", "incident", incident.ID, err)
 		}
 	}
 
@@ -92,7 +93,7 @@ func (s *IncidentService) GetIncidentByID(id, userID uint) (*models.Incident, er
 	return incident, nil
 }
 
-func (s *IncidentService) UpdateIncident(id, userID uint, title, description, severity, status string, projectID uint) (*models.Incident, error) {
+func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, title, description, severity, status string, projectID uint) (*models.Incident, error) {
 	incident, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -139,26 +140,36 @@ func (s *IncidentService) UpdateIncident(id, userID uint, title, description, se
 		projectIDValue := projectID
 		projectIDPtr := &projectIDValue
 		if previousTitle != title {
-			_ = s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "title", previousTitle, title)
+			if err := s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "title", previousTitle, title); err != nil {
+				logAuditFailure(ctx, "update", "incident", incident.ID, err)
+			}
 		}
 		if previousDescription != description {
-			_ = s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "description", previousDescription, description)
+			if err := s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "description", previousDescription, description); err != nil {
+				logAuditFailure(ctx, "update", "incident", incident.ID, err)
+			}
 		}
 		if previousSeverity != severity {
-			_ = s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "severity", previousSeverity, severity)
+			if err := s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "severity", previousSeverity, severity); err != nil {
+				logAuditFailure(ctx, "update", "incident", incident.ID, err)
+			}
 		}
 		if previousStatus != status {
-			_ = s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "status", previousStatus, status)
+			if err := s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "status", previousStatus, status); err != nil {
+				logAuditFailure(ctx, "update", "incident", incident.ID, err)
+			}
 		}
 		if previousProjectID != projectID {
-			_ = s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "project_id", strconv.Itoa(int(previousProjectID)), strconv.Itoa(int(projectID)))
+			if err := s.auditRepo.LogUpdate(userID, "incident", incident.ID, projectIDPtr, nil, "project_id", strconv.Itoa(int(previousProjectID)), strconv.Itoa(int(projectID))); err != nil {
+				logAuditFailure(ctx, "update", "incident", incident.ID, err)
+			}
 		}
 	}
 
 	return incident, nil
 }
 
-func (s *IncidentService) DeleteIncident(id, userID uint) error {
+func (s *IncidentService) DeleteIncident(ctx context.Context, id, userID uint) error {
 	incident, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -177,7 +188,9 @@ func (s *IncidentService) DeleteIncident(id, userID uint) error {
 	if s.auditRepo != nil {
 		projectIDValue := incident.ProjectID
 		projectIDPtr := &projectIDValue
-		_ = s.auditRepo.LogDelete(userID, "incident", incident.ID, projectIDPtr, nil)
+		if err := s.auditRepo.LogDelete(userID, "incident", incident.ID, projectIDPtr, nil); err != nil {
+			logAuditFailure(ctx, "delete", "incident", incident.ID, err)
+		}
 	}
 
 	return nil

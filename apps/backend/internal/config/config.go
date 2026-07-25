@@ -5,17 +5,19 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	AppName   string
-	AppEnv    string
-	Port      string
-	Version   string
-	DBURL     string
-	RateLimit int
+	AppName         string
+	AppEnv          string
+	Port            string
+	Version         string
+	DBURL           string
+	RateLimit       int
+	RateLimitWindow time.Duration
 
 	DBHost     string
 	DBPort     string
@@ -44,14 +46,19 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	rateLimitWindow, err := getDurationEnv("RATE_LIMIT_WINDOW", time.Minute)
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := &Config{
-		AppName:   getEnv("APP_NAME", "OpsPilot Backend"),
-		AppEnv:    getEnv("APP_ENV", "development"),
-		Port:      getEnv("PORT", "8080"),
-		Version:   getEnv("APP_VERSION", "dev"),
-		DBURL:     strings.TrimSpace(getEnv("DATABASE_URL", "")),
-		RateLimit: rateLimit,
+		AppName:         getEnv("APP_NAME", "OpsPilot Backend"),
+		AppEnv:          getEnv("APP_ENV", "development"),
+		Port:            getEnv("PORT", "8080"),
+		Version:         getEnv("APP_VERSION", "dev"),
+		DBURL:           strings.TrimSpace(getEnv("DATABASE_URL", "")),
+		RateLimit:       rateLimit,
+		RateLimitWindow: rateLimitWindow,
 
 		DBHost:     strings.TrimSpace(getEnv("DB_HOST", "")),
 		DBPort:     strings.TrimSpace(getEnv("DB_PORT", "5432")),
@@ -87,6 +94,18 @@ func (c *Config) Validate() error {
 
 	if _, err := validatePort(c.Port, "PORT"); err != nil {
 		return err
+	}
+	if c.RateLimit == 0 {
+		c.RateLimit = 100
+	}
+	if c.RateLimit < 1 {
+		return fmt.Errorf("RATE_LIMIT_REQUESTS_PER_MINUTE must be a positive integer")
+	}
+	if c.RateLimitWindow == 0 {
+		c.RateLimitWindow = time.Minute
+	}
+	if c.RateLimitWindow < 0 {
+		return fmt.Errorf("RATE_LIMIT_WINDOW must be a positive duration")
 	}
 
 	if len(c.JWTSecret) < 32 {
@@ -150,6 +169,15 @@ func getPositiveIntEnv(keys []string, fallback int) (int, error) {
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed < 1 {
 		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+	return parsed, nil
+}
+
+func getDurationEnv(key string, fallback time.Duration) (time.Duration, error) {
+	value := strings.TrimSpace(getEnv(key, fallback.String()))
+	parsed, err := time.ParseDuration(value)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration", key)
 	}
 	return parsed, nil
 }

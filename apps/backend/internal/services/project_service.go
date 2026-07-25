@@ -1,8 +1,8 @@
 package services
 
 import (
+	"context"
 	"errors"
-	"log"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
@@ -22,7 +22,7 @@ func NewProjectService(repo *repository.ProjectRepository, auditService *AuditSe
 	}
 }
 
-func (s *ProjectService) Create(name, description string, userID uint) error {
+func (s *ProjectService) Create(ctx context.Context, name, description string, userID uint) error {
 
 	project := &models.Project{
 		Name:        name,
@@ -38,7 +38,7 @@ func (s *ProjectService) Create(name, description string, userID uint) error {
 		projectIDValue := project.ID
 		projectIDPtr := &projectIDValue
 		if err := s.auditRepo.LogCreate(userID, "project", project.ID, projectIDPtr, nil); err != nil {
-			log.Printf("audit create failed: %v", err)
+			logAuditFailure(ctx, "create", "project", project.ID, err)
 		}
 	}
 
@@ -79,7 +79,7 @@ func (s *ProjectService) GetProjectByID(id, userID uint) (*models.Project, error
 	return project, nil
 }
 
-func (s *ProjectService) UpdateProject(id, userID uint, name, description string) (*models.Project, error) {
+func (s *ProjectService) UpdateProject(ctx context.Context, id, userID uint, name, description string) (*models.Project, error) {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -106,12 +106,12 @@ func (s *ProjectService) UpdateProject(id, userID uint, name, description string
 		projectIDPtr := &projectIDValue
 		if previousName != name {
 			if err := s.auditRepo.LogUpdate(userID, "project", project.ID, projectIDPtr, nil, "name", previousName, name); err != nil {
-				log.Printf("audit update failed: %v", err)
+				logAuditFailure(ctx, "update", "project", project.ID, err)
 			}
 		}
 		if previousDescription != description {
 			if err := s.auditRepo.LogUpdate(userID, "project", project.ID, projectIDPtr, nil, "description", previousDescription, description); err != nil {
-				log.Printf("audit update failed: %v", err)
+				logAuditFailure(ctx, "update", "project", project.ID, err)
 			}
 		}
 	}
@@ -119,7 +119,7 @@ func (s *ProjectService) UpdateProject(id, userID uint, name, description string
 	return project, nil
 }
 
-func (s *ProjectService) DeleteProject(id, userID uint) error {
+func (s *ProjectService) DeleteProject(ctx context.Context, id, userID uint) error {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -139,7 +139,7 @@ func (s *ProjectService) DeleteProject(id, userID uint) error {
 		projectIDValue := project.ID
 		projectIDPtr := &projectIDValue
 		if err := s.auditRepo.LogDelete(userID, "project", project.ID, projectIDPtr, nil); err != nil {
-			log.Printf("audit delete failed: %v", err)
+			logAuditFailure(ctx, "delete", "project", project.ID, err)
 		}
 	}
 
