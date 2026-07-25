@@ -1,0 +1,84 @@
+.
+├── backend-tree.txt
+├── cmd
+│   └── server
+│       └── main.go
+├── docker-compose.yml
+├── Dockerfile
+├── .dockerignore
+├── .env
+├── .env.example
+├── go.mod
+├── go.sum
+├── internal
+│   ├── apperrors
+│   │   └── errors.go
+│   ├── auth
+│   │   └── jwt.go
+│   ├── config
+│   │   ├── config.go
+│   │   ├── config_test.go
+│   │   └── env.go
+│   ├── database
+│   │   ├── database.go
+│   │   └── gorm_logger.go
+│   ├── handlers
+│   │   ├── audit_handler.go
+│   │   ├── auth.go
+│   │   ├── comment_handler.go
+│   │   ├── dashboard_handler.go
+│   │   ├── health.go
+│   │   ├── health_test.go
+│   │   ├── incident_handler.go
+│   │   ├── pagination.go
+│   │   ├── project_handler.go
+│   │   └── user.go
+│   ├── logger
+│   │   └── logger.go
+│   ├── metrics
+│   │   ├── metrics.go
+│   │   └── metrics_test.go
+│   ├── middleware
+│   │   ├── auth.go
+│   │   ├── middleware_test.go
+│   │   ├── rate_limit.go
+│   │   ├── recovery.go
+│   │   ├── request_id.go
+│   │   ├── request_logging.go
+│   │   └── security_headers.go
+│   ├── models
+│   │   ├── audit_log.go
+│   │   ├── comment.go
+│   │   ├── incident.go
+│   │   ├── pagination.go
+│   │   ├── pagination_test.go
+│   │   ├── project.go
+│   │   └── user.go
+│   ├── repository
+│   │   ├── audit_repository.go
+│   │   ├── comment_repository.go
+│   │   ├── dashboard_repository.go
+│   │   ├── incident_repository.go
+│   │   ├── project_repository.go
+│   │   └── user_repository.go
+│   ├── response
+│   │   └── response.go
+│   ├── router
+│   │   └── router.go
+│   └── services
+│       ├── audit_logging.go
+│       ├── audit_service.go
+│       ├── comment_service.go
+│       ├── dashboard_service.go
+│       ├── incident_service.go
+│       ├── project_service.go
+│       └── user_service.go
+├── k8s
+│   ├── configmap.yaml
+│   ├── deployment.yaml
+│   ├── kustomization.yaml
+│   ├── secret.example.yaml
+│   └── service.yaml
+└── README.md
+
+18 directories, 64 files
