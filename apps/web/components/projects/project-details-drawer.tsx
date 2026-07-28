@@ -1,0 +1,24 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Activity, ClipboardList, Rocket, Settings, Users, X } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
+import { ProjectEnvironmentBadge, ProjectHealthBadge } from "./project-status";
+import { getProjectIcon } from "./project-icon";
+import type { Project } from "./types";
+
+const tabs = [{ label: "Overview", icon: Activity }, { label: "Deployments", icon: Rocket }, { label: "Members", icon: Users }, { label: "Audit", icon: ClipboardList }, { label: "Settings", icon: Settings }];
+
+/** Right-side, modal project context without forcing the user away from portfolio work. */
+export function ProjectDetailsDrawer({ project, onClose }: { project: Project | null; onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState("Overview");
+  useEffect(() => { setActiveTab("Overview"); }, [project?.id]);
+  useEffect(() => { const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; if (project) window.addEventListener("keydown", closeOnEscape); return () => window.removeEventListener("keydown", closeOnEscape); }, [project, onClose]);
+  if (!project) return null;
+  const Icon = getProjectIcon(project.icon);
+  return <div className="fixed inset-0 z-[60] flex justify-end bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)]" role="presentation" onMouseDown={onClose}><aside role="dialog" aria-modal="true" aria-label={`${project.name} details`} onMouseDown={(event) => event.stopPropagation()} className="flex h-full w-full max-w-xl flex-col border-l shadow-[var(--shadow-lg)]" style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}><header className="border-b p-5" style={{ borderColor: "var(--border)" }}><div className="flex items-start justify-between gap-4"><div className="flex min-w-0 items-center gap-3"><div className="rounded-2xl p-3" style={{ color: "var(--primary)", backgroundColor: "color-mix(in srgb, var(--primary) 12%, transparent)" }}><Icon aria-hidden="true" className="h-5 w-5" /></div><div className="min-w-0"><h2 className="truncate text-xl font-semibold tracking-tight">{project.name}</h2><p className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>Project workspace</p></div></div><Button type="button" variant="ghost" onClick={onClose} className="h-9 w-9 rounded-xl p-0" aria-label="Close project details"><X aria-hidden="true" className="h-4 w-4" /></Button></div><div className="mt-5 flex gap-2"><ProjectHealthBadge health={project.health} /><ProjectEnvironmentBadge environment={project.environment} /></div></header><div className="overflow-x-auto border-b px-3" style={{ borderColor: "var(--border)" }}><div className="flex gap-1" role="tablist" aria-label="Project details sections">{tabs.map(({ label, icon: TabIcon }) => <button key={label} type="button" role="tab" aria-selected={activeTab === label} onClick={() => setActiveTab(label)} className="inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-medium transition-colors" style={{ color: activeTab === label ? "var(--primary)" : "var(--muted-foreground)", borderColor: activeTab === label ? "var(--primary)" : "transparent" }}><TabIcon aria-hidden="true" className="h-3.5 w-3.5" />{label}</button>)}</div></div><div className="flex-1 overflow-y-auto p-5">{activeTab === "Overview" ? <div className="space-y-6"><p className="text-sm leading-6" style={{ color: "var(--muted-foreground)" }}>{project.description}</p><dl className="grid grid-cols-2 gap-3"><DrawerStat label="Services" value={String(project.services)} /><DrawerStat label="Deployments" value={String(project.deployments)} /><DrawerStat label="Last deployment" value={project.lastDeployment} /><DrawerStat label="Project owner" value={project.owner.name} /></dl><div><h3 className="text-sm font-semibold">Team members</h3><div className="mt-3 space-y-2">{project.members.map((member) => <div key={member.name} className="flex items-center gap-3 rounded-2xl border p-3" style={{ borderColor: "var(--border)" }}><span className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold" style={{ backgroundColor: "var(--muted)" }}>{member.initials}</span><span className="text-sm font-medium">{member.name}</span></div>)}</div></div></div> : <div className="flex min-h-56 items-center justify-center rounded-2xl border p-6 text-center text-sm" style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}>{activeTab} activity for {project.name} will appear here.</div>}</div></aside></div>;
+}
+
+function DrawerStat({ label, value }: { label: string; value: string }) { return <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", backgroundColor: "color-mix(in srgb, var(--muted) 45%, transparent)" }}><dt className="text-xs" style={{ color: "var(--muted-foreground)" }}>{label}</dt><dd className="mt-1 font-semibold">{value}</dd></div>; }

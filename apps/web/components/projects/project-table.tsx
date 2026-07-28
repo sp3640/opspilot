@@ -1,0 +1,14 @@
+"use client";
+
+import { ChevronRight, Layers3, Users } from "lucide-react";
+
+import { ProjectEnvironmentBadge, ProjectHealthBadge } from "./project-status";
+import { getProjectIcon } from "./project-icon";
+import type { Project } from "./types";
+
+type ProjectTableProps = { projects: Project[]; onOpen: (project: Project) => void };
+
+/** Dense, keyboard-operable representation for project portfolio reviews. */
+export function ProjectTable({ projects, onOpen }: ProjectTableProps) {
+  return <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: "var(--border)" }}><table className="w-full min-w-[800px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.1em]" style={{ color: "var(--muted-foreground)", backgroundColor: "color-mix(in srgb, var(--muted) 55%, transparent)" }}><tr><th className="px-5 py-3 font-semibold">Project</th><th className="px-5 py-3 font-semibold">Health</th><th className="px-5 py-3 font-semibold">Environment</th><th className="px-5 py-3 font-semibold">Owner</th><th className="px-5 py-3 font-semibold">Services</th><th className="px-5 py-3 font-semibold">Last deployment</th><th className="w-12 px-5 py-3"><span className="sr-only">Open</span></th></tr></thead><tbody>{projects.map((project) => { const Icon = getProjectIcon(project.icon); return <tr key={project.id} tabIndex={0} onClick={() => onOpen(project)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(project); } }} className="cursor-pointer border-t transition-colors hover:bg-[var(--muted)] focus:bg-[var(--muted)] focus:outline-none" style={{ borderColor: "var(--border)" }}><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="rounded-xl p-2" style={{ color: "var(--primary)", backgroundColor: "color-mix(in srgb, var(--primary) 12%, transparent)" }}><Icon aria-hidden="true" className="h-4 w-4" /></span><div><p className="font-medium">{project.name}</p><p className="mt-0.5 max-w-60 truncate text-xs" style={{ color: "var(--muted-foreground)" }}>{project.description}</p></div></div></td><td className="px-5 py-4"><ProjectHealthBadge health={project.health} /></td><td className="px-5 py-4"><ProjectEnvironmentBadge environment={project.environment} /></td><td className="px-5 py-4">{project.owner.name}</td><td className="px-5 py-4"><span className="inline-flex items-center gap-1.5"><Layers3 aria-hidden="true" className="h-3.5 w-3.5" style={{ color: "var(--muted-foreground)" }} />{project.services}<Users aria-hidden="true" className="ml-2 h-3.5 w-3.5" style={{ color: "var(--muted-foreground)" }} />{project.members.length}</span></td><td className="px-5 py-4" style={{ color: "var(--muted-foreground)" }}>{project.lastDeployment}</td><td className="px-5 py-4"><ChevronRight aria-hidden="true" className="h-4 w-4" style={{ color: "var(--muted-foreground)" }} /></td></tr>; })}</tbody></table></div>;
+}
