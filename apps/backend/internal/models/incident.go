@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Incident struct {
 	ID          uint   `gorm:"primaryKey" json:"id"`
@@ -9,8 +13,8 @@ type Incident struct {
 	Severity    string `gorm:"size:20;not null" json:"severity"`
 	Status      string `gorm:"size:20;not null" json:"status"`
 
-	ProjectID uint `gorm:"not null;index" json:"project_id"`
-	UserID    uint `gorm:"not null;index" json:"user_id"`
+	ProjectID uuid.UUID `gorm:"type:uuid;not null;index" json:"project_id"`
+	UserID    uint      `gorm:"not null;index" json:"user_id"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

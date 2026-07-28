@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/response"
@@ -75,13 +75,13 @@ func (h *ProjectHandler) List(c *gin.Context) {
 func (h *ProjectHandler) GetByID(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
-	projectID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.BadRequest(c, "invalid project id")
 		return
 	}
 
-	project, err := h.service.GetProjectByID(uint(projectID), userID)
+	project, err := h.service.GetProjectByID(projectID, userID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:
@@ -100,7 +100,7 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 func (h *ProjectHandler) Update(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
-	projectID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.BadRequest(c, "invalid project id")
 		return
@@ -112,7 +112,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	project, err := h.service.UpdateProject(c.Request.Context(), uint(projectID), userID, req.Name, req.Description)
+	project, err := h.service.UpdateProject(c.Request.Context(), projectID, userID, req.Name, req.Description)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:
@@ -131,13 +131,13 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 func (h *ProjectHandler) Delete(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
-	projectID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.BadRequest(c, "invalid project id")
 		return
 	}
 
-	err = h.service.DeleteProject(c.Request.Context(), uint(projectID), userID)
+	err = h.service.DeleteProject(c.Request.Context(), projectID, userID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:

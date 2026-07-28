@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -52,9 +53,9 @@ func (s *CommentService) CreateComment(ctx context.Context, content string, inci
 	}
 
 	if s.auditRepo != nil {
-		incidentIDValue := incidentID
+		incidentIDValue := comment.IncidentID
 		incidentIDPtr := &incidentIDValue
-		if err := s.auditRepo.LogCreate(userID, "comment", comment.ID, nil, incidentIDPtr); err != nil {
+		if err := s.auditRepo.LogCreate(userID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr); err != nil {
 			logAuditFailure(ctx, "create", "comment", comment.ID, err)
 		}
 	}
@@ -128,7 +129,7 @@ func (s *CommentService) UpdateComment(ctx context.Context, id, userID uint, con
 	if s.auditRepo != nil && previousContent != trimmedContent {
 		incidentIDValue := comment.IncidentID
 		incidentIDPtr := &incidentIDValue
-		if err := s.auditRepo.LogUpdate(userID, "comment", comment.ID, nil, incidentIDPtr, "content", previousContent, trimmedContent); err != nil {
+		if err := s.auditRepo.LogUpdate(userID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr, "content", previousContent, trimmedContent); err != nil {
 			logAuditFailure(ctx, "update", "comment", comment.ID, err)
 		}
 	}
@@ -156,7 +157,7 @@ func (s *CommentService) DeleteComment(ctx context.Context, id, userID uint) err
 	if s.auditRepo != nil {
 		incidentIDValue := comment.IncidentID
 		incidentIDPtr := &incidentIDValue
-		if err := s.auditRepo.LogDelete(userID, "comment", comment.ID, nil, incidentIDPtr); err != nil {
+		if err := s.auditRepo.LogDelete(userID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr); err != nil {
 			logAuditFailure(ctx, "delete", "comment", comment.ID, err)
 		}
 	}

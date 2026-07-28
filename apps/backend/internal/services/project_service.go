@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
@@ -27,7 +28,7 @@ func (s *ProjectService) Create(ctx context.Context, name, description string, u
 	project := &models.Project{
 		Name:        name,
 		Description: description,
-		UserID:      userID,
+		OwnerID:     userID,
 	}
 
 	if err := s.repo.Create(project); err != nil {
@@ -35,10 +36,8 @@ func (s *ProjectService) Create(ctx context.Context, name, description string, u
 	}
 
 	if s.auditRepo != nil {
-		projectIDValue := project.ID
-		projectIDPtr := &projectIDValue
-		if err := s.auditRepo.LogCreate(userID, "project", project.ID, projectIDPtr, nil); err != nil {
-			logAuditFailure(ctx, "create", "project", project.ID, err)
+		if err := s.auditRepo.LogCreate(userID, "project", project.ID.String(), &project.ID, nil); err != nil {
+			logAuditFailure(ctx, "create", "project", uint(0), err)
 		}
 	}
 
@@ -64,7 +63,7 @@ func (s *ProjectService) ListMyProjects(userID uint, req *models.PaginationReque
 	}, nil
 }
 
-func (s *ProjectService) GetProjectByID(id, userID uint) (*models.Project, error) {
+func (s *ProjectService) GetProjectByID(id uuid.UUID, userID uint) (*models.Project, error) {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -79,7 +78,7 @@ func (s *ProjectService) GetProjectByID(id, userID uint) (*models.Project, error
 	return project, nil
 }
 
-func (s *ProjectService) UpdateProject(ctx context.Context, id, userID uint, name, description string) (*models.Project, error) {
+func (s *ProjectService) UpdateProject(ctx context.Context, id uuid.UUID, userID uint, name, description string) (*models.Project, error) {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -102,16 +101,15 @@ func (s *ProjectService) UpdateProject(ctx context.Context, id, userID uint, nam
 	}
 
 	if s.auditRepo != nil {
-		projectIDValue := project.ID
-		projectIDPtr := &projectIDValue
+		entityIDStr := project.ID.String()
 		if previousName != name {
-			if err := s.auditRepo.LogUpdate(userID, "project", project.ID, projectIDPtr, nil, "name", previousName, name); err != nil {
-				logAuditFailure(ctx, "update", "project", project.ID, err)
+			if err := s.auditRepo.LogUpdate(userID, "project", entityIDStr, &project.ID, nil, "name", previousName, name); err != nil {
+				logAuditFailure(ctx, "update", "project", uint(0), err)
 			}
 		}
 		if previousDescription != description {
-			if err := s.auditRepo.LogUpdate(userID, "project", project.ID, projectIDPtr, nil, "description", previousDescription, description); err != nil {
-				logAuditFailure(ctx, "update", "project", project.ID, err)
+			if err := s.auditRepo.LogUpdate(userID, "project", entityIDStr, &project.ID, nil, "description", previousDescription, description); err != nil {
+				logAuditFailure(ctx, "update", "project", uint(0), err)
 			}
 		}
 	}
@@ -119,7 +117,7 @@ func (s *ProjectService) UpdateProject(ctx context.Context, id, userID uint, nam
 	return project, nil
 }
 
-func (s *ProjectService) DeleteProject(ctx context.Context, id, userID uint) error {
+func (s *ProjectService) DeleteProject(ctx context.Context, id uuid.UUID, userID uint) error {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -136,10 +134,8 @@ func (s *ProjectService) DeleteProject(ctx context.Context, id, userID uint) err
 	}
 
 	if s.auditRepo != nil {
-		projectIDValue := project.ID
-		projectIDPtr := &projectIDValue
-		if err := s.auditRepo.LogDelete(userID, "project", project.ID, projectIDPtr, nil); err != nil {
-			logAuditFailure(ctx, "delete", "project", project.ID, err)
+		if err := s.auditRepo.LogDelete(userID, "project", project.ID.String(), &project.ID, nil); err != nil {
+			logAuditFailure(ctx, "delete", "project", uint(0), err)
 		}
 	}
 

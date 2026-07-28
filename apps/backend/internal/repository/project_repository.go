@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
@@ -20,7 +21,7 @@ func (r *ProjectRepository) Create(project *models.Project) error {
 	return r.db.Create(project).Error
 }
 
-func (r *ProjectRepository) GetByID(id uint) (*models.Project, error) {
+func (r *ProjectRepository) GetByID(id uuid.UUID) (*models.Project, error) {
 	var project models.Project
 
 	err := r.db.First(&project, id).Error
@@ -31,7 +32,7 @@ func (r *ProjectRepository) GetByID(id uint) (*models.Project, error) {
 	return &project, nil
 }
 
-func (r *ProjectRepository) GetByIDAndUserID(id, userID uint) (*models.Project, error) {
+func (r *ProjectRepository) GetByIDAndUserID(id uuid.UUID, userID uint) (*models.Project, error) {
 	var project models.Project
 
 	err := r.db.Where("id = ?", id).First(&project).Error
@@ -39,7 +40,7 @@ func (r *ProjectRepository) GetByIDAndUserID(id, userID uint) (*models.Project, 
 		return nil, err
 	}
 
-	if project.UserID != userID {
+	if project.OwnerID != userID {
 		return nil, apperrors.ErrProjectForbidden
 	}
 
@@ -49,7 +50,7 @@ func (r *ProjectRepository) GetByIDAndUserID(id, userID uint) (*models.Project, 
 func (r *ProjectRepository) GetAllByUserID(userID uint) ([]models.Project, error) {
 	var projects []models.Project
 
-	err := r.db.Where("user_id = ?", userID).Find(&projects).Error
+	err := r.db.Where("owner_id = ?", userID).Find(&projects).Error
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func (r *ProjectRepository) ListByUserID(req *models.PaginationRequest, userID u
 	if err := req.Validate("name", "created_at", "updated_at"); err != nil {
 		return nil, 0, err
 	}
-	query := r.db.Model(&models.Project{}).Where("user_id = ?", userID)
+	query := r.db.Model(&models.Project{}).Where("owner_id = ?", userID)
 
 	if req.Search != "" {
 		query = query.Where("name ILIKE ?", "%"+req.Search+"%")
@@ -102,6 +103,6 @@ func (r *ProjectRepository) Update(project *models.Project) error {
 	return r.db.Save(project).Error
 }
 
-func (r *ProjectRepository) Delete(id uint) error {
+func (r *ProjectRepository) Delete(id uuid.UUID) error {
 	return r.db.Delete(&models.Project{}, id).Error
 }

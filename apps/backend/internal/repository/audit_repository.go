@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -25,7 +26,7 @@ func (r *AuditRepository) GetByIncidentID(incidentID uint) ([]models.AuditLog, e
 	return logs, nil
 }
 
-func (r *AuditRepository) GetByProjectID(projectID uint) ([]models.AuditLog, error) {
+func (r *AuditRepository) GetByProjectID(projectID uuid.UUID) ([]models.AuditLog, error) {
 	var logs []models.AuditLog
 	if err := r.db.Where("project_id = ?", projectID).Order("created_at DESC").Find(&logs).Error; err != nil {
 		return nil, err
@@ -33,7 +34,7 @@ func (r *AuditRepository) GetByProjectID(projectID uint) ([]models.AuditLog, err
 	return logs, nil
 }
 
-func (r *AuditRepository) ListByProjectID(req *models.PaginationRequest, projectID uint) ([]models.AuditLog, int64, error) {
+func (r *AuditRepository) ListByProjectID(req *models.PaginationRequest, projectID uuid.UUID) ([]models.AuditLog, int64, error) {
 	if err := req.Validate("created_at", "entity_type", "action"); err != nil {
 		return nil, 0, err
 	}

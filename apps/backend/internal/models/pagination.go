@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -14,17 +16,17 @@ const (
 )
 
 type PaginationRequest struct {
-	Page       int    `json:"page"`
-	Limit      int    `json:"limit"`
-	Search     string `json:"search"`
-	Sort       string `json:"sort"`
-	Order      string `json:"order"`
-	Status     string `json:"status"`
-	Severity   string `json:"severity"`
-	ProjectID  uint   `json:"project_id"`
-	IncidentID uint   `json:"incident_id"`
-	Action     string `json:"action"`
-	EntityType string `json:"entity_type"`
+	Page       int       `json:"page"`
+	Limit      int       `json:"limit"`
+	Search     string    `json:"search"`
+	Sort       string    `json:"sort"`
+	Order      string    `json:"order"`
+	Status     string    `json:"status"`
+	Severity   string    `json:"severity"`
+	ProjectID  uuid.UUID `json:"project_id"`
+	IncidentID uint      `json:"incident_id"`
+	Action     string    `json:"action"`
+	EntityType string    `json:"entity_type"`
 }
 
 func (p *PaginationRequest) Normalize() {

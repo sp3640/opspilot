@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/response"
@@ -48,7 +49,7 @@ func (h *AuditHandler) GetIncidentAuditLogs(c *gin.Context) {
 }
 
 func (h *AuditHandler) GetProjectAuditLogs(c *gin.Context) {
-	projectID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.BadRequest(c, "invalid project id")
 		return
@@ -59,7 +60,7 @@ func (h *AuditHandler) GetProjectAuditLogs(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.service.ListProjectAuditLogs(userID, uint(projectID), req)
+	result, err := h.service.ListProjectAuditLogs(userID, projectID, req)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/response"
@@ -16,19 +17,19 @@ type IncidentHandler struct {
 }
 
 type CreateIncidentRequest struct {
-	Title       string `json:"title" binding:"required"`
-	Description string `json:"description"`
-	Severity    string `json:"severity" binding:"required"`
-	Status      string `json:"status" binding:"required"`
-	ProjectID   uint   `json:"project_id" binding:"required"`
+	Title       string    `json:"title" binding:"required"`
+	Description string    `json:"description"`
+	Severity    string    `json:"severity" binding:"required"`
+	Status      string    `json:"status" binding:"required"`
+	ProjectID   uuid.UUID `json:"project_id" binding:"required"`
 }
 
 type UpdateIncidentRequest struct {
-	Title       string `json:"title" binding:"required"`
-	Description string `json:"description"`
-	Severity    string `json:"severity" binding:"required"`
-	Status      string `json:"status" binding:"required"`
-	ProjectID   uint   `json:"project_id" binding:"required"`
+	Title       string    `json:"title" binding:"required"`
+	Description string    `json:"description"`
+	Severity    string    `json:"severity" binding:"required"`
+	Status      string    `json:"status" binding:"required"`
+	ProjectID   uuid.UUID `json:"project_id" binding:"required"`
 }
 
 func NewIncidentHandler(service *services.IncidentService) *IncidentHandler {
@@ -77,7 +78,7 @@ func (h *IncidentHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectID, ok := parseOptionalPositiveUint(c, "projectID")
+	projectID, ok := parseOptionalUUID(c, "projectID")
 	if !ok {
 		return
 	}

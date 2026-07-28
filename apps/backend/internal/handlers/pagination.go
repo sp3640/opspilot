@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/response"
@@ -20,17 +20,17 @@ func parsePagination(c *gin.Context, allowedSortFields ...string) (*models.Pagin
 	return req, true
 }
 
-func parseOptionalPositiveUint(c *gin.Context, key string) (uint, bool) {
+func parseOptionalUUID(c *gin.Context, key string) (uuid.UUID, bool) {
 	rawValue, provided := c.GetQuery(key)
 	if !provided || strings.TrimSpace(rawValue) == "" {
-		return 0, true
+		return uuid.Nil, true
 	}
 
-	parsed, err := strconv.ParseUint(strings.TrimSpace(rawValue), 10, 0)
-	if err != nil || parsed == 0 {
+	parsed, err := uuid.Parse(strings.TrimSpace(rawValue))
+	if err != nil {
 		response.BadRequest(c, "invalid "+key)
-		return 0, false
+		return uuid.Nil, false
 	}
 
-	return uint(parsed), true
+	return parsed, true
 }

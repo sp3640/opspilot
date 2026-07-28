@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
@@ -60,7 +61,7 @@ func (r *IncidentRepository) ListByUserID(req *models.PaginationRequest, userID 
 	if req.Severity != "" {
 		query = query.Where("severity = ?", req.Severity)
 	}
-	if req.ProjectID != 0 {
+	if req.ProjectID != uuid.Nil {
 		query = query.Where("project_id = ?", req.ProjectID)
 	}
 
@@ -107,7 +108,7 @@ func (r *IncidentRepository) Delete(id uint) error {
 	return r.db.Delete(&models.Incident{}, id).Error
 }
 
-func (r *IncidentRepository) ProjectBelongsToUser(projectID, userID uint) (bool, error) {
+func (r *IncidentRepository) ProjectBelongsToUser(projectID uuid.UUID, userID uint) (bool, error) {
 	var project models.Project
 	if err := r.db.Where("id = ?", projectID).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -115,5 +116,5 @@ func (r *IncidentRepository) ProjectBelongsToUser(projectID, userID uint) (bool,
 		}
 		return false, err
 	}
-	return project.UserID == userID, nil
+	return project.OwnerID == userID, nil
 }

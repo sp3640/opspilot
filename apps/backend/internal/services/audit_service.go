@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
@@ -29,7 +30,7 @@ func (s *AuditService) WithIncidentRepo(incidentRepo *repository.IncidentReposit
 	return s
 }
 
-func (s *AuditService) LogCreate(userID uint, entityType string, entityID uint, projectID *uint, incidentID *uint) error {
+func (s *AuditService) LogCreate(userID uint, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
 	log := &models.AuditLog{
 		UserID:     userID,
 		ProjectID:  projectID,
@@ -42,7 +43,7 @@ func (s *AuditService) LogCreate(userID uint, entityType string, entityID uint, 
 	return s.repo.Create(log)
 }
 
-func (s *AuditService) LogUpdate(userID uint, entityType string, entityID uint, projectID *uint, incidentID *uint, fieldName string, oldValue string, newValue string) error {
+func (s *AuditService) LogUpdate(userID uint, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint, fieldName string, oldValue string, newValue string) error {
 	log := &models.AuditLog{
 		UserID:     userID,
 		ProjectID:  projectID,
@@ -58,7 +59,7 @@ func (s *AuditService) LogUpdate(userID uint, entityType string, entityID uint, 
 	return s.repo.Create(log)
 }
 
-func (s *AuditService) LogDelete(userID uint, entityType string, entityID uint, projectID *uint, incidentID *uint) error {
+func (s *AuditService) LogDelete(userID uint, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
 	log := &models.AuditLog{
 		UserID:     userID,
 		ProjectID:  projectID,
@@ -112,7 +113,7 @@ func (s *AuditService) ListIncidentAuditLogs(userID uint, incidentID uint, req *
 	}, nil
 }
 
-func (s *AuditService) GetProjectAuditLogs(userID uint, projectID uint) ([]models.AuditLog, error) {
+func (s *AuditService) GetProjectAuditLogs(userID uint, projectID uuid.UUID) ([]models.AuditLog, error) {
 	project, err := s.projectRepo.GetByIDAndUserID(projectID, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -128,7 +129,7 @@ func (s *AuditService) GetProjectAuditLogs(userID uint, projectID uint) ([]model
 	return s.repo.GetByProjectID(projectID)
 }
 
-func (s *AuditService) ListProjectAuditLogs(userID uint, projectID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+func (s *AuditService) ListProjectAuditLogs(userID uint, projectID uuid.UUID, req *models.PaginationRequest) (*models.PaginationResponse, error) {
 	if _, err := s.projectRepo.GetByIDAndUserID(projectID, userID); err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return nil, apperrors.ErrProjectForbidden
