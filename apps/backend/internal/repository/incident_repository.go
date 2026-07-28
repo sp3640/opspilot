@@ -29,20 +29,25 @@ func (r *IncidentRepository) GetByID(id uint) (*models.Incident, error) {
 
 func (r *IncidentRepository) GetByIDAndUserID(id, userID uint) (*models.Incident, error) {
 	var incident models.Incident
+
 	if err := r.db.Where("id = ?", id).First(&incident).Error; err != nil {
 		return nil, err
 	}
+
 	if incident.UserID != userID {
 		return nil, apperrors.ErrProjectForbidden
 	}
+
 	return &incident, nil
 }
 
 func (r *IncidentRepository) GetAllByUserID(userID uint) ([]models.Incident, error) {
 	var incidents []models.Incident
+
 	if err := r.db.Where("user_id = ?", userID).Find(&incidents).Error; err != nil {
 		return nil, err
 	}
+
 	return incidents, nil
 }
 
@@ -50,17 +55,25 @@ func (r *IncidentRepository) ListByUserID(req *models.PaginationRequest, userID 
 	if err := req.Validate("title", "severity", "status", "created_at", "updated_at"); err != nil {
 		return nil, 0, err
 	}
+
 	query := r.db.Model(&models.Incident{}).Where("user_id = ?", userID)
 
 	if req.Search != "" {
-		query = query.Where("title ILIKE ? OR description ILIKE ?", "%"+req.Search+"%", "%"+req.Search+"%")
+		query = query.Where(
+			"title ILIKE ? OR description ILIKE ?",
+			"%"+req.Search+"%",
+			"%"+req.Search+"%",
+		)
 	}
+
 	if req.Status != "" {
 		query = query.Where("status = ?", req.Status)
 	}
+
 	if req.Severity != "" {
 		query = query.Where("severity = ?", req.Severity)
 	}
+
 	if req.ProjectID != uuid.Nil {
 		query = query.Where("project_id = ?", req.ProjectID)
 	}
@@ -92,7 +105,13 @@ func (r *IncidentRepository) ListByUserID(req *models.PaginationRequest, userID 
 	}
 
 	var incidents []models.Incident
-	err := query.Order(sortField + " " + order).Limit(req.Limit).Offset((req.Page - 1) * req.Limit).Find(&incidents).Error
+
+	err := query.
+		Order(sortField + " " + order).
+		Limit(req.Limit).
+		Offset((req.Page - 1) * req.Limit).
+		Find(&incidents).Error
+
 	if err != nil {
 		return nil, 0, err
 	}
@@ -110,11 +129,13 @@ func (r *IncidentRepository) Delete(id uint) error {
 
 func (r *IncidentRepository) ProjectBelongsToUser(projectID uuid.UUID, userID uint) (bool, error) {
 	var project models.Project
+
 	if err := r.db.Where("id = ?", projectID).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return false, nil
 		}
 		return false, err
 	}
+
 	return project.OwnerID == userID, nil
 }

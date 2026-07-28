@@ -29,19 +29,38 @@ func NewDashboardRepository(db *gorm.DB) *DashboardRepository {
 func (r *DashboardRepository) GetSummaryByUserID(userID uint) (*DashboardSummary, error) {
 	summary := &DashboardSummary{}
 
-	if err := r.db.Model(&models.Project{}).Where("user_id = ?", userID).Count(&summary.TotalProjects).Error; err != nil {
+	// Total Projects
+	if err := r.db.Model(&models.Project{}).
+		Where("owner_id = ?", userID).
+		Count(&summary.TotalProjects).Error; err != nil {
 		return nil, err
 	}
-	if err := r.db.Model(&models.Incident{}).Where("user_id = ?", userID).Count(&summary.TotalIncidents).Error; err != nil {
+
+	// Total Incidents
+	if err := r.db.Model(&models.Incident{}).
+		Where("user_id = ?", userID).
+		Count(&summary.TotalIncidents).Error; err != nil {
 		return nil, err
 	}
-	if err := r.db.Model(&models.Incident{}).Where("user_id = ? AND status ILIKE ?", userID, "open").Count(&summary.OpenIncidents).Error; err != nil {
+
+	// Open Incidents
+	if err := r.db.Model(&models.Incident{}).
+		Where("user_id = ? AND status = ?", userID, "OPEN").
+		Count(&summary.OpenIncidents).Error; err != nil {
 		return nil, err
 	}
-	if err := r.db.Model(&models.Incident{}).Where("user_id = ? AND severity ILIKE ?", userID, "critical").Count(&summary.CriticalIncidents).Error; err != nil {
+
+	// Critical Incidents
+	if err := r.db.Model(&models.Incident{}).
+		Where("user_id = ? AND severity = ?", userID, "P1").
+		Count(&summary.CriticalIncidents).Error; err != nil {
 		return nil, err
 	}
-	if err := r.db.Model(&models.Incident{}).Where("user_id = ? AND status ILIKE ?", userID, "resolved").Count(&summary.ResolvedIncidents).Error; err != nil {
+
+	// Resolved Incidents
+	if err := r.db.Model(&models.Incident{}).
+		Where("user_id = ? AND status = ?", userID, "RESOLVED").
+		Count(&summary.ResolvedIncidents).Error; err != nil {
 		return nil, err
 	}
 

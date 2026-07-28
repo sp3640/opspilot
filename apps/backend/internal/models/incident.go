@@ -7,7 +7,7 @@ import (
 )
 
 type Incident struct {
-	ID          uint   `gorm:"primaryKey" json:"id"`
+	ID          uint   `gorm:"primaryKey;autoIncrement" json:"id"`
 	Title       string `gorm:"size:255;not null" json:"title"`
 	Description string `gorm:"type:text" json:"description"`
 	Severity    string `gorm:"size:20;not null" json:"severity"`

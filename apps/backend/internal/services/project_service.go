@@ -8,6 +8,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
+	"github.com/sp3640/opspilot/backend/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -28,6 +29,7 @@ func (s *ProjectService) Create(ctx context.Context, name, description string, u
 	project := &models.Project{
 		Name:        name,
 		Description: description,
+		Slug:        utils.GenerateSlug(name),
 		OwnerID:     userID,
 	}
 
