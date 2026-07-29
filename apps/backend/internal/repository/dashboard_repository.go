@@ -121,3 +121,36 @@ func (r *DashboardRepository) GetIncidentStatsByUserID(userID uint) (*IncidentSt
 
 	return stats, nil
 }
+
+// CountProjectsByUserID returns the total number of projects owned by a user.
+func (r *DashboardRepository) CountProjectsByUserID(userID uint) (int64, error) {
+	var count int64
+	if err := r.db.Model(&models.Project{}).
+		Where("owner_id = ?", userID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountAuditLogsByUserID returns the total number of audit logs for a user.
+func (r *DashboardRepository) CountAuditLogsByUserID(userID uint) (int64, error) {
+	var count int64
+	if err := r.db.Model(&models.AuditLog{}).
+		Where("user_id = ?", userID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// CountIncidentsByUserID returns the total number of incidents for a user.
+func (r *DashboardRepository) CountIncidentsByUserID(userID uint) (int64, error) {
+	var count int64
+	if err := r.db.Model(&models.Incident{}).
+		Where("user_id = ?", userID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
