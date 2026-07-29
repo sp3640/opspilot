@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/mapper"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"github.com/sp3640/opspilot/backend/internal/utils"
@@ -24,8 +26,8 @@ func NewProjectService(repo *repository.ProjectRepository, auditService *AuditSe
 	}
 }
 
-func (s *ProjectService) Create(ctx context.Context, name, description string, userID uint) error {
-
+// Create persists a new project and returns its full DTO representation.
+func (s *ProjectService) Create(ctx context.Context, name, description string, userID uint) (*dto.ProjectResponse, error) {
 	project := &models.Project{
 		Name:        name,
 		Description: description,
@@ -34,7 +36,7 @@ func (s *ProjectService) Create(ctx context.Context, name, description string, u
 	}
 
 	if err := s.repo.Create(project); err != nil {
-		return err
+		return nil, err
 	}
 
 	if s.auditRepo != nil {
@@ -43,29 +45,30 @@ func (s *ProjectService) Create(ctx context.Context, name, description string, u
 		}
 	}
 
-	return nil
+	response := mapper.MapProject(*project)
+	return &response, nil
 }
 
-func (s *ProjectService) GetMyProjects(userID uint) ([]models.Project, error) {
-	return s.repo.GetAllByUserID(userID)
-}
-
-func (s *ProjectService) ListMyProjects(userID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+// ListMyProjects returns a paginated list of projects owned by the user.
+func (s *ProjectService) ListMyProjects(userID uint, req *models.PaginationRequest) (*dto.ProjectListResponse, error) {
 	items, total, err := s.repo.ListByUserID(req, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &models.PaginationResponse{
+	totalPages := int((total + int64(req.Limit) - 1) / int64(req.Limit))
+
+	return &dto.ProjectListResponse{
+		Items:      mapper.MapProjects(items),
 		Page:       req.Page,
 		Limit:      req.Limit,
 		Total:      total,
-		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
-		Items:      items,
+		TotalPages: totalPages,
 	}, nil
 }
 
-func (s *ProjectService) GetProjectByID(id uuid.UUID, userID uint) (*models.Project, error) {
+// GetProjectByID returns a single project the user owns, as a DTO.
+func (s *ProjectService) GetProjectByID(id uuid.UUID, userID uint) (*dto.ProjectResponse, error) {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -77,10 +80,12 @@ func (s *ProjectService) GetProjectByID(id uuid.UUID, userID uint) (*models.Proj
 		return nil, err
 	}
 
-	return project, nil
+	response := mapper.MapProject(*project)
+	return &response, nil
 }
 
-func (s *ProjectService) UpdateProject(ctx context.Context, id uuid.UUID, userID uint, name, description string) (*models.Project, error) {
+// UpdateProject applies name/description changes and returns the updated DTO.
+func (s *ProjectService) UpdateProject(ctx context.Context, id uuid.UUID, userID uint, name, description string) (*dto.ProjectResponse, error) {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -116,9 +121,11 @@ func (s *ProjectService) UpdateProject(ctx context.Context, id uuid.UUID, userID
 		}
 	}
 
-	return project, nil
+	response := mapper.MapProject(*project)
+	return &response, nil
 }
 
+// DeleteProject soft-deletes a project owned by the user.
 func (s *ProjectService) DeleteProject(ctx context.Context, id uuid.UUID, userID uint) error {
 	project, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {

@@ -1,7 +1,10 @@
 package repository
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
@@ -11,16 +14,26 @@ type ProjectRepository struct {
 	db *gorm.DB
 }
 
+// NewProjectRepository creates a repository backed by the supplied GORM database.
 func NewProjectRepository(db *gorm.DB) *ProjectRepository {
 	return &ProjectRepository{
 		db: db,
 	}
 }
 
+// Create persists a project and translates duplicate slug violations to a domain error.
 func (r *ProjectRepository) Create(project *models.Project) error {
-	return r.db.Create(project).Error
+	if err := r.db.Create(project).Error; err != nil {
+		if isDuplicateSlugError(err) {
+			return apperrors.ErrProjectAlreadyExists
+		}
+		return err
+	}
+
+	return nil
 }
 
+// GetByID returns the project identified by id.
 func (r *ProjectRepository) GetByID(id uuid.UUID) (*models.Project, error) {
 	var project models.Project
 
@@ -32,21 +45,30 @@ func (r *ProjectRepository) GetByID(id uuid.UUID) (*models.Project, error) {
 	return &project, nil
 }
 
+// GetByIDAndUserID returns a project only when it is owned by userID.
 func (r *ProjectRepository) GetByIDAndUserID(id uuid.UUID, userID uint) (*models.Project, error) {
 	var project models.Project
 
-	err := r.db.Where("id = ?", id).First(&project).Error
+	err := r.db.Where("id = ? AND owner_id = ?", id, userID).First(&project).Error
 	if err != nil {
 		return nil, err
-	}
-
-	if project.OwnerID != userID {
-		return nil, apperrors.ErrProjectForbidden
 	}
 
 	return &project, nil
 }
 
+// GetBySlug returns the active project identified by slug.
+func (r *ProjectRepository) GetBySlug(slug string) (*models.Project, error) {
+	var project models.Project
+
+	if err := r.db.Where("slug = ?", slug).First(&project).Error; err != nil {
+		return nil, err
+	}
+
+	return &project, nil
+}
+
+// GetAllByUserID returns all projects owned by userID.
 func (r *ProjectRepository) GetAllByUserID(userID uint) ([]models.Project, error) {
 	var projects []models.Project
 
@@ -58,6 +80,7 @@ func (r *ProjectRepository) GetAllByUserID(userID uint) ([]models.Project, error
 	return projects, nil
 }
 
+// ListByUserID returns a paginated project list and total for userID.
 func (r *ProjectRepository) ListByUserID(req *models.PaginationRequest, userID uint) ([]models.Project, int64, error) {
 	if err := req.Validate("name", "created_at", "updated_at"); err != nil {
 		return nil, 0, err
@@ -99,10 +122,29 @@ func (r *ProjectRepository) ListByUserID(req *models.PaginationRequest, userID u
 	return projects, total, nil
 }
 
-func (r *ProjectRepository) Update(project *models.Project) error {
-	return r.db.Save(project).Error
+// CountByUserID returns the number of active projects owned by userID.
+func (r *ProjectRepository) CountByUserID(userID uint) (int64, error) {
+	var count int64
+	if err := r.db.Model(&models.Project{}).Where("owner_id = ?", userID).Count(&count).Error; err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
+// Update writes the project's non-zero fields and updates its UpdatedAt timestamp.
+func (r *ProjectRepository) Update(project *models.Project) error {
+	return r.db.Model(project).Updates(project).Error
+}
+
+// Delete soft-deletes the project identified by id.
 func (r *ProjectRepository) Delete(id uuid.UUID) error {
 	return r.db.Delete(&models.Project{}, id).Error
+}
+
+func isDuplicateSlugError(err error) bool {
+	var postgresError *pgconn.PgError
+	return errors.As(err, &postgresError) &&
+		postgresError.Code == "23505" &&
+		postgresError.ConstraintName == "idx_projects_slug"
 }

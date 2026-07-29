@@ -11,8 +11,9 @@ var (
 	ErrUserNotFound       = errors.New("user not found")
 
 	// Project errors
-	ErrProjectNotFound  = errors.New("project not found")
-	ErrProjectForbidden = errors.New("forbidden")
+	ErrProjectNotFound      = errors.New("project not found")
+	ErrProjectForbidden     = errors.New("forbidden")
+	ErrProjectAlreadyExists = errors.New("project already exists")
 
 	// Incident errors
 	ErrIncidentNotFound = errors.New("incident not found")

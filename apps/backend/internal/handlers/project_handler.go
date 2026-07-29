@@ -7,22 +7,13 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
 
 type ProjectHandler struct {
 	service *services.ProjectService
-}
-
-type CreateProjectRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
-}
-
-type UpdateProjectRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
 }
 
 func NewProjectHandler(service *services.ProjectService) *ProjectHandler {
@@ -32,8 +23,7 @@ func NewProjectHandler(service *services.ProjectService) *ProjectHandler {
 }
 
 func (h *ProjectHandler) Create(c *gin.Context) {
-	var req CreateProjectRequest
-
+	var req dto.CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -41,19 +31,13 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 
 	userID := c.MustGet("userID").(uint)
 
-	err := h.service.Create(
-		c.Request.Context(),
-		req.Name,
-		req.Description,
-		userID,
-	)
-
+	project, err := h.service.Create(c.Request.Context(), req.Name, req.Description, userID)
 	if err != nil {
 		response.InternalServerError(c, err)
 		return
 	}
 
-	response.Created(c, "Project created successfully", nil)
+	response.Created(c, "Project created successfully", project)
 }
 
 func (h *ProjectHandler) List(c *gin.Context) {
@@ -63,6 +47,7 @@ func (h *ProjectHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
+
 	result, err := h.service.ListMyProjects(userID, req)
 	if err != nil {
 		response.InternalServerError(c, err)
@@ -106,7 +91,7 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var req UpdateProjectRequest
+	var req dto.UpdateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return
