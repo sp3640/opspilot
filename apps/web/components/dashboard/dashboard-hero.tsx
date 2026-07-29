@@ -1,13 +1,25 @@
-import { Activity, CheckCircle2, Cloud, Rocket } from "lucide-react";
+'use client';
 
-const summaryItems = [
-  ["Environment", "Production", Cloud],
-  ["Last deployment", "18 min ago", Rocket],
-  ["Uptime", "99.98%", Activity],
-] as const;
+import { Activity, CheckCircle2, Cloud, Rocket } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { useDashboardSummary } from "@/hooks/use-dashboard-data";
+
+type SummaryItem = [string, string, LucideIcon];
 
 /** The dashboard's at-a-glance operational briefing. */
 export function DashboardHero() {
+  const { data: summary, isLoading } = useDashboardSummary();
+
+  const summaryItems: SummaryItem[] | null = summary
+    ? [
+        ["Environment", summary.environment, Cloud],
+        ["Last deployment", summary.lastDeployment, Rocket],
+        ["Uptime", summary.uptime, Activity],
+      ]
+    : null;
+
+  const greeting = summary?.greeting || "Good morning";
+
   return (
     <section
       aria-labelledby="dashboard-heading"
@@ -22,22 +34,32 @@ export function DashboardHero() {
         <div>
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium" style={{ borderColor: "color-mix(in srgb, var(--success) 35%, var(--border))", backgroundColor: "color-mix(in srgb, var(--success) 10%, transparent)", color: "var(--success)" }}>
             <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-            All systems operational
+            {isLoading ? "Loading..." : "All systems operational"}
           </div>
-          <h1 id="dashboard-heading" className="text-3xl font-semibold tracking-tight sm:text-4xl">Good morning, Siddharth.</h1>
+          <h1 id="dashboard-heading" className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            {isLoading ? "Loading..." : greeting}
+          </h1>
           <p className="mt-3 max-w-2xl text-base leading-7 sm:text-lg" style={{ color: "var(--muted-foreground)" }}>
-            Your platform is stable. Three active incidents are being monitored and all core services are operating within their targets.
+            {isLoading
+              ? "Fetching your platform status..."
+              : "Your platform is stable. Three active incidents are being monitored and all core services are operating within their targets."}
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 xl:min-w-[530px]">
-          {summaryItems.map(([label, value, Icon]) => (
-            <div key={label} className="rounded-2xl border p-4" style={{ backgroundColor: "color-mix(in srgb, var(--background) 24%, transparent)", borderColor: "var(--border)" }}>
-              <Icon aria-hidden="true" className="h-4 w-4" style={{ color: "var(--primary)" }} />
-              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>{label}</p>
-              <p className="mt-1 text-sm font-semibold">{value}</p>
+          {isLoading ? (
+            <div className="col-span-full flex items-center justify-center rounded-2xl border p-8" style={{ backgroundColor: "color-mix(in srgb, var(--background) 24%, transparent)", borderColor: "var(--border)" }}>
+              <span style={{ color: "var(--muted-foreground)" }}>Loading summary...</span>
             </div>
-          ))}
+          ) : summaryItems ? (
+            summaryItems.map(([label, value, Icon]: [string, string, any]) => (
+              <div key={label} className="rounded-2xl border p-4" style={{ backgroundColor: "color-mix(in srgb, var(--background) 24%, transparent)", borderColor: "var(--border)" }}>
+                <Icon aria-hidden="true" className="h-4 w-4" style={{ color: "var(--primary)" }} />
+                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>{label}</p>
+                <p className="mt-1 text-sm font-semibold">{value}</p>
+              </div>
+            ))
+          ) : null}
         </div>
       </div>
     </section>

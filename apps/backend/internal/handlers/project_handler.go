@@ -33,7 +33,14 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 
 	project, err := h.service.Create(c.Request.Context(), req.Name, req.Description, userID)
 	if err != nil {
-		response.InternalServerError(c, err)
+		switch err {
+		case apperrors.ErrProjectAlreadyExists:
+			response.Conflict(c, err.Error())
+		case apperrors.ErrInvalidProjectName, apperrors.ErrInvalidProjectDescription:
+			response.BadRequest(c, err.Error())
+		default:
+			response.InternalServerError(c, err)
+		}
 		return
 	}
 
@@ -100,6 +107,8 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 	project, err := h.service.UpdateProject(c.Request.Context(), projectID, userID, req.Name, req.Description)
 	if err != nil {
 		switch err {
+		case apperrors.ErrInvalidProjectName, apperrors.ErrInvalidProjectDescription:
+			response.BadRequest(c, err.Error())
 		case apperrors.ErrProjectNotFound:
 			response.Error(c, http.StatusNotFound, err.Error())
 		case apperrors.ErrProjectForbidden:

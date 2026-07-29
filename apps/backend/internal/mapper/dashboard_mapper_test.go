@@ -15,10 +15,10 @@ func TestGenerateGreeting(t *testing.T) {
 	}
 
 	validGreetings := map[string]bool{
-		"Good morning": true,
+		"Good morning":   true,
 		"Good afternoon": true,
-		"Good evening": true,
-		"Good night": true,
+		"Good evening":   true,
+		"Good night":     true,
 	}
 
 	if !validGreetings[greeting] {
@@ -77,10 +77,10 @@ func TestMapAuditActionToStatus(t *testing.T) {
 
 func TestGenerateActivityTitleAndDescription(t *testing.T) {
 	tests := []struct {
-		name         string
-		log          models.AuditLog
+		name          string
+		log           models.AuditLog
 		expectedTitle string
-		expectedDesc string
+		expectedDesc  string
 	}{
 		{
 			name: "Create Project",
@@ -157,57 +157,57 @@ func TestGenerateActivityTitleAndDescription(t *testing.T) {
 	}
 }
 
-func TestMapIncidents(t *testing.T) {
+func TestMapIncidentsForDashboard(t *testing.T) {
 	incidents := []models.Incident{
 		{
-			ID:          1,
-			Title:       "API Down",
-			Severity:    "P1",
-			Status:      "OPEN",
-			CreatedAt:   time.Now(),
+			ID:        1,
+			Title:     "API Down",
+			Severity:  "P1",
+			Status:    "OPEN",
+			CreatedAt: time.Now(),
 		},
 		{
-			ID:          2,
-			Title:       "Database Slow",
-			Severity:    "P2",
-			Status:      "IN_PROGRESS",
-			CreatedAt:   time.Now(),
+			ID:        2,
+			Title:     "Database Slow",
+			Severity:  "P2",
+			Status:    "IN_PROGRESS",
+			CreatedAt: time.Now(),
 		},
 	}
 
-	result := MapIncidents(incidents)
+	result := MapIncidentsForDashboard(incidents)
 
 	if len(result) != len(incidents) {
-		t.Errorf("MapIncidents() returned %d items, want %d", len(result), len(incidents))
+		t.Errorf("MapIncidentsForDashboard() returned %d items, want %d", len(result), len(incidents))
 	}
 
 	for i, incident := range result {
 		if incident.ID != incidents[i].ID {
-			t.Errorf("MapIncidents()[%d].ID = %d, want %d", i, incident.ID, incidents[i].ID)
+			t.Errorf("MapIncidentsForDashboard()[%d].ID = %d, want %d", i, incident.ID, incidents[i].ID)
 		}
 		if incident.Title != incidents[i].Title {
-			t.Errorf("MapIncidents()[%d].Title = %q, want %q", i, incident.Title, incidents[i].Title)
+			t.Errorf("MapIncidentsForDashboard()[%d].Title = %q, want %q", i, incident.Title, incidents[i].Title)
 		}
 		if incident.Severity != incidents[i].Severity {
-			t.Errorf("MapIncidents()[%d].Severity = %q, want %q", i, incident.Severity, incidents[i].Severity)
+			t.Errorf("MapIncidentsForDashboard()[%d].Severity = %q, want %q", i, incident.Severity, incidents[i].Severity)
 		}
 		if incident.Status != incidents[i].Status {
-			t.Errorf("MapIncidents()[%d].Status = %q, want %q", i, incident.Status, incidents[i].Status)
+			t.Errorf("MapIncidentsForDashboard()[%d].Status = %q, want %q", i, incident.Status, incidents[i].Status)
 		}
 	}
 }
 
-func TestMapIncidentsEmpty(t *testing.T) {
+func TestMapIncidentsForDashboardEmpty(t *testing.T) {
 	incidents := []models.Incident{}
-	result := MapIncidents(incidents)
+	result := MapIncidentsForDashboard(incidents)
 
 	if len(result) != 0 {
-		t.Errorf("MapIncidents(empty) returned %d items, want 0", len(result))
+		t.Errorf("MapIncidentsForDashboard(empty) returned %d items, want 0", len(result))
 	}
 
 	// Ensure result is not nil (even for empty input)
 	if result == nil {
-		t.Error("MapIncidents(empty) returned nil, want empty slice")
+		t.Error("MapIncidentsForDashboard(empty) returned nil, want empty slice")
 	}
 }
 
@@ -280,8 +280,8 @@ func TestHumanizeEntityTypeEdgeCases(t *testing.T) {
 		{"", "Item"},
 		{"A", "A"},
 		{"PROJECT", "Project"},
-		{"project", "Project"},    // lowercase variant
-		{"incident", "Incident"},  // lowercase variant
+		{"project", "Project"},   // lowercase variant
+		{"incident", "Incident"}, // lowercase variant
 	}
 
 	for _, test := range tests {

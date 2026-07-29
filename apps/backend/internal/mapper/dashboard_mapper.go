@@ -9,8 +9,8 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/models"
 )
 
-// MapIncidents converts a slice of Incident models to DashboardIncidentResponse DTOs.
-func MapIncidents(incidents []models.Incident) []dto.DashboardIncidentResponse {
+// MapIncidentsForDashboard converts a slice of Incident models to DashboardIncidentResponse DTOs.
+func MapIncidentsForDashboard(incidents []models.Incident) []dto.DashboardIncidentResponse {
 	responses := make([]dto.DashboardIncidentResponse, 0, len(incidents))
 
 	for _, incident := range incidents {

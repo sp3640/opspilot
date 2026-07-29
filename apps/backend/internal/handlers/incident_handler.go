@@ -5,9 +5,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -16,28 +16,12 @@ type IncidentHandler struct {
 	service *services.IncidentService
 }
 
-type CreateIncidentRequest struct {
-	Title       string    `json:"title" binding:"required"`
-	Description string    `json:"description"`
-	Severity    string    `json:"severity" binding:"required"`
-	Status      string    `json:"status" binding:"required"`
-	ProjectID   uuid.UUID `json:"project_id" binding:"required"`
-}
-
-type UpdateIncidentRequest struct {
-	Title       string    `json:"title" binding:"required"`
-	Description string    `json:"description"`
-	Severity    string    `json:"severity" binding:"required"`
-	Status      string    `json:"status" binding:"required"`
-	ProjectID   uuid.UUID `json:"project_id" binding:"required"`
-}
-
 func NewIncidentHandler(service *services.IncidentService) *IncidentHandler {
 	return &IncidentHandler{service: service}
 }
 
 func (h *IncidentHandler) Create(c *gin.Context) {
-	var req CreateIncidentRequest
+	var req dto.CreateIncidentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -127,7 +111,7 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var req UpdateIncidentRequest
+	var req dto.UpdateIncidentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
 		return

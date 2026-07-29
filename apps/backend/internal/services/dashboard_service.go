@@ -52,7 +52,7 @@ func (s *DashboardService) GetRecentIncidents(userID uint, limit int) ([]dto.Das
 		return nil, err
 	}
 
-	return mapper.MapIncidents(incidents), nil
+	return mapper.MapIncidentsForDashboard(incidents), nil
 }
 
 // GetRecentActivity returns recent audit log entries as activity feed.

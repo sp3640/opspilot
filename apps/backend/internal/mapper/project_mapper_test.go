@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/models"
 )
 
@@ -30,7 +31,8 @@ func fixture() models.Project {
 
 func TestMapProject(t *testing.T) {
 	p := fixture()
-	got := MapProject(p)
+	owner := models.User{ID: p.OwnerID, Name: "Maya Chen"}
+	got := MapProject(p, owner)
 
 	if got.ID != p.ID.String() {
 		t.Errorf("ID: got %q, want %q", got.ID, p.ID.String())
@@ -56,8 +58,8 @@ func TestMapProject(t *testing.T) {
 	if got.Services != p.Services {
 		t.Errorf("Services: got %d, want %d", got.Services, p.Services)
 	}
-	if got.OwnerID != p.OwnerID {
-		t.Errorf("OwnerID: got %d, want %d", got.OwnerID, p.OwnerID)
+	if got.Owner.ID != owner.ID || got.Owner.Name != owner.Name {
+		t.Errorf("Owner: got %+v, want %+v", got.Owner, dto.ProjectOwnerResponse{ID: owner.ID, Name: owner.Name})
 	}
 	if !got.CreatedAt.Equal(p.CreatedAt) {
 		t.Errorf("CreatedAt: got %v, want %v", got.CreatedAt, p.CreatedAt)
@@ -69,7 +71,8 @@ func TestMapProject(t *testing.T) {
 
 func TestMapProjects(t *testing.T) {
 	projects := []models.Project{fixture(), fixture()}
-	got := MapProjects(projects)
+	owner := models.User{ID: projects[0].OwnerID, Name: "Maya Chen"}
+	got := MapProjects(projects, owner)
 
 	if len(got) != len(projects) {
 		t.Fatalf("MapProjects: got %d items, want %d", len(got), len(projects))
@@ -86,7 +89,7 @@ func TestMapProjects(t *testing.T) {
 }
 
 func TestMapProjectsEmpty(t *testing.T) {
-	got := MapProjects([]models.Project{})
+	got := MapProjects([]models.Project{}, models.User{})
 
 	if got == nil {
 		t.Error("MapProjects(empty): expected non-nil slice, got nil")
@@ -120,13 +123,13 @@ func TestMapProjectSummary(t *testing.T) {
 func TestMapProjectZeroValue(t *testing.T) {
 	// A zero-value model must never panic and must produce a valid DTO.
 	var p models.Project
-	got := MapProject(p)
+	got := MapProject(p, models.User{})
 
 	if got.ID == "" {
 		// uuid.Nil serialises to the all-zeros string — that is acceptable.
 		t.Log("MapProject(zero): ID is empty string (uuid.Nil serialised)")
 	}
-	if got.OwnerID != 0 {
-		t.Errorf("OwnerID: got %d, want 0", got.OwnerID)
+	if got.Owner.ID != 0 {
+		t.Errorf("Owner.ID: got %d, want 0", got.Owner.ID)
 	}
 }

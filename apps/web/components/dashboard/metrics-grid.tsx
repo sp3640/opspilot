@@ -1,5 +1,8 @@
+'use client';
+
 import { AlertTriangle, FileText, FolderKanban, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useDashboardStats } from "@/hooks/use-dashboard-data";
 
 import { MetricBadge } from "./metric-badge";
 
@@ -13,15 +16,68 @@ type Metric = {
   icon: LucideIcon;
 };
 
-const metrics: Metric[] = [
-  { title: "Projects", value: "12", description: "2 actively deploying", trend: "16.7%", trendDirection: "up", trendTone: "success", icon: FolderKanban },
-  { title: "Incidents", value: "3", description: "1 requires attention", trend: "1 resolved", trendDirection: "down", trendTone: "success", icon: AlertTriangle },
-  { title: "Audit logs", value: "248", description: "Events captured today", trend: "8.0%", trendDirection: "up", trendTone: "success", icon: FileText },
-  { title: "Users", value: "24", description: "4 new this week", trend: "20.0%", trendDirection: "up", trendTone: "success", icon: Users },
-];
-
 /** High-level operational counts shown immediately below the dashboard summary. */
 export function MetricsGrid() {
+  const { data: stats, isLoading } = useDashboardStats();
+
+  const metrics: Metric[] = stats
+    ? [
+        {
+          title: "Projects",
+          value: stats.projects.toString(),
+          description: `${stats.projectsDeploying || 0} actively deploying`,
+          trend: "16.7%",
+          trendDirection: "up",
+          trendTone: "success",
+          icon: FolderKanban,
+        },
+        {
+          title: "Incidents",
+          value: stats.incidents.total.toString(),
+          description: `${stats.incidentsRequiringAttention || stats.incidents.critical || 0} requires attention`,
+          trend: `${stats.incidents.resolved} resolved`,
+          trendDirection: "down",
+          trendTone: "success",
+          icon: AlertTriangle,
+        },
+        {
+          title: "Audit logs",
+          value: stats.auditLogs.toString(),
+          description: "Events captured today",
+          trend: "8.0%",
+          trendDirection: "up",
+          trendTone: "success",
+          icon: FileText,
+        },
+        {
+          title: "Users",
+          value: stats.users.toString(),
+          description: `${stats.newUsersThisWeek || 0} new this week`,
+          trend: "20.0%",
+          trendDirection: "up",
+          trendTone: "success",
+          icon: Users,
+        },
+      ]
+    : [];
+
+  if (isLoading) {
+    return (
+      <section aria-label="Operational metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <article
+            key={i}
+            className="rounded-2xl border p-5 shadow-[var(--shadow-sm)]"
+            style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
+          >
+            <div className="h-8 w-16 rounded bg-gray-700 animate-pulse" />
+            <div className="mt-6 h-6 w-20 rounded bg-gray-700 animate-pulse" />
+          </article>
+        ))}
+      </section>
+    );
+  }
+
   return (
     <section aria-label="Operational metrics" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map(({ icon: Icon, ...metric }) => (

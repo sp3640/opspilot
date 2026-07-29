@@ -12,9 +12,9 @@ type DashboardOverviewResponse struct {
 	Uptime         string `json:"uptime"`
 
 	// Incident Statistics
-	TotalProjects    int64 `json:"totalProjects"`
-	TotalIncidents   int64 `json:"totalIncidents"`
-	OpenIncidents    int64 `json:"openIncidents"`
+	TotalProjects     int64 `json:"totalProjects"`
+	TotalIncidents    int64 `json:"totalIncidents"`
+	OpenIncidents     int64 `json:"openIncidents"`
 	CriticalIncidents int64 `json:"criticalIncidents"`
 	ResolvedIncidents int64 `json:"resolvedIncidents"`
 }
@@ -31,10 +31,10 @@ type IncidentMetrics struct {
 // All metrics are returned as explicit fields to prevent the frontend from
 // understanding backend aggregation logic (e.g., maps, groups).
 type DashboardMetricsResponse struct {
-	Projects  int64            `json:"projects"`
-	Incidents IncidentMetrics  `json:"incidents"`
-	AuditLogs int64            `json:"auditLogs"`
-	Users     int64            `json:"users"`
+	Projects  int64           `json:"projects"`
+	Incidents IncidentMetrics `json:"incidents"`
+	AuditLogs int64           `json:"auditLogs"`
+	Users     int64           `json:"users"`
 
 	// Optional fields for extended metrics
 	ProjectsDeploying           *int64 `json:"projectsDeploying,omitempty"`
@@ -48,7 +48,7 @@ type DashboardActivityResponse struct {
 	ID          uint      `json:"id"`
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
-	Type        string    `json:"type"` // e.g., "incident", "project", "user", "audit"
+	Type        string    `json:"type"`   // e.g., "incident", "project", "user", "audit"
 	Status      string    `json:"status"` // e.g., "success", "warning", "info", "error"
 	Timestamp   time.Time `json:"timestamp"`
 }
@@ -67,8 +67,8 @@ type DashboardIncidentResponse struct {
 // DashboardHealthResponse represents a single service health status.
 // Used to display system health and dependency availability.
 type DashboardHealthResponse struct {
-	Name         string `json:"name"`        // e.g., "API", "Database", "Storage"
-	Status       string `json:"status"`      // e.g., "healthy", "degraded", "unhealthy"
+	Name         string `json:"name"`         // e.g., "API", "Database", "Storage"
+	Status       string `json:"status"`       // e.g., "healthy", "degraded", "unhealthy"
 	ResponseTime int    `json:"responseTime"` // milliseconds
-	Health       int    `json:"health"`      // 0-100 percentage
+	Health       int    `json:"health"`       // 0-100 percentage
 }

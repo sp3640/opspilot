@@ -8,5 +8,4 @@ export { ProjectHealthBadge, ProjectEnvironmentBadge } from "./project-status";
 export { ProjectTable } from "./project-table";
 export { ProjectToolbar } from "./project-toolbar";
 export { ProjectViewToggle } from "./project-view-toggle";
-export { projects } from "./mock-data";
-export type { CreateProjectInput, Project, ProjectEnvironment, ProjectFilters, ProjectHealth, ProjectSort, ProjectView } from "./types";
+export type { Project, ProjectEnvironment, ProjectFilters, ProjectHealth, ProjectSort, ProjectView } from "./types";

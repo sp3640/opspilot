@@ -5,9 +5,9 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/models"
 )
 
-// MapProject converts a Project model to a ProjectResponse DTO.
+// MapProject converts a Project model and its owner to a ProjectResponse DTO.
 // This is the single authoritative mapping function for project responses.
-func MapProject(p models.Project) dto.ProjectResponse {
+func MapProject(p models.Project, owner models.User) dto.ProjectResponse {
 	return dto.ProjectResponse{
 		ID:          p.ID.String(),
 		Name:        p.Name,
@@ -17,17 +17,20 @@ func MapProject(p models.Project) dto.ProjectResponse {
 		Health:      p.Health,
 		Members:     p.Members,
 		Services:    p.Services,
-		OwnerID:     p.OwnerID,
-		CreatedAt:   p.CreatedAt,
-		UpdatedAt:   p.UpdatedAt,
+		Owner: dto.ProjectOwnerResponse{
+			ID:   owner.ID,
+			Name: owner.Name,
+		},
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
 	}
 }
 
-// MapProjects converts a slice of Project models to a slice of ProjectResponse DTOs.
-func MapProjects(projects []models.Project) []dto.ProjectResponse {
+// MapProjects converts a slice of Project models with a shared owner to ProjectResponse DTOs.
+func MapProjects(projects []models.Project, owner models.User) []dto.ProjectResponse {
 	responses := make([]dto.ProjectResponse, 0, len(projects))
 	for _, p := range projects {
-		responses = append(responses, MapProject(p))
+		responses = append(responses, MapProject(p, owner))
 	}
 	return responses
 }

@@ -7,6 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/constants"
+	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/mapper"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"gorm.io/gorm"
@@ -21,7 +24,8 @@ func NewIncidentService(repo *repository.IncidentRepository, auditService *Audit
 	return &IncidentService{repo: repo, auditRepo: auditService}
 }
 
-func (s *IncidentService) CreateIncident(ctx context.Context, title, description, severity, status string, projectID uuid.UUID, userID uint) (*models.Incident, error) {
+// CreateIncident persists a new incident and returns its DTO representation.
+func (s *IncidentService) CreateIncident(ctx context.Context, title, description, severity, status string, projectID uuid.UUID, userID uint) (*dto.IncidentResponse, error) {
 	if !isValidSeverity(severity) {
 		return nil, apperrors.ErrInvalidSeverity
 	}
@@ -56,29 +60,34 @@ func (s *IncidentService) CreateIncident(ctx context.Context, title, description
 		}
 	}
 
-	return incident, nil
+	response := mapper.MapIncident(*incident)
+	return &response, nil
 }
 
 func (s *IncidentService) GetMyIncidents(userID uint) ([]models.Incident, error) {
 	return s.repo.GetAllByUserID(userID)
 }
 
-func (s *IncidentService) ListMyIncidents(userID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+// ListMyIncidents returns a paginated list of incidents for the user.
+func (s *IncidentService) ListMyIncidents(userID uint, req *models.PaginationRequest) (*dto.IncidentListResponse, error) {
 	items, total, err := s.repo.ListByUserID(req, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &models.PaginationResponse{
+	totalPages := int((total + int64(req.Limit) - 1) / int64(req.Limit))
+
+	return &dto.IncidentListResponse{
+		Items:      mapper.MapIncidents(items),
 		Page:       req.Page,
 		Limit:      req.Limit,
 		Total:      total,
-		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
-		Items:      items,
+		TotalPages: totalPages,
 	}, nil
 }
 
-func (s *IncidentService) GetIncidentByID(id, userID uint) (*models.Incident, error) {
+// GetIncidentByID returns a single incident the user owns, as a DTO.
+func (s *IncidentService) GetIncidentByID(id, userID uint) (*dto.IncidentResponse, error) {
 	incident, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -89,10 +98,13 @@ func (s *IncidentService) GetIncidentByID(id, userID uint) (*models.Incident, er
 		}
 		return nil, err
 	}
-	return incident, nil
+
+	response := mapper.MapIncident(*incident)
+	return &response, nil
 }
 
-func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, title, description, severity, status string, projectID uuid.UUID) (*models.Incident, error) {
+// UpdateIncident applies changes and returns the updated DTO.
+func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, title, description, severity, status string, projectID uuid.UUID) (*dto.IncidentResponse, error) {
 	incident, err := s.repo.GetByIDAndUserID(id, userID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -164,7 +176,8 @@ func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, t
 		}
 	}
 
-	return incident, nil
+	response := mapper.MapIncident(*incident)
+	return &response, nil
 }
 
 func (s *IncidentService) DeleteIncident(ctx context.Context, id, userID uint) error {
@@ -194,7 +207,7 @@ func (s *IncidentService) DeleteIncident(ctx context.Context, id, userID uint) e
 
 func isValidSeverity(severity string) bool {
 	switch severity {
-	case "P0", "P1", "P2", "P3", "P4":
+	case constants.SeverityP0, constants.SeverityP1, constants.SeverityP2, constants.SeverityP3, constants.SeverityP4:
 		return true
 	default:
 		return false
@@ -203,7 +216,7 @@ func isValidSeverity(severity string) bool {
 
 func isValidStatus(status string) bool {
 	switch status {
-	case "OPEN", "INVESTIGATING", "RESOLVED":
+	case constants.StatusOpen, constants.StatusInvestigating, constants.StatusResolved:
 		return true
 	default:
 		return false

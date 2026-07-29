@@ -11,9 +11,11 @@ var (
 	ErrUserNotFound       = errors.New("user not found")
 
 	// Project errors
-	ErrProjectNotFound      = errors.New("project not found")
-	ErrProjectForbidden     = errors.New("forbidden")
-	ErrProjectAlreadyExists = errors.New("project already exists")
+	ErrProjectNotFound           = errors.New("project not found")
+	ErrProjectForbidden          = errors.New("forbidden")
+	ErrProjectAlreadyExists      = errors.New("project already exists")
+	ErrInvalidProjectName        = errors.New("project name must be between 3 and 100 characters")
+	ErrInvalidProjectDescription = errors.New("project description must be 300 characters or fewer")
 
 	// Incident errors
 	ErrIncidentNotFound = errors.New("incident not found")

@@ -1,5 +1,5 @@
-import { ProjectsWorkspace, projects } from "@/components/projects";
+import { ProjectsWorkspace } from "@/components/projects";
 
 export default function ProjectsPage() {
-  return <ProjectsWorkspace initialProjects={projects} />;
+  return <ProjectsWorkspace />;
 }

@@ -27,6 +27,7 @@ func (r *IncidentRepository) GetByID(id uint) (*models.Incident, error) {
 	return &incident, nil
 }
 
+// GetByIDAndUserID returns an incident only when it is owned by userID.
 func (r *IncidentRepository) GetByIDAndUserID(id, userID uint) (*models.Incident, error) {
 	var incident models.Incident
 
@@ -119,8 +120,9 @@ func (r *IncidentRepository) ListByUserID(req *models.PaginationRequest, userID 
 	return incidents, total, nil
 }
 
+// Update writes the incident's non-zero fields and updates its UpdatedAt timestamp.
 func (r *IncidentRepository) Update(incident *models.Incident) error {
-	return r.db.Save(incident).Error
+	return r.db.Model(incident).Updates(incident).Error
 }
 
 func (r *IncidentRepository) Delete(id uint) error {

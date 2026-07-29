@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useProjects } from "@/hooks/use-projects";
 import { ErrorState, PageHeader } from "@/components/common";
 import { SectionCard } from "@/components/dashboard";
 
@@ -12,26 +12,19 @@ import { ProjectEmpty } from "./project-empty";
 import { ProjectSkeleton } from "./project-skeleton";
 import { ProjectTable } from "./project-table";
 import { ProjectToolbar } from "./project-toolbar";
-import type { CreateProjectInput, Project } from "./types";
-
-type ProjectsWorkspaceProps = { initialProjects: Project[]; error?: string; loading?: boolean };
-
 /** Complete, stateful Projects portfolio workspace composed from small feature components. */
-export function ProjectsWorkspace({ initialProjects, error, loading = false }: ProjectsWorkspaceProps) {
-  const [projectData, setProjectData] = useState(initialProjects);
-  const [createOpen, setCreateOpen] = useState(false);
-  const workspace = useProjectsWorkspace(projectData);
-  const hasFilters = workspace.filters.query.length > 0 || workspace.filters.environment !== "all" || workspace.filters.health !== "all";
+export function ProjectsWorkspace() {
+  const workspace = useProjectsWorkspace();
+  const sort = workspace.filters.sort === "name" ? "name" : "updated_at";
+  const { data, error, isError, isLoading, isFetching, refetch } = useProjects({ page: workspace.page, limit: 6, search: workspace.debouncedSearch.trim() || undefined, sort, order: sort === "name" ? "asc" : "desc" });
+  const projects = data?.items ?? [];
+  const hasFilters = workspace.filters.query.length > 0;
   const clearFilters = () => workspace.updateFilters({ query: "", environment: "all", health: "all" });
-  const createProject = (input: CreateProjectInput) => {
-    const project: Project = { id: input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""), name: input.name, description: input.description, environment: input.environment, health: "healthy", owner: { name: "Siddharth", initials: "S" }, members: [{ name: "Siddharth", initials: "S" }], services: 0, lastDeployment: "Not deployed", updatedAt: new Date().toISOString(), deployments: 0, icon: "folder-kanban" };
-    setProjectData((projects) => [project, ...projects]);
-    workspace.setSelectedProject(project);
-  };
+  const errorMessage = error instanceof Error ? error.message : "Unable to load projects. Please try again.";
 
-  return <div className="mx-auto max-w-[1600px] space-y-6 lg:space-y-8"><PageHeader title="Projects" description="Manage the services, ownership, and operational posture of your platform portfolio." breadcrumb={[{ label: "Overview", href: "/" }, { label: "Projects" }]} /><SectionCard><ProjectToolbar filters={workspace.filters} view={workspace.view} onFiltersChange={workspace.updateFilters} onViewChange={workspace.setView} onRefresh={() => setProjectData((projects) => [...projects])} onCreate={() => setCreateOpen(true)} /><div className="mt-6">{error ? <ErrorState description={error} onRetry={() => setProjectData((projects) => [...projects])} /> : loading ? <ProjectSkeleton view={workspace.view} /> : workspace.visibleProjects.length === 0 ? <ProjectEmpty hasFilters={hasFilters} onClear={clearFilters} onCreate={() => setCreateOpen(true)} /> : workspace.view === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{workspace.visibleProjects.map((project) => <ProjectCard key={project.id} project={project} onOpen={workspace.setSelectedProject} />)}</div> : <ProjectTable projects={workspace.visibleProjects} onOpen={workspace.setSelectedProject} />}</div>{workspace.filteredProjects.length > 0 && <Pagination page={workspace.page} pageCount={workspace.pageCount} total={workspace.filteredProjects.length} onPageChange={workspace.setPage} />}</SectionCard><ProjectDetailsDrawer project={workspace.selectedProject} onClose={() => workspace.setSelectedProject(null)} /><CreateProjectModal open={createOpen} onClose={() => setCreateOpen(false)} onCreate={createProject} /></div>;
+  return <div className="mx-auto max-w-[1600px] space-y-6 lg:space-y-8"><PageHeader title="Projects" description="Manage the services, ownership, and operational posture of your platform portfolio." breadcrumb={[{ label: "Overview", href: "/" }, { label: "Projects" }]} /><SectionCard><ProjectToolbar filters={workspace.filters} view={workspace.view} onFiltersChange={workspace.updateFilters} onViewChange={workspace.setView} onRefresh={() => { void refetch(); }} onCreate={() => workspace.setCreateOpen(true)} refreshing={isFetching} /><div className="mt-6">{isError ? <ErrorState description={errorMessage} onRetry={() => { void refetch(); }} /> : isLoading ? <ProjectSkeleton view={workspace.view} /> : projects.length === 0 ? <ProjectEmpty hasFilters={hasFilters} onClear={clearFilters} onCreate={() => workspace.setCreateOpen(true)} /> : workspace.view === "grid" ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{projects.map((project) => <ProjectCard key={project.id} project={project} onOpen={workspace.setSelectedProjectID} />)}</div> : <ProjectTable projects={projects} onOpen={workspace.setSelectedProjectID} />}</div>{data && data.total > 0 && <Pagination page={data.page} pageCount={data.totalPages} total={data.total} limit={data.limit} onPageChange={workspace.setPage} />}</SectionCard><ProjectDetailsDrawer projectID={workspace.selectedProjectID} onClose={() => workspace.setSelectedProjectID(null)} /><CreateProjectModal open={workspace.createOpen} onClose={() => workspace.setCreateOpen(false)} onCreated={(project) => workspace.setSelectedProjectID(project.id)} /></div>;
 }
 
-function Pagination({ page, pageCount, total, onPageChange }: { page: number; pageCount: number; total: number; onPageChange: (page: number) => void }) {
-  return <nav aria-label="Projects pagination" className="mt-6 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border)" }}><p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Showing {Math.min((page - 1) * 6 + 1, total)}–{Math.min(page * 6, total)} of {total} projects</p><div className="flex items-center gap-2"><button type="button" disabled={page === 1} onClick={() => onPageChange(page - 1)} className="rounded-xl border px-3 py-2 text-sm font-medium disabled:opacity-40" style={{ borderColor: "var(--border)" }}>Previous</button><span className="px-2 text-sm tabular-nums" style={{ color: "var(--muted-foreground)" }}>Page {page} of {pageCount}</span><button type="button" disabled={page === pageCount} onClick={() => onPageChange(page + 1)} className="rounded-xl border px-3 py-2 text-sm font-medium disabled:opacity-40" style={{ borderColor: "var(--border)" }}>Next</button></div></nav>;
+function Pagination({ page, pageCount, total, limit, onPageChange }: { page: number; pageCount: number; total: number; limit: number; onPageChange: (page: number) => void }) {
+  return <nav aria-label="Projects pagination" className="mt-6 flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--border)" }}><p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Showing {Math.min((page - 1) * limit + 1, total)}–{Math.min(page * limit, total)} of {total} projects</p><div className="flex items-center gap-2"><button type="button" disabled={page === 1} onClick={() => onPageChange(page - 1)} className="rounded-xl border px-3 py-2 text-sm font-medium disabled:opacity-40" style={{ borderColor: "var(--border)" }}>Previous</button><span className="px-2 text-sm tabular-nums" style={{ color: "var(--muted-foreground)" }}>Page {page} of {pageCount}</span><button type="button" disabled={page === pageCount} onClick={() => onPageChange(page + 1)} className="rounded-xl border px-3 py-2 text-sm font-medium disabled:opacity-40" style={{ borderColor: "var(--border)" }}>Next</button></div></nav>;
 }

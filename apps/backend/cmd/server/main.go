@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"github.com/sp3640/opspilot/backend/internal/config"
@@ -66,7 +67,7 @@ func run() error {
 	auditService := services.NewAuditService(auditRepo).
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
-	projectService := services.NewProjectService(projectRepo, auditService)
+	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	incidentService := services.NewIncidentService(incidentRepo, auditService)
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
@@ -82,15 +83,51 @@ func run() error {
 	collector := metrics.NewCollector()
 
 	r := gin.New()
+
 	if err := r.SetTrustedProxies(nil); err != nil {
 		return fmt.Errorf("configure trusted proxies: %w", err)
 	}
+
+	// -----------------------------
+	// CORS Middleware
+	// -----------------------------
+	r.Use(cors.New(cors.Config{
+		AllowOrigins: []string{
+			"http://localhost:3000",
+		},
+		AllowMethods: []string{
+			"GET",
+			"POST",
+			"PUT",
+			"PATCH",
+			"DELETE",
+			"OPTIONS",
+		},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Type",
+			"Accept",
+			"Authorization",
+			"X-Requested-With",
+		},
+		ExposeHeaders: []string{
+			"Content-Length",
+		},
+		AllowCredentials: true,
+		MaxAge: 12 * time.Hour,
+	}))
+
 	r.Use(
 		middleware.RequestID(),
 		middleware.SecurityHeaders(),
 		collector.Middleware(),
 		middleware.RequestLogger(),
-		middleware.RateLimit(middleware.NewIPRateLimiterWithWindow(cfg.RateLimit, cfg.RateLimitWindow)),
+		middleware.RateLimit(
+			middleware.NewIPRateLimiterWithWindow(
+				cfg.RateLimit,
+				cfg.RateLimitWindow,
+			),
+		),
 		middleware.Recovery(collector),
 	)
 
@@ -107,6 +144,7 @@ func run() error {
 		healthHandler,
 		collector,
 	)
+
 	healthHandler.SetInitialized(true)
 
 	server := &http.Server{
@@ -119,6 +157,7 @@ func run() error {
 	}
 
 	serverErrors := make(chan error, 1)
+
 	go func() {
 		serverErrors <- server.ListenAndServe()
 	}()
@@ -132,7 +171,11 @@ func run() error {
 		slog.String("address", server.Addr),
 	)
 
-	signalContext, stopSignals := signal.NotifyContext(processContext, syscall.SIGINT, syscall.SIGTERM)
+	signalContext, stopSignals := signal.NotifyContext(
+		processContext,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+	)
 	defer stopSignals()
 
 	select {
@@ -141,16 +184,23 @@ func run() error {
 			return fmt.Errorf("serve HTTP: %w", err)
 		}
 		return nil
+
 	case <-signalContext.Done():
 	}
 
 	logger.Info(processContext, "shutdown signal received; draining active requests")
-	shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
+
+	shutdownContext, cancelShutdown := context.WithTimeout(
+		context.Background(),
+		shutdownTimeout,
+	)
 	defer cancelShutdown()
+
 	if err := server.Shutdown(shutdownContext); err != nil {
 		return fmt.Errorf("graceful HTTP shutdown: %w", err)
 	}
 
 	logger.Info(processContext, "HTTP server shutdown complete")
+
 	return nil
 }
