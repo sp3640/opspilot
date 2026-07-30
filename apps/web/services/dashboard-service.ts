@@ -31,7 +31,7 @@ export const dashboardService = {
 
   getServices: async (): Promise<ServiceHealth[]> => {
     const response = await api.get<{ success: boolean; data: ServiceHealth[] }>(
-      "/dashboard/recent-incidents"
+      "/dashboard/services"
     );
     return response.data.data;
   },

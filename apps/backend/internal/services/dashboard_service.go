@@ -123,6 +123,33 @@ func (s *DashboardService) GetStats(userID uint) (*dto.DashboardMetricsResponse,
 	return metrics, nil
 }
 
+// GetServiceHealth returns high-level synthetic health indicators for core services.
+func (s *DashboardService) GetServiceHealth(userID uint) ([]dto.DashboardHealthResponse, error) {
+	incidentCount, err := s.repo.CountIncidentsByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	apiStatus := "healthy"
+	apiHealth := 98
+	apiResponseTime := 42
+	if incidentCount >= 10 {
+		apiStatus = "degraded"
+		apiHealth = 88
+		apiResponseTime = 95
+	}
+
+	services := []dto.DashboardHealthResponse{
+		{Name: "API", Status: apiStatus, ResponseTime: apiResponseTime, Health: apiHealth},
+		{Name: "Database", Status: "healthy", ResponseTime: 28, Health: 99},
+		{Name: "Storage", Status: "healthy", ResponseTime: 34, Health: 97},
+		{Name: "Queue", Status: "healthy", ResponseTime: 40, Health: 96},
+		{Name: "Authentication", Status: "healthy", ResponseTime: 31, Health: 99},
+	}
+
+	return services, nil
+}
+
 // getEnvironment retrieves the APP_ENV environment variable.
 // Defaults to "Development" if not set.
 func getEnvironment() string {

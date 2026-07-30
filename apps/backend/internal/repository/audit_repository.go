@@ -127,3 +127,9 @@ func (r *AuditRepository) ListByIncidentID(req *models.PaginationRequest, incide
 
 	return logs, total, nil
 }
+
+func (r *AuditRepository) ClearIncidentReference(incidentID uint) error {
+	return r.db.Model(&models.AuditLog{}).
+		Where("incident_id = ?", incidentID).
+		Update("incident_id", nil).Error
+}

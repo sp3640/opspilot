@@ -95,6 +95,7 @@ func RegisterRoutes(
 			dashboard.GET("/recent-incidents", dashboardHandler.RecentIncidents)
 			dashboard.GET("/activity", dashboardHandler.Activity)
 			dashboard.GET("/stats", dashboardHandler.Stats)
+			dashboard.GET("/services", dashboardHandler.Services)
 		}
 	}
 }

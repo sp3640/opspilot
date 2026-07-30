@@ -91,9 +91,9 @@ export function SystemHealth() {
       }
     >
       <ul className="space-y-3" aria-label="Production service health">
-        {services.map((service) => (
+        {services.map((service, index) => (
           <HealthItem
-            key={service.name}
+            key={`${service.name}-${index}`}
             name={service.name}
             status={service.status === "healthy" ? "healthy" : "degraded"}
             responseTime={`${service.responseTime} ms`}

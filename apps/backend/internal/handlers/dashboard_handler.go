@@ -75,3 +75,15 @@ func (h *DashboardHandler) Stats(c *gin.Context) {
 
 	response.OK(c, "Dashboard stats fetched successfully", stats)
 }
+
+func (h *DashboardHandler) Services(c *gin.Context) {
+	userID := c.MustGet("userID").(uint)
+
+	services, err := h.service.GetServiceHealth(userID)
+	if err != nil {
+		response.InternalServerError(c, err)
+		return
+	}
+
+	response.OK(c, "Dashboard services fetched successfully", services)
+}

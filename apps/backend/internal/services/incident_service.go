@@ -16,12 +16,24 @@ import (
 )
 
 type IncidentService struct {
-	repo      *repository.IncidentRepository
-	auditRepo *AuditService
+	repo         *repository.IncidentRepository
+	commentRepo  *repository.CommentRepository
+	auditStorage *repository.AuditRepository
+	auditRepo    *AuditService
 }
 
-func NewIncidentService(repo *repository.IncidentRepository, auditService *AuditService) *IncidentService {
-	return &IncidentService{repo: repo, auditRepo: auditService}
+func NewIncidentService(
+	repo *repository.IncidentRepository,
+	commentRepo *repository.CommentRepository,
+	auditStorage *repository.AuditRepository,
+	auditService *AuditService,
+) *IncidentService {
+	return &IncidentService{
+		repo:         repo,
+		commentRepo:  commentRepo,
+		auditStorage: auditStorage,
+		auditRepo:    auditService,
+	}
 }
 
 // CreateIncident persists a new incident and returns its DTO representation.
@@ -190,6 +202,20 @@ func (s *IncidentService) DeleteIncident(ctx context.Context, id, userID uint) e
 			return apperrors.ErrIncidentNotFound
 		}
 		return err
+	}
+
+	// Remove dependent comments first so incident delete is not blocked by FK constraints.
+	if s.commentRepo != nil {
+		if err := s.commentRepo.DeleteByIncidentID(incident.ID); err != nil {
+			return err
+		}
+	}
+
+	// Drop audit references to the incident before deleting the row.
+	if s.auditStorage != nil {
+		if err := s.auditStorage.ClearIncidentReference(incident.ID); err != nil {
+			return err
+		}
 	}
 
 	if err := s.repo.Delete(incident.ID); err != nil {

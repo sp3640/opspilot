@@ -68,7 +68,7 @@ func run() error {
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
-	incidentService := services.NewIncidentService(incidentRepo, auditService)
+	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 

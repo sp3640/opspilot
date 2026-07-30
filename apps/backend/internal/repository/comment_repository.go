@@ -82,3 +82,7 @@ func (r *CommentRepository) Update(comment *models.Comment) error {
 func (r *CommentRepository) Delete(id uint) error {
 	return r.db.Delete(&models.Comment{}, id).Error
 }
+
+func (r *CommentRepository) DeleteByIncidentID(incidentID uint) error {
+	return r.db.Where("incident_id = ?", incidentID).Delete(&models.Comment{}).Error
+}

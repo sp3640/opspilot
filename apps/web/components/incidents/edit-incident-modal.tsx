@@ -38,7 +38,6 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
   const {
     register,
     handleSubmit,
-    reset,
     formState: { errors },
   } = useForm<EditIncidentFormData>({
     resolver: zodResolver(editIncidentSchema),
@@ -91,6 +90,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
     <dialog
       ref={dialogRef}
       onClose={onClose}
+      onMouseDown={(event) => event.stopPropagation()}
       aria-labelledby="edit-incident-title"
       className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border p-0 text-[var(--foreground)] shadow-[var(--shadow-lg)] backdrop:bg-[var(--background)]"
       style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}

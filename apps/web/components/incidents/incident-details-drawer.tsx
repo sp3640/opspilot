@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, Calendar, Pencil, Trash2, X } from "lucide-react";
+import { AlertCircle, Pencil, Trash2, X } from "lucide-react";
 
 import { ErrorState, StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,19 @@ export function IncidentDetailsDrawer({ incidentID, onClose }: { incidentID: num
   const { data: incident, error, isError, isLoading, refetch } = useIncident(incidentID);
 
   useEffect(() => {
+    setEditModalOpen(false);
+    setDeleteDialogOpen(false);
+  }, [incidentID]);
+
+  useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (editModalOpen || deleteDialogOpen) return;
+      onClose();
     };
     if (incidentID) window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [incidentID, onClose]);
+  }, [incidentID, onClose, editModalOpen, deleteDialogOpen]);
 
   if (!incidentID) return null;
 

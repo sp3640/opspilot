@@ -58,6 +58,7 @@ export function DeleteIncidentDialog({ open, incident, onClose, onSuccess }: Del
     <dialog
       ref={dialogRef}
       onClose={onClose}
+      onMouseDown={(event) => event.stopPropagation()}
       aria-labelledby="delete-incident-title"
       className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border p-0 text-[var(--foreground)] shadow-[var(--shadow-lg)] backdrop:bg-[var(--background)]"
       style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
@@ -111,7 +112,7 @@ export function DeleteIncidentDialog({ open, incident, onClose, onSuccess }: Del
 
           <div>
             <p className="text-sm leading-6">
-              Delete incident <strong>"{incident.title}"</strong>? This will remove it permanently along with all associated data.
+              Delete incident <strong>&quot;{incident.title}&quot;</strong>? This will remove it permanently along with all associated data.
             </p>
           </div>
         </div>
