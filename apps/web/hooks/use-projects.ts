@@ -1,6 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { toast } from "sonner";
 import { useAuthStore } from "@/store/auth-store";
 
 import { projectService } from "@/services/project-service";
@@ -39,7 +41,13 @@ export function useCreateProject() {
 
   return useMutation({
     mutationFn: (payload: CreateProjectRequest) => projectService.createProject(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: projectKeys.all }),
+    onSuccess: () => {
+      toast.success("Project created successfully.");
+      return queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getMutationErrorMessage(error, "Failed to create project."));
+    },
   });
 }
 
@@ -49,8 +57,12 @@ export function useUpdateProject() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateProjectRequest }) => projectService.updateProject(id, payload),
     onSuccess: (project) => {
+      toast.success("Project updated successfully.");
       queryClient.setQueryData(projectKeys.detail(project.id), project);
       return queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getMutationErrorMessage(error, "Failed to update project."));
     },
   });
 }
@@ -60,6 +72,24 @@ export function useDeleteProject() {
 
   return useMutation({
     mutationFn: (id: string) => projectService.deleteProject(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: projectKeys.all }),
+    onSuccess: () => {
+      toast.success("Project deleted successfully.");
+      return queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getMutationErrorMessage(error, "Failed to delete project."));
+    },
   });
+}
+
+function getMutationErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message ?? fallback;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }

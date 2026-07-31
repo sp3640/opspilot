@@ -1,6 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { toast } from "sonner";
 
 import { incidentService } from "@/services/incident-service";
 import type {
@@ -35,7 +37,13 @@ export function useCreateIncident() {
 
   return useMutation({
     mutationFn: (payload: CreateIncidentRequest) => incidentService.createIncident(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: incidentKeys.all }),
+    onSuccess: () => {
+      toast.success("Incident created successfully.");
+      return queryClient.invalidateQueries({ queryKey: incidentKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getMutationErrorMessage(error, "Failed to create incident."));
+    },
   });
 }
 
@@ -46,8 +54,12 @@ export function useUpdateIncident() {
     mutationFn: ({ id, payload }: { id: number; payload: UpdateIncidentRequest }) =>
       incidentService.updateIncident(id, payload),
     onSuccess: (incident) => {
+      toast.success("Incident updated successfully.");
       queryClient.setQueryData(incidentKeys.detail(incident.id), incident);
       return queryClient.invalidateQueries({ queryKey: incidentKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getMutationErrorMessage(error, "Failed to update incident."));
     },
   });
 }
@@ -57,6 +69,24 @@ export function useDeleteIncident() {
 
   return useMutation({
     mutationFn: (id: number) => incidentService.deleteIncident(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: incidentKeys.all }),
+    onSuccess: () => {
+      toast.success("Incident deleted successfully.");
+      return queryClient.invalidateQueries({ queryKey: incidentKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getMutationErrorMessage(error, "Failed to delete incident."));
+    },
   });
+}
+
+function getMutationErrorMessage(error: unknown, fallback: string) {
+  if (axios.isAxiosError<{ message?: string }>(error)) {
+    return error.response?.data?.message ?? fallback;
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 }
