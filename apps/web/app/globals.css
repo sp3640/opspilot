@@ -156,3 +156,23 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* ==========================================
+   Dropdowns
+   ========================================== */
+
+select {
+  color: var(--foreground);
+  background-color: var(--card);
+}
+
+/* Some controls use Tailwind's bg-transparent utility; keep dropdown readable. */
+select.bg-transparent {
+  background-color: var(--card);
+}
+
+select option,
+select optgroup {
+  color: var(--foreground);
+  background-color: var(--card);
+}

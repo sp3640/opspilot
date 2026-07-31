@@ -10,7 +10,15 @@ import { DeleteIncidentDialog } from "./delete-incident-dialog";
 import { EditIncidentModal } from "./edit-incident-modal";
 
 /** Read-only incident context loaded from the Incident detail API. */
-export function IncidentDetailsDrawer({ incidentID, onClose }: { incidentID: number | null; onClose: () => void }) {
+export function IncidentDetailsDrawer({
+  incidentID,
+  projectNameById,
+  onClose,
+}: {
+  incidentID: number | null;
+  projectNameById: Map<string, string>;
+  onClose: () => void;
+}) {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { data: incident, error, isError, isLoading, refetch } = useIncident(incidentID);
@@ -60,6 +68,7 @@ export function IncidentDetailsDrawer({ incidentID, onClose }: { incidentID: num
   const severityColor = getSeverityColor(incident.severity);
   const statusLabel = getStatusLabel(incident.status);
   const statusVariant = getStatusVariant(incident.status);
+  const projectName = projectNameById.get(incident.projectId) ?? "Unknown Project";
 
   return (
     <div
@@ -154,7 +163,7 @@ export function IncidentDetailsDrawer({ incidentID, onClose }: { incidentID: num
 
             {/* Metadata Grid */}
             <div className="grid gap-4">
-              <DrawerStat label="Project ID" value={incident.projectId} />
+              <DrawerStat label="Project" value={projectName} />
               <DrawerStat label="Created" value={formatDate(incident.createdAt)} />
               <DrawerStat label="Updated" value={formatDate(incident.updatedAt)} />
             </div>

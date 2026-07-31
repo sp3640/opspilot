@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/store/auth-store";
 
 import { projectService } from "@/services/project-service";
 import type {
@@ -15,10 +16,13 @@ const projectKeys = {
   detail: (id: string) => ["projects", "detail", id] as const,
 };
 
-export function useProjects(params: ProjectQueryParams) {
+export function useProjects(params: ProjectQueryParams, queryEnabled = true) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+
   return useQuery({
     queryKey: projectKeys.list(params),
     queryFn: () => projectService.listProjects(params),
+    enabled: queryEnabled && Boolean(accessToken),
   });
 }
 

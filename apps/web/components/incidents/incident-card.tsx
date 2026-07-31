@@ -7,10 +7,11 @@ import type { IncidentResponse } from "@/types/incident-api";
 
 type IncidentCardProps = {
   incident: IncidentResponse;
+  projectName: string;
   onSelect?: (id: number) => void;
 };
 
-export function IncidentCard({ incident, onSelect }: IncidentCardProps) {
+export function IncidentCard({ incident, projectName, onSelect }: IncidentCardProps) {
   const severityColor = getSeverityColor(incident.severity);
   const statusLabel = getStatusLabel(incident.status);
   const statusVariant = getStatusVariant(incident.status);
@@ -44,7 +45,7 @@ export function IncidentCard({ incident, onSelect }: IncidentCardProps) {
           <div className="min-w-0">
             <h2 className="truncate font-semibold tracking-tight">{incident.title}</h2>
             <p className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-              {incident.projectId}
+              {projectName}
             </p>
           </div>
         </div>

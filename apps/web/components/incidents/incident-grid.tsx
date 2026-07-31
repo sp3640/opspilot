@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useIncidents } from "@/hooks/use-incidents";
+import { useProjects } from "@/hooks/use-projects";
 import { ErrorState, PageHeader } from "@/components/common";
 import { SectionCard } from "@/components/dashboard";
 
@@ -21,6 +22,20 @@ export function IncidentsWorkspace() {
     limit: 6,
     search: workspace.debouncedSearch.trim() || undefined,
   });
+  const { data: projectsData } = useProjects({
+    page: 1,
+    limit: 100,
+    sort: "name",
+    order: "asc",
+  });
+
+  const projectNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const project of projectsData?.items ?? []) {
+      map.set(project.id, project.name);
+    }
+    return map;
+  }, [projectsData?.items]);
 
   const incidents = data?.items ?? [];
   const hasFilters = workspace.filters.query.length > 0;
@@ -70,6 +85,7 @@ export function IncidentsWorkspace() {
                 <IncidentCard
                   key={incident.id}
                   incident={incident}
+                  projectName={projectNameById.get(incident.projectId) ?? "Unknown Project"}
                   onSelect={workspace.setSelectedIncidentID}
                 />
               ))}
@@ -91,6 +107,7 @@ export function IncidentsWorkspace() {
       <CreateIncidentModal open={createModalOpen} onClose={() => setCreateModalOpen(false)} />
       <IncidentDetailsDrawer
         incidentID={workspace.selectedIncidentID}
+        projectNameById={projectNameById}
         onClose={() => workspace.setSelectedIncidentID(null)}
       />
     </div>

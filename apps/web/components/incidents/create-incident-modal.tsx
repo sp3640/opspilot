@@ -9,7 +9,8 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { useCreateIncident } from "@/hooks/use-incidents";
-import type { CreateIncidentRequest, IncidentResponse } from "@/types/incident-api";
+import type { CreateIncidentRequest } from "@/types/incident-api";
+import { ProjectSelect } from "./project-select";
 
 const incidentSchema = z.object({
   title: z
@@ -19,7 +20,7 @@ const incidentSchema = z.object({
     .max(255, "Title must be 255 characters or fewer."),
   description: z.string().trim().max(1000, "Description must be 1000 characters or fewer."),
   severity: z.enum(["P0", "P1", "P2", "P3", "P4"], { message: "Please select a valid severity level." }),
-  project_id: z.string().trim().min(1, "Project ID is required.").min(36, "Project ID must be a valid UUID."),
+  project_id: z.string().trim().min(1, "Please select a project."),
   status: z.literal("OPEN"),
 });
 
@@ -197,12 +198,12 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
 
           <div>
             <label htmlFor="incident-project" className="text-sm font-medium">
-              Project ID
+              Project
             </label>
-            <input
+            <ProjectSelect
               id="incident-project"
+              queryEnabled={open}
               {...register("project_id")}
-              placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
               className={inputClass}
               style={{ borderColor: errors.project_id ? "var(--danger)" : "var(--border)" }}
               disabled={createIncident.isPending}

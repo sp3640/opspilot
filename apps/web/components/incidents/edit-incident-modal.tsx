@@ -10,6 +10,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { useUpdateIncident } from "@/hooks/use-incidents";
 import type { IncidentResponse, UpdateIncidentRequest } from "@/types/incident-api";
+import { ProjectSelect } from "./project-select";
 
 const editIncidentSchema = z.object({
   title: z
@@ -19,6 +20,7 @@ const editIncidentSchema = z.object({
     .max(255, "Title must be 255 characters or fewer."),
   description: z.string().trim().max(1000, "Description must be 1000 characters or fewer."),
   severity: z.enum(["P0", "P1", "P2", "P3", "P4"], { message: "Please select a valid severity level." }),
+  project_id: z.string().trim().min(1, "Please select a project."),
   status: z.enum(["OPEN", "INVESTIGATING", "RESOLVED"], { message: "Please select a valid status." }),
 });
 
@@ -45,12 +47,14 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
       title: incident?.title ?? "",
       description: incident?.description ?? "",
       severity: (incident?.severity as "P0" | "P1" | "P2" | "P3" | "P4") ?? "P0",
+      project_id: incident?.projectId ?? "",
       status: (incident?.status as "OPEN" | "INVESTIGATING" | "RESOLVED") ?? "OPEN",
     },
     values: {
       title: incident?.title ?? "",
       description: incident?.description ?? "",
       severity: (incident?.severity as "P0" | "P1" | "P2" | "P3" | "P4") ?? "P0",
+      project_id: incident?.projectId ?? "",
       status: (incident?.status as "OPEN" | "INVESTIGATING" | "RESOLVED") ?? "OPEN",
     },
   });
@@ -74,7 +78,6 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
         id: incident.id,
         payload: {
           ...input,
-          project_id: incident.projectId,
         } as UpdateIncidentRequest,
       });
       onClose();
@@ -201,6 +204,26 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
             {errors.severity && (
               <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.severity.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="edit-incident-project" className="text-sm font-medium">
+              Project
+            </label>
+            <ProjectSelect
+              id="edit-incident-project"
+              queryEnabled={open}
+              {...register("project_id")}
+              currentProjectId={incident?.projectId}
+              className={inputClass}
+              style={{ borderColor: errors.project_id ? "var(--danger)" : "var(--border)" }}
+              disabled={updateIncident.isPending}
+            />
+            {errors.project_id && (
+              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                {errors.project_id.message}
               </p>
             )}
           </div>
