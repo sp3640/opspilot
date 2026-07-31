@@ -3,6 +3,13 @@
 import { AlertCircle, Clock } from "lucide-react";
 
 import { StatusBadge } from "@/components/common";
+import {
+  INCIDENT_SEVERITY_COLORS,
+  INCIDENT_STATUS_LABELS,
+  INCIDENT_STATUS_VARIANTS,
+  type IncidentSeverity,
+  type IncidentStatus,
+} from "@/lib/constants";
 import type { IncidentResponse } from "@/types/incident-api";
 
 type IncidentCardProps = {
@@ -76,32 +83,15 @@ export function IncidentCard({ incident, projectName, onSelect }: IncidentCardPr
 }
 
 function getSeverityColor(severity: string): string {
-  const colors: Record<string, string> = {
-    P0: "#dc2626",
-    P1: "#ea580c",
-    P2: "#f59e0b",
-    P3: "#eab308",
-    P4: "#84cc16",
-  };
-  return colors[severity] || "var(--muted-foreground)";
+  return INCIDENT_SEVERITY_COLORS[severity as IncidentSeverity] || "var(--muted-foreground)";
 }
 
 function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    OPEN: "Open",
-    INVESTIGATING: "Investigating",
-    RESOLVED: "Resolved",
-  };
-  return labels[status] || status;
+  return INCIDENT_STATUS_LABELS[status as IncidentStatus] || status;
 }
 
 function getStatusVariant(status: string): "info" | "warning" | "success" {
-  const variants: Record<string, "info" | "warning" | "success"> = {
-    OPEN: "info",
-    INVESTIGATING: "warning",
-    RESOLVED: "success",
-  };
-  return variants[status] || "info";
+  return INCIDENT_STATUS_VARIANTS[status as IncidentStatus] || "info";
 }
 
 function formatDate(value: string) {

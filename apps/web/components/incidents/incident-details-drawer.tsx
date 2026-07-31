@@ -6,6 +6,13 @@ import { AlertCircle, Pencil, Trash2, X } from "lucide-react";
 import { ErrorState, StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { useIncident } from "@/hooks/use-incidents";
+import {
+  INCIDENT_SEVERITY_COLORS,
+  INCIDENT_STATUS_LABELS,
+  INCIDENT_STATUS_VARIANTS,
+  type IncidentSeverity,
+  type IncidentStatus,
+} from "@/lib/constants";
 import { DeleteIncidentDialog } from "./delete-incident-dialog";
 import { EditIncidentModal } from "./edit-incident-modal";
 
@@ -79,7 +86,7 @@ export function IncidentDetailsDrawer({
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label={`${incident.title} details`}
+        aria-labelledby="incident-details-title"
         onMouseDown={(event) => event.stopPropagation()}
         className="flex h-full w-full max-w-xl flex-col border-l shadow-[var(--shadow-lg)]"
         style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
@@ -97,7 +104,7 @@ export function IncidentDetailsDrawer({
                 <AlertCircle aria-hidden="true" className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <h2 className="truncate text-xl font-semibold tracking-tight">{incident.title}</h2>
+                <h2 id="incident-details-title" className="truncate text-xl font-semibold tracking-tight">{incident.title}</h2>
                 <p className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
                   Incident workspace
                 </p>
@@ -162,11 +169,11 @@ export function IncidentDetailsDrawer({
             </div>
 
             {/* Metadata Grid */}
-            <div className="grid gap-4">
+            <dl className="grid gap-4">
               <DrawerStat label="Project" value={projectName} />
               <DrawerStat label="Created" value={formatDate(incident.createdAt)} />
               <DrawerStat label="Updated" value={formatDate(incident.updatedAt)} />
-            </div>
+            </dl>
           </div>
         </div>
       </aside>
@@ -233,32 +240,15 @@ function DrawerStat({ label, value }: { label: string; value: string }) {
 }
 
 function getSeverityColor(severity: string): string {
-  const colors: Record<string, string> = {
-    P0: "#dc2626",
-    P1: "#ea580c",
-    P2: "#f59e0b",
-    P3: "#eab308",
-    P4: "#84cc16",
-  };
-  return colors[severity] || "var(--muted-foreground)";
+  return INCIDENT_SEVERITY_COLORS[severity as IncidentSeverity] || "var(--muted-foreground)";
 }
 
 function getStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    OPEN: "Open",
-    INVESTIGATING: "Investigating",
-    RESOLVED: "Resolved",
-  };
-  return labels[status] || status;
+  return INCIDENT_STATUS_LABELS[status as IncidentStatus] || status;
 }
 
 function getStatusVariant(status: string): "info" | "warning" | "success" {
-  const variants: Record<string, "info" | "warning" | "success"> = {
-    OPEN: "info",
-    INVESTIGATING: "warning",
-    RESOLVED: "success",
-  };
-  return variants[status] || "info";
+  return INCIDENT_STATUS_VARIANTS[status as IncidentStatus] || "info";
 }
 
 function formatDate(value: string) {

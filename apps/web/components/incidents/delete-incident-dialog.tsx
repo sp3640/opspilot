@@ -60,6 +60,7 @@ export function DeleteIncidentDialog({ open, incident, onClose, onSuccess }: Del
       onClose={onClose}
       onMouseDown={(event) => event.stopPropagation()}
       aria-labelledby="delete-incident-title"
+      aria-describedby={submitError ? "delete-incident-description delete-incident-submit-error" : "delete-incident-description"}
       className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border p-0 text-[var(--foreground)] shadow-[var(--shadow-lg)] backdrop:bg-[var(--background)]"
       style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
     >
@@ -79,7 +80,7 @@ export function DeleteIncidentDialog({ open, incident, onClose, onSuccess }: Del
               <h2 id="delete-incident-title" className="text-lg font-semibold">
                 Delete incident
               </h2>
-              <p className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
+              <p id="delete-incident-description" className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
                 This action cannot be undone.
               </p>
             </div>
@@ -99,6 +100,9 @@ export function DeleteIncidentDialog({ open, incident, onClose, onSuccess }: Del
         <div className="space-y-5 p-5">
           {submitError && (
             <div
+              id="delete-incident-submit-error"
+              role="alert"
+              aria-live="assertive"
               className="rounded-2xl border p-3 text-sm"
               style={{
                 backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",

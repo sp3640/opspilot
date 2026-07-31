@@ -5,26 +5,20 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { AlertCircle, X } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import type { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { useCreateIncident } from "@/hooks/use-incidents";
+import {
+  INCIDENT_DEFAULT_SEVERITY,
+  INCIDENT_DEFAULT_STATUS,
+  INCIDENT_SEVERITY_OPTIONS,
+} from "@/lib/constants";
+import { createIncidentSchema } from "@/lib/validation/incident";
 import type { CreateIncidentRequest } from "@/types/incident-api";
 import { ProjectSelect } from "./project-select";
 
-const incidentSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(3, "Title must contain at least 3 characters.")
-    .max(255, "Title must be 255 characters or fewer."),
-  description: z.string().trim().max(1000, "Description must be 1000 characters or fewer."),
-  severity: z.enum(["P0", "P1", "P2", "P3", "P4"], { message: "Please select a valid severity level." }),
-  project_id: z.string().trim().min(1, "Please select a project."),
-  status: z.literal("OPEN"),
-});
-
-type CreateIncidentFormData = z.infer<typeof incidentSchema>;
+type CreateIncidentFormData = z.infer<typeof createIncidentSchema>;
 
 type CreateIncidentModalProps = {
   open: boolean;
@@ -42,13 +36,13 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
     reset,
     formState: { errors },
   } = useForm<CreateIncidentFormData>({
-    resolver: zodResolver(incidentSchema),
+    resolver: zodResolver(createIncidentSchema),
     defaultValues: {
       title: "",
       description: "",
-      severity: "P0",
+      severity: INCIDENT_DEFAULT_SEVERITY,
       project_id: "",
-      status: "OPEN",
+      status: INCIDENT_DEFAULT_STATUS,
     },
   });
 
@@ -83,6 +77,7 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
       ref={dialogRef}
       onClose={onClose}
       aria-labelledby="create-incident-title"
+      aria-describedby={submitError ? "create-incident-description create-incident-submit-error" : "create-incident-description"}
       className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border p-0 text-[var(--foreground)] shadow-[var(--shadow-lg)] backdrop:bg-[var(--background)]"
       style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
     >
@@ -102,7 +97,7 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               <h2 id="create-incident-title" className="text-lg font-semibold">
                 Create incident
               </h2>
-              <p className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
+              <p id="create-incident-description" className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
                 Report a new issue affecting your platform.
               </p>
             </div>
@@ -122,6 +117,9 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
         <div className="space-y-5 p-5">
           {submitError && (
             <div
+              id="create-incident-submit-error"
+              role="alert"
+              aria-live="assertive"
               className="rounded-2xl border p-3 text-sm"
               style={{
                 backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",
@@ -144,9 +142,11 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               className={inputClass}
               style={{ borderColor: errors.title ? "var(--danger)" : "var(--border)" }}
               disabled={createIncident.isPending}
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? "incident-title-error" : undefined}
             />
             {errors.title && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="incident-title-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.title.message}
               </p>
             )}
@@ -164,9 +164,11 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               className={inputClass}
               style={{ borderColor: errors.description ? "var(--danger)" : "var(--border)" }}
               disabled={createIncident.isPending}
+              aria-invalid={Boolean(errors.description)}
+              aria-describedby={errors.description ? "incident-description-error" : undefined}
             />
             {errors.description && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="incident-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.description.message}
               </p>
             )}
@@ -182,15 +184,17 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               className={inputClass}
               style={{ borderColor: errors.severity ? "var(--danger)" : "var(--border)" }}
               disabled={createIncident.isPending}
+              aria-invalid={Boolean(errors.severity)}
+              aria-describedby={errors.severity ? "incident-severity-error" : undefined}
             >
-              <option value="P0">P0 - Critical</option>
-              <option value="P1">P1 - High</option>
-              <option value="P2">P2 - Medium</option>
-              <option value="P3">P3 - Low</option>
-              <option value="P4">P4 - Minimal</option>
+              {INCIDENT_SEVERITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
             {errors.severity && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="incident-severity-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.severity.message}
               </p>
             )}
@@ -207,9 +211,11 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               className={inputClass}
               style={{ borderColor: errors.project_id ? "var(--danger)" : "var(--border)" }}
               disabled={createIncident.isPending}
+              aria-invalid={Boolean(errors.project_id)}
+              aria-describedby={errors.project_id ? "incident-project-error" : undefined}
             />
             {errors.project_id && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="incident-project-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.project_id.message}
               </p>
             )}

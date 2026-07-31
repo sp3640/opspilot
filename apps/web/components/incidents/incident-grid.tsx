@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { useIncidents } from "@/hooks/use-incidents";
 import { useProjects } from "@/hooks/use-projects";
+import {
+  PAGINATION_DEFAULT_PAGE_SIZE,
+  PROJECT_LOOKUP_QUERY,
+} from "@/lib/constants";
 import { ErrorState, PageHeader } from "@/components/common";
 import { SectionCard } from "@/components/dashboard";
 
@@ -19,14 +23,14 @@ export function IncidentsWorkspace() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const { data, error, isError, isLoading, isFetching, refetch } = useIncidents({
     page: workspace.page,
-    limit: 6,
+    limit: PAGINATION_DEFAULT_PAGE_SIZE,
     search: workspace.debouncedSearch.trim() || undefined,
   });
   const { data: projectsData } = useProjects({
-    page: 1,
-    limit: 100,
-    sort: "name",
-    order: "asc",
+    page: PROJECT_LOOKUP_QUERY.page,
+    limit: PROJECT_LOOKUP_QUERY.limit,
+    sort: PROJECT_LOOKUP_QUERY.sort,
+    order: PROJECT_LOOKUP_QUERY.order,
   });
 
   const projectNameById = useMemo(() => {

@@ -1,6 +1,11 @@
 "use client";
 
 import { useProjects } from "@/hooks/use-projects";
+import {
+  PAGINATION_DEFAULT_PAGE_SIZE,
+  PROJECT_SORT_FIELDS,
+  SORT_ORDERS,
+} from "@/lib/constants";
 import { ErrorState, PageHeader } from "@/components/common";
 import { SectionCard } from "@/components/dashboard";
 
@@ -15,8 +20,8 @@ import { ProjectToolbar } from "./project-toolbar";
 /** Complete, stateful Projects portfolio workspace composed from small feature components. */
 export function ProjectsWorkspace() {
   const workspace = useProjectsWorkspace();
-  const sort = workspace.filters.sort === "name" ? "name" : "updated_at";
-  const { data, error, isError, isLoading, isFetching, refetch } = useProjects({ page: workspace.page, limit: 6, search: workspace.debouncedSearch.trim() || undefined, sort, order: sort === "name" ? "asc" : "desc" });
+  const sort = workspace.filters.sort === PROJECT_SORT_FIELDS.NAME ? PROJECT_SORT_FIELDS.NAME : PROJECT_SORT_FIELDS.UPDATED_AT;
+  const { data, error, isError, isLoading, isFetching, refetch } = useProjects({ page: workspace.page, limit: PAGINATION_DEFAULT_PAGE_SIZE, search: workspace.debouncedSearch.trim() || undefined, sort, order: sort === PROJECT_SORT_FIELDS.NAME ? SORT_ORDERS.ASC : SORT_ORDERS.DESC });
   const projects = data?.items ?? [];
   const hasFilters = workspace.filters.query.length > 0;
   const clearFilters = () => workspace.updateFilters({ query: "", environment: "all", health: "all" });

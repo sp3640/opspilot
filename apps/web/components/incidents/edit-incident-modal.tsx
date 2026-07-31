@@ -5,24 +5,21 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { AlertCircle, X } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import type { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { useUpdateIncident } from "@/hooks/use-incidents";
+import {
+  INCIDENT_DEFAULT_SEVERITY,
+  INCIDENT_DEFAULT_STATUS,
+  INCIDENT_SEVERITY_OPTIONS,
+  INCIDENT_STATUS_OPTIONS,
+  type IncidentSeverity,
+  type IncidentStatus,
+} from "@/lib/constants";
+import { editIncidentSchema } from "@/lib/validation/incident";
 import type { IncidentResponse, UpdateIncidentRequest } from "@/types/incident-api";
 import { ProjectSelect } from "./project-select";
-
-const editIncidentSchema = z.object({
-  title: z
-    .string()
-    .trim()
-    .min(3, "Title must contain at least 3 characters.")
-    .max(255, "Title must be 255 characters or fewer."),
-  description: z.string().trim().max(1000, "Description must be 1000 characters or fewer."),
-  severity: z.enum(["P0", "P1", "P2", "P3", "P4"], { message: "Please select a valid severity level." }),
-  project_id: z.string().trim().min(1, "Please select a project."),
-  status: z.enum(["OPEN", "INVESTIGATING", "RESOLVED"], { message: "Please select a valid status." }),
-});
 
 type EditIncidentFormData = z.infer<typeof editIncidentSchema>;
 
@@ -46,16 +43,16 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
     defaultValues: {
       title: incident?.title ?? "",
       description: incident?.description ?? "",
-      severity: (incident?.severity as "P0" | "P1" | "P2" | "P3" | "P4") ?? "P0",
+      severity: (incident?.severity as IncidentSeverity) ?? INCIDENT_DEFAULT_SEVERITY,
       project_id: incident?.projectId ?? "",
-      status: (incident?.status as "OPEN" | "INVESTIGATING" | "RESOLVED") ?? "OPEN",
+      status: (incident?.status as IncidentStatus) ?? INCIDENT_DEFAULT_STATUS,
     },
     values: {
       title: incident?.title ?? "",
       description: incident?.description ?? "",
-      severity: (incident?.severity as "P0" | "P1" | "P2" | "P3" | "P4") ?? "P0",
+      severity: (incident?.severity as IncidentSeverity) ?? INCIDENT_DEFAULT_SEVERITY,
       project_id: incident?.projectId ?? "",
-      status: (incident?.status as "OPEN" | "INVESTIGATING" | "RESOLVED") ?? "OPEN",
+      status: (incident?.status as IncidentStatus) ?? INCIDENT_DEFAULT_STATUS,
     },
   });
 
@@ -95,6 +92,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
       onClose={onClose}
       onMouseDown={(event) => event.stopPropagation()}
       aria-labelledby="edit-incident-title"
+      aria-describedby={submitError ? "edit-incident-summary edit-incident-submit-error" : "edit-incident-summary"}
       className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border p-0 text-[var(--foreground)] shadow-[var(--shadow-lg)] backdrop:bg-[var(--background)]"
       style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
     >
@@ -114,7 +112,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               <h2 id="edit-incident-title" className="text-lg font-semibold">
                 Edit incident
               </h2>
-              <p className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
+              <p id="edit-incident-summary" className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
                 Update incident details.
               </p>
             </div>
@@ -134,6 +132,9 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
         <div className="space-y-5 p-5">
           {submitError && (
             <div
+              id="edit-incident-submit-error"
+              role="alert"
+              aria-live="assertive"
               className="rounded-2xl border p-3 text-sm"
               style={{
                 backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",
@@ -156,9 +157,11 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               className={inputClass}
               style={{ borderColor: errors.title ? "var(--danger)" : "var(--border)" }}
               disabled={updateIncident.isPending}
+              aria-invalid={Boolean(errors.title)}
+              aria-describedby={errors.title ? "edit-incident-title-error" : undefined}
             />
             {errors.title && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-title-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.title.message}
               </p>
             )}
@@ -176,9 +179,11 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               className={inputClass}
               style={{ borderColor: errors.description ? "var(--danger)" : "var(--border)" }}
               disabled={updateIncident.isPending}
+              aria-invalid={Boolean(errors.description)}
+              aria-describedby={errors.description ? "edit-incident-description-error" : undefined}
             />
             {errors.description && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.description.message}
               </p>
             )}
@@ -194,15 +199,17 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               className={inputClass}
               style={{ borderColor: errors.severity ? "var(--danger)" : "var(--border)" }}
               disabled={updateIncident.isPending}
+              aria-invalid={Boolean(errors.severity)}
+              aria-describedby={errors.severity ? "edit-incident-severity-error" : undefined}
             >
-              <option value="P0">P0 - Critical</option>
-              <option value="P1">P1 - High</option>
-              <option value="P2">P2 - Medium</option>
-              <option value="P3">P3 - Low</option>
-              <option value="P4">P4 - Minimal</option>
+              {INCIDENT_SEVERITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
             {errors.severity && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-severity-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.severity.message}
               </p>
             )}
@@ -220,9 +227,11 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               className={inputClass}
               style={{ borderColor: errors.project_id ? "var(--danger)" : "var(--border)" }}
               disabled={updateIncident.isPending}
+              aria-invalid={Boolean(errors.project_id)}
+              aria-describedby={errors.project_id ? "edit-incident-project-error" : undefined}
             />
             {errors.project_id && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-project-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.project_id.message}
               </p>
             )}
@@ -238,13 +247,17 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               className={inputClass}
               style={{ borderColor: errors.status ? "var(--danger)" : "var(--border)" }}
               disabled={updateIncident.isPending}
+              aria-invalid={Boolean(errors.status)}
+              aria-describedby={errors.status ? "edit-incident-status-error" : undefined}
             >
-              <option value="OPEN">Open</option>
-              <option value="INVESTIGATING">Investigating</option>
-              <option value="RESOLVED">Resolved</option>
+              {INCIDENT_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
             {errors.status && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-status-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                 {errors.status.message}
               </p>
             )}

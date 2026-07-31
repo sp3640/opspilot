@@ -4,6 +4,7 @@ import { forwardRef } from "react";
 import type { SelectHTMLAttributes } from "react";
 
 import { useProjects } from "@/hooks/use-projects";
+import { PROJECT_LOOKUP_QUERY } from "@/lib/constants";
 
 type ProjectSelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   currentProjectId?: string;
@@ -19,10 +20,10 @@ export const ProjectSelect = forwardRef<HTMLSelectElement, ProjectSelectProps>(f
   ref
 ) {
   const { data, isLoading, isFetching, isError } = useProjects({
-    page: 1,
-    limit: 100,
-    sort: "name",
-    order: "asc",
+    page: PROJECT_LOOKUP_QUERY.page,
+    limit: PROJECT_LOOKUP_QUERY.limit,
+    sort: PROJECT_LOOKUP_QUERY.sort,
+    order: PROJECT_LOOKUP_QUERY.order,
   }, queryEnabled);
 
   const projects = data?.items ?? [];
@@ -30,6 +31,16 @@ export const ProjectSelect = forwardRef<HTMLSelectElement, ProjectSelectProps>(f
   const isBusy = isLoading || isFetching;
   const showCurrentProjectFallback =
     Boolean(currentProjectId) && !projects.some((project) => project.id === currentProjectId);
+  const helperMessageId = props.id ? `${props.id}-project-select-helper` : undefined;
+  const errorMessageId = props.id ? `${props.id}-project-select-error` : undefined;
+
+  const describedBy = [
+    props["aria-describedby"],
+    !isBusy && !isError && !hasProjects && !showCurrentProjectFallback ? helperMessageId : undefined,
+    isError ? errorMessageId : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div>
@@ -43,6 +54,7 @@ export const ProjectSelect = forwardRef<HTMLSelectElement, ProjectSelectProps>(f
         }}
         disabled={disabled || isBusy || (!hasProjects && !showCurrentProjectFallback)}
         aria-busy={isBusy}
+        aria-describedby={describedBy || undefined}
       >
         {isBusy ? (
           <option value="" style={{ backgroundColor: "var(--card)", color: "var(--foreground)" }}>
@@ -79,13 +91,24 @@ export const ProjectSelect = forwardRef<HTMLSelectElement, ProjectSelectProps>(f
       </select>
 
       {!isBusy && !isError && !hasProjects && !showCurrentProjectFallback ? (
-        <p className="mt-1.5 text-xs" style={{ color: "var(--muted-foreground)" }}>
+        <p
+          id={helperMessageId}
+          aria-live="polite"
+          className="mt-1.5 text-xs"
+          style={{ color: "var(--muted-foreground)" }}
+        >
           No projects found. Create a project first.
         </p>
       ) : null}
 
       {isError ? (
-        <p className="mt-1.5 text-xs" style={{ color: "var(--muted-foreground)" }}>
+        <p
+          id={errorMessageId}
+          role="status"
+          aria-live="polite"
+          className="mt-1.5 text-xs"
+          style={{ color: "var(--muted-foreground)" }}
+        >
           Unable to load projects right now.
         </p>
       ) : null}

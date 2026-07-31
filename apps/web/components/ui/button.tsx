@@ -62,6 +62,7 @@ export function Button({
   return (
     <button
       disabled={disabled || loading}
+      aria-busy={loading}
       style={
         variant === "primary"
           ? {
@@ -119,9 +120,12 @@ export function Button({
     >
       {loading && (
         <span
+          aria-hidden="true"
           className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
         />
       )}
+
+      {loading && <span className="sr-only">Loading</span>}
 
       {children}
     </button>
