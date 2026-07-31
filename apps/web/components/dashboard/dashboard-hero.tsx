@@ -52,7 +52,7 @@ export function DashboardHero() {
               <span style={{ color: "var(--muted-foreground)" }}>Loading summary...</span>
             </div>
           ) : summaryItems ? (
-            summaryItems.map(([label, value, Icon]: [string, string, any]) => (
+            summaryItems.map(([label, value, Icon]) => (
               <div key={label} className="rounded-2xl border p-4" style={{ backgroundColor: "color-mix(in srgb, var(--background) 24%, transparent)", borderColor: "var(--border)" }}>
                 <Icon aria-hidden="true" className="h-4 w-4" style={{ color: "var(--primary)" }} />
                 <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>{label}</p>

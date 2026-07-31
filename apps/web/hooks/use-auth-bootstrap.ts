@@ -22,7 +22,7 @@ export const useAuthBootstrap = () => {
           const response = await authService.me();
           setCurrentUser(response.data);
         }
-      } catch (error) {
+      } catch {
         logout();
       } finally {
         setBootstrapping(false);
