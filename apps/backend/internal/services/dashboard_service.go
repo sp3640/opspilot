@@ -3,6 +3,8 @@ package services
 import (
 	"os"
 
+	"github.com/google/uuid"
+	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/mapper"
 	"github.com/sp3640/opspilot/backend/internal/repository"
@@ -14,6 +16,22 @@ type DashboardService struct {
 
 func NewDashboardService(repo *repository.DashboardRepository) *DashboardService {
 	return &DashboardService{repo: repo}
+}
+
+func (s *DashboardService) ValidateProjectAccess(userID uint, projectID uuid.UUID) error {
+	if projectID == uuid.Nil {
+		return nil
+	}
+
+	belongs, err := s.repo.ProjectBelongsToUser(projectID, userID)
+	if err != nil {
+		return err
+	}
+	if !belongs {
+		return apperrors.ErrInvalidProject
+	}
+
+	return nil
 }
 
 // GetSummary returns a dashboard overview with all summary information.

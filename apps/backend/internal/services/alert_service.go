@@ -436,6 +436,7 @@ func (s *AlertService) AttachIncident(ctx context.Context, id, incidentID, userI
 	return &response, nil
 }
 
+// RefreshLastSeen is retained for scheduled alert freshness workflows and dedup pipelines.
 func (s *AlertService) RefreshLastSeen(ctx context.Context, id, userID uint) (*dto.AlertResponse, error) {
 	alert, err := s.getOwnedAlert(id, userID)
 	if err != nil {

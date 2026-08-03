@@ -68,6 +68,10 @@ func (r *ClusterRepository) List(req *models.PaginationRequest, userID uint) ([]
 		)
 	}
 
+	if req.Provider != "" {
+		query = query.Where("clusters.provider = ?", req.Provider)
+	}
+
 	if req.Status != "" {
 		query = query.Where("clusters.status = ?", req.Status)
 	}

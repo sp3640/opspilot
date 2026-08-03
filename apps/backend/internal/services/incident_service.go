@@ -76,10 +76,6 @@ func (s *IncidentService) CreateIncident(ctx context.Context, title, description
 	return &response, nil
 }
 
-func (s *IncidentService) GetMyIncidents(userID uint) ([]models.Incident, error) {
-	return s.repo.GetAllByUserID(userID)
-}
-
 // ListMyIncidents returns a paginated list of incidents for the user.
 func (s *IncidentService) ListMyIncidents(userID uint, req *models.PaginationRequest) (*dto.IncidentListResponse, error) {
 	items, total, err := s.repo.ListByUserID(req, userID)

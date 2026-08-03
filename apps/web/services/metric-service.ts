@@ -1,0 +1,4 @@
+import { api } from "@/lib/api";
+import type { MetricAggregateResponse, MetricAggregationParams, MetricHistoryParams, MetricListResponse, MetricQueryParams, MetricResponse, MetricScopeParams } from "@/types/metric-api";
+type APIResponse<T> = { success: boolean; message: string; data: T };
+export const metricService = { listMetrics: async (params: MetricQueryParams) => (await api.get<APIResponse<MetricListResponse>>("/metrics", { params })).data.data, getLatestMetrics: async (params: MetricScopeParams) => (await api.get<APIResponse<MetricResponse>>("/metrics/latest", { params })).data.data, getMetricHistory: async (params: MetricHistoryParams) => (await api.get<APIResponse<MetricResponse[]>>("/metrics/history", { params })).data.data, getMetricAggregation: async (params: MetricAggregationParams) => (await api.get<APIResponse<MetricAggregateResponse>>("/metrics/aggregate", { params })).data.data };

@@ -1,0 +1,5 @@
+"use client";
+import { useEffect, useState } from "react";
+import type { AlertFilters, AlertView } from "./types";
+const initial: AlertFilters = { query: "", projectId: "all", cluster: "all", resource: "all", severity: "all", status: "all", rule: "all", createdDate: "", sort: "updated_at", order: "desc" };
+export function useAlertsWorkspace() { const [filters, setFilters] = useState(initial); const [view, setView] = useState<AlertView>("grid"); const [page, setPage] = useState(1); const [selectedAlertID, setSelectedAlertID] = useState<number | null>(null); const [createOpen, setCreateOpen] = useState(false); const [debouncedSearch, setSearch] = useState(filters.query); useEffect(() => { const id = window.setTimeout(() => setSearch(filters.query), 300); return () => window.clearTimeout(id); }, [filters.query]); return { filters, updateFilters: (next: Partial<AlertFilters>) => { setFilters((current) => ({ ...current, ...next })); setPage(1); }, view, setView, page, setPage, selectedAlertID, setSelectedAlertID, createOpen, setCreateOpen, debouncedSearch }; }

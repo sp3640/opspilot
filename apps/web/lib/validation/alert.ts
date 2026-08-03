@@ -1,0 +1,4 @@
+import { z } from "zod";
+import { ALERT_RESOURCE_TYPES, ALERT_SEVERITIES, ALERT_SOURCES, ALERT_STATUSES } from "@/lib/constants/alert";
+export const alertFormSchema = z.object({ project_id: z.string().uuid("Project is required."), incident_id: z.string(), title: z.string().trim().min(1, "Title is required.").max(255), description: z.string().max(2000), severity: z.enum(ALERT_SEVERITIES), status: z.enum(ALERT_STATUSES), source: z.enum(ALERT_SOURCES), resource_type: z.enum(ALERT_RESOURCE_TYPES), resource_id: z.string().trim().min(1, "Resource ID is required.").max(255), fingerprint: z.string().trim().min(1, "Fingerprint is required.").max(191), occurrence_count: z.coerce.number().int().min(1), first_seen_at: z.string().min(1), last_seen_at: z.string().min(1), labelsText: z.string(), metadataText: z.string() });
+export type AlertFormInput = z.infer<typeof alertFormSchema>;

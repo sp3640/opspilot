@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -153,4 +154,17 @@ func (r *DashboardRepository) CountIncidentsByUserID(userID uint) (int64, error)
 		return 0, err
 	}
 	return count, nil
+}
+
+func (r *DashboardRepository) ProjectBelongsToUser(projectID uuid.UUID, userID uint) (bool, error) {
+	var project models.Project
+
+	if err := r.db.Where("id = ?", projectID).First(&project).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return project.OwnerID == userID, nil
 }

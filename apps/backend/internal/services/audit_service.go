@@ -72,22 +72,6 @@ func (s *AuditService) LogDelete(userID uint, entityType string, entityID string
 	return s.repo.Create(log)
 }
 
-func (s *AuditService) GetIncidentAuditLogs(userID uint, incidentID uint) ([]models.AuditLog, error) {
-	incident, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID)
-	if err != nil {
-		if errors.Is(err, apperrors.ErrProjectForbidden) {
-			return nil, apperrors.ErrProjectForbidden
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrIncidentNotFound
-		}
-		return nil, err
-	}
-
-	_ = incident
-	return s.repo.GetByIncidentID(incidentID)
-}
-
 func (s *AuditService) ListIncidentAuditLogs(userID uint, incidentID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
 	if _, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID); err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -111,22 +95,6 @@ func (s *AuditService) ListIncidentAuditLogs(userID uint, incidentID uint, req *
 		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
 		Items:      items,
 	}, nil
-}
-
-func (s *AuditService) GetProjectAuditLogs(userID uint, projectID uuid.UUID) ([]models.AuditLog, error) {
-	project, err := s.projectRepo.GetByIDAndUserID(projectID, userID)
-	if err != nil {
-		if errors.Is(err, apperrors.ErrProjectForbidden) {
-			return nil, apperrors.ErrProjectForbidden
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrProjectNotFound
-		}
-		return nil, err
-	}
-
-	_ = project
-	return s.repo.GetByProjectID(projectID)
 }
 
 func (s *AuditService) ListProjectAuditLogs(userID uint, projectID uuid.UUID, req *models.PaginationRequest) (*models.PaginationResponse, error) {

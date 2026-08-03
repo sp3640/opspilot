@@ -151,6 +151,7 @@ func (r *MetricRepository) ListByProject(projectID uuid.UUID, metricType, metric
 	return items, nil
 }
 
+// DeleteOlderThan is reserved for scheduled retention jobs that prune stale metrics.
 func (r *MetricRepository) DeleteOlderThan(projectID uuid.UUID, cutoff time.Time) (int64, error) {
 	result := r.db.Where("project_id = ? AND timestamp < ?", projectID, cutoff).Delete(&models.Metric{})
 	if result.Error != nil {

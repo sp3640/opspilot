@@ -155,7 +155,7 @@ func (s *MetricService) Aggregate(userID uint, projectID uuid.UUID, metricType, 
 		endTime = time.Now().UTC()
 	}
 	if endTime.Before(startTime) {
-		return nil, fmt.Errorf("end time must be greater than or equal to start time")
+		return nil, apperrors.ErrInvalidTimeRange
 	}
 
 	metricName = strings.TrimSpace(metricName)
@@ -279,7 +279,7 @@ func (s *MetricService) validateProjectOwnership(projectID uuid.UUID, userID uin
 func normalizeMetricType(metricType string) (string, error) {
 	normalized := strings.TrimSpace(strings.ToUpper(metricType))
 	if !constants.IsValidMetricType(normalized) {
-		return "", fmt.Errorf("invalid metric type")
+		return "", apperrors.ErrInvalidMetricType
 	}
 
 	return normalized, nil

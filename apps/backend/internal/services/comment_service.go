@@ -63,20 +63,6 @@ func (s *CommentService) CreateComment(ctx context.Context, content string, inci
 	return comment, nil
 }
 
-func (s *CommentService) GetCommentsByIncidentID(incidentID, userID uint) ([]models.Comment, error) {
-	if _, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID); err != nil {
-		if errors.Is(err, apperrors.ErrProjectForbidden) {
-			return nil, apperrors.ErrProjectForbidden
-		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrIncidentNotFound
-		}
-		return nil, err
-	}
-
-	return s.commentRepo.GetByIncidentID(incidentID)
-}
-
 func (s *CommentService) ListCommentsByIncidentID(incidentID, userID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
 	if _, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID); err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {

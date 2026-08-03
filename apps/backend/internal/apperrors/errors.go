@@ -30,6 +30,10 @@ var (
 	ErrInvalidAlertSource       = errors.New("invalid alert source")
 	ErrInvalidAlertResourceType = errors.New("invalid alert resource type")
 
+	// Metric errors
+	ErrInvalidMetricType = errors.New("invalid metric type")
+	ErrInvalidTimeRange  = errors.New("end time must be greater than or equal to start time")
+
 	// Cluster errors
 	ErrClusterNotFound              = errors.New("cluster not found")
 	ErrInvalidClusterProvider       = errors.New("invalid cluster provider")

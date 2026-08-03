@@ -62,7 +62,7 @@ func (h *IncidentHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	projectID, ok := parseOptionalUUID(c, "projectID")
+	projectID, ok := parseOptionalUUID(c, "projectId")
 	if !ok {
 		return
 	}

@@ -8,23 +8,23 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
+	"github.com/sp3640/opspilot/backend/internal/bootstrap"
 	"github.com/sp3640/opspilot/backend/internal/config"
-	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/database"
 	"github.com/sp3640/opspilot/backend/internal/discovery"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
-	kubeintegration "github.com/sp3640/opspilot/backend/internal/integrations/kubernetes"
 	"github.com/sp3640/opspilot/backend/internal/logger"
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 	"github.com/sp3640/opspilot/backend/internal/middleware"
+	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"github.com/sp3640/opspilot/backend/internal/resourcesync"
 	"github.com/sp3640/opspilot/backend/internal/router"
@@ -34,6 +34,7 @@ import (
 const shutdownTimeout = 30 * time.Second
 
 type discoveryClusterLoader struct {
+	db   *gorm.DB
 	repo *repository.ClusterRepository
 }
 
@@ -58,21 +59,30 @@ func (l *discoveryClusterLoader) LoadCluster(_ context.Context, clusterID uuid.U
 	}, nil
 }
 
-type kubernetesDiscoveryProviderFactory struct{}
-
-func (f *kubernetesDiscoveryProviderFactory) NewDiscoveryProvider(cluster *discovery.ClusterDescriptor) (discovery.DiscoveryProvider, error) {
-	if cluster == nil {
-		return nil, nil
+func (l *discoveryClusterLoader) LoadEnabledClusters(_ context.Context) ([]bootstrap.RuntimeCluster, error) {
+	if l == nil || l.db == nil {
+		return []bootstrap.RuntimeCluster{}, nil
 	}
 
-	if strings.TrimSpace(strings.ToUpper(cluster.Provider)) != constants.ClusterProviderKubernetes {
-		return nil, nil
+	clusters := make([]models.Cluster, 0)
+	if err := l.db.Where("deleted_at IS NULL").Find(&clusters).Error; err != nil {
+		return nil, err
 	}
 
-	client := kubeintegration.NewClient(cluster.KubeconfigEncrypted)
-	validator := kubeintegration.NewValidator(client)
+	runtimeClusters := make([]bootstrap.RuntimeCluster, 0, len(clusters))
+	for _, cluster := range clusters {
+		runtimeClusters = append(runtimeClusters, bootstrap.RuntimeCluster{
+			ID:                  cluster.ID,
+			ProjectID:           cluster.ProjectID,
+			Name:                cluster.Name,
+			Provider:            cluster.Provider,
+			Status:              cluster.Status,
+			KubeconfigEncrypted: []byte(cluster.KubeconfigEncrypted),
+			CreatedBy:           cluster.CreatedBy,
+		})
+	}
 
-	return kubeintegration.NewDiscoveryProvider(cluster.ProjectID, cluster.ID, cluster.Name, cluster.CreatedBy, client, validator), nil
+	return runtimeClusters, nil
 }
 
 func main() {
@@ -107,8 +117,10 @@ func run() error {
 	userRepo := repository.NewUserRepository(database.DB)
 	projectRepo := repository.NewProjectRepository(database.DB)
 	incidentRepo := repository.NewIncidentRepository(database.DB)
+	alertRepo := repository.NewAlertRepository(database.DB)
 	clusterRepo := repository.NewClusterRepository(database.DB)
 	resourceRepo := repository.NewResourceRepository(database.DB)
+	metricRepo := repository.NewMetricRepository(database.DB)
 	commentRepo := repository.NewCommentRepository(database.DB)
 	auditRepo := repository.NewAuditRepository(database.DB)
 	dashboardRepo := repository.NewDashboardRepository(database.DB)
@@ -119,16 +131,27 @@ func run() error {
 		WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
+	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterService := services.NewClusterService(clusterRepo, auditService)
 	resourceSyncEngine := resourcesync.NewSyncEngine(resourceRepo)
 	resourceService := services.NewResourceService(resourceRepo, resourceSyncEngine, auditService)
+	metricService := services.NewMetricService(metricRepo, auditService)
+	kubernetesProviderFactory := bootstrap.NewKubernetesDiscoveryProviderFactory()
+	runtimeClusterCatalog := &discoveryClusterLoader{db: database.DB, repo: clusterRepo}
 	discoveryWorker := discovery.NewDiscoveryWorker(
 		nil,
-		&discoveryClusterLoader{repo: clusterRepo},
+		runtimeClusterCatalog,
 		resourceService,
-		&kubernetesDiscoveryProviderFactory{},
+		kubernetesProviderFactory,
 		auditService,
 	)
+	discoveryBootstrap := bootstrap.NewDiscoveryBootstrap(0, 1, discoveryWorker, kubernetesProviderFactory)
+	metricsBootstrap := bootstrap.NewMetricsBootstrap(nil, metricService, 0)
+	runtimeBootstrap := bootstrap.NewRuntime(bootstrap.RuntimeDependencies{
+		Catalog:            runtimeClusterCatalog,
+		DiscoveryBootstrap: discoveryBootstrap,
+		MetricsBootstrap:   metricsBootstrap,
+	})
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
@@ -136,6 +159,8 @@ func run() error {
 	userHandler := handlers.NewUserHandler(userService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
+	alertHandler := handlers.NewAlertHandler(alertService)
+	metricHandler := handlers.NewMetricHandler(metricService)
 	clusterHandler := handlers.NewClusterHandler(clusterService)
 	resourceHandler := handlers.NewResourceHandler(resourceService, clusterService, discoveryWorker)
 	commentHandler := handlers.NewCommentHandler(commentService)
@@ -200,6 +225,8 @@ func run() error {
 		userHandler,
 		projectHandler,
 		incidentHandler,
+		alertHandler,
+		metricHandler,
 		clusterHandler,
 		resourceHandler,
 		commentHandler,
@@ -210,6 +237,16 @@ func run() error {
 	)
 
 	healthHandler.SetInitialized(true)
+	if err := runtimeBootstrap.Startup(processContext); err != nil {
+		return fmt.Errorf("start runtime bootstrap: %w", err)
+	}
+	defer func() {
+		runtimeShutdownContext, cancelRuntimeShutdown := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancelRuntimeShutdown()
+		if err := runtimeBootstrap.Shutdown(runtimeShutdownContext); err != nil {
+			logger.Error(processContext, "runtime bootstrap shutdown failed", slog.Any("error", err))
+		}
+	}()
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,

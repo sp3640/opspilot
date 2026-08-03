@@ -1,0 +1,9 @@
+"use client";
+import { Grid2X2, List, Plus, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { ClusterResponse } from "@/types/cluster-api";
+import type { ProjectResponse } from "@/types/project-api";
+import { AlertFilter } from "./alert-filter";
+import { AlertSearch } from "./alert-search";
+import type { AlertFilters, AlertView } from "./types";
+export function AlertToolbar({ filters, view, projects, clusters, onFiltersChange, onViewChange, onRefresh, onCreate, refreshing }: { filters: AlertFilters; view: AlertView; projects: ProjectResponse[]; clusters: ClusterResponse[]; onFiltersChange: (v: Partial<AlertFilters>) => void; onViewChange: (v: AlertView) => void; onRefresh: () => void; onCreate: () => void; refreshing: boolean }) { return <div className="space-y-3"><div className="flex flex-col gap-3 lg:flex-row"><AlertSearch value={filters.query} onChange={(query) => onFiltersChange({ query })} /><AlertFilter filters={filters} projects={projects} clusters={clusters} onChange={onFiltersChange} /></div><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex rounded-2xl border p-1" style={{ borderColor: "var(--border)", backgroundColor: "var(--muted)" }}>{([{ key: "grid", Icon: Grid2X2 }, { key: "table", Icon: List }] as const).map(({ key, Icon }) => <button key={key} type="button" onClick={() => onViewChange(key)} aria-pressed={view === key} className="rounded-xl p-2" style={{ backgroundColor: view === key ? "var(--card)" : "transparent" }}><Icon className="h-4 w-4" /></button>)}</div><div className="flex gap-2"><Button type="button" variant="ghost" onClick={onRefresh} loading={refreshing} className="px-3"><RefreshCw className="h-4 w-4" /><span className="hidden sm:inline">Refresh</span></Button><Button type="button" onClick={onCreate}><Plus className="h-4 w-4" />Create alert</Button></div></div></div>; }

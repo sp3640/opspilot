@@ -42,16 +42,6 @@ func (r *IncidentRepository) GetByIDAndUserID(id, userID uint) (*models.Incident
 	return &incident, nil
 }
 
-func (r *IncidentRepository) GetAllByUserID(userID uint) ([]models.Incident, error) {
-	var incidents []models.Incident
-
-	if err := r.db.Where("user_id = ?", userID).Find(&incidents).Error; err != nil {
-		return nil, err
-	}
-
-	return incidents, nil
-}
-
 func (r *IncidentRepository) ListByUserID(req *models.PaginationRequest, userID uint) ([]models.Incident, int64, error) {
 	if err := req.Validate("title", "severity", "status", "created_at", "updated_at"); err != nil {
 		return nil, 0, err

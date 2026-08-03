@@ -1,0 +1,9 @@
+export type MetricJson = Record<string, unknown>;
+export type MetricResponse = { id: string; projectId: string; clusterId: string; resourceId: string; resourceKind: string; metricType: string; metricName: string; value: number; unit: string; timestamp: string; labels: MetricJson; metadata: MetricJson; createdAt: string };
+export type MetricListResponse = { items: MetricResponse[]; page: number; limit: number; total: number; totalPages: number };
+export type MetricAggregatePointResponse = { bucket: string; value: number; count: number };
+export type MetricAggregateResponse = { projectId: string; metricType: string; metricName: string; unit: string; interval: string; startTime: string; endTime: string; count: number; average: number; minimum: number; maximum: number; sum: number; points: MetricAggregatePointResponse[] };
+export type MetricQueryParams = { page?: number; limit?: number; search?: string; sort?: "created_at" | "timestamp" | "metric_type" | "metric_name" | "resource_kind" | "value"; order?: "asc" | "desc"; projectId?: string; kind?: string };
+export type MetricScopeParams = { projectId: string; clusterId?: string; resourceId?: string; metricType: string; metricName?: string };
+export type MetricHistoryParams = MetricScopeParams & { start?: string; end?: string; limit?: number };
+export type MetricAggregationParams = { projectId: string; metricType: string; metricName?: string; interval?: "minute" | "hour" | "day"; start: string; end: string };

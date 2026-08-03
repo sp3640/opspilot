@@ -161,6 +161,7 @@ func (r *AlertRepository) Reopen(id uint, lastSeenAt time.Time) error {
 	}).Error
 }
 
+// RefreshLastSeen is reserved for background deduplication/heartbeat jobs that touch alert freshness.
 func (r *AlertRepository) RefreshLastSeen(id uint, lastSeenAt time.Time) error {
 	return r.db.Model(&models.Alert{}).Where("id = ?", id).Update("last_seen_at", lastSeenAt).Error
 }

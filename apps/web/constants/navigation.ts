@@ -1,7 +1,11 @@
 import {
+  Boxes,
+  Database,
   LayoutDashboard,
   FolderKanban,
   ShieldAlert,
+  BellRing,
+  ChartNoAxesCombined,
   ClipboardList,
   Settings,
 } from "lucide-react";
@@ -24,6 +28,26 @@ export const navigationGroups = [
         title: "Incidents",
         href: "/incidents",
         icon: ShieldAlert,
+      },
+      {
+        title: "Clusters",
+        href: "/clusters",
+        icon: Boxes,
+      },
+      {
+        title: "Resources",
+        href: "/resources",
+        icon: Database,
+      },
+      {
+        title: "Alerts",
+        href: "/alerts",
+        icon: BellRing,
+      },
+      {
+        title: "Metrics",
+        href: "/metrics",
+        icon: ChartNoAxesCombined,
       },
     ],
   },

@@ -22,6 +22,7 @@ type PaginationRequest struct {
 	Sort       string    `json:"sort"`
 	Order      string    `json:"order"`
 	Kind       string    `json:"kind"`
+	Provider   string    `json:"provider"`
 	Status     string    `json:"status"`
 	Health     string    `json:"health"`
 	Severity   string    `json:"severity"`
@@ -52,6 +53,7 @@ func (p *PaginationRequest) Normalize() {
 		p.Sort = "created_at"
 	}
 	p.Kind = strings.TrimSpace(p.Kind)
+	p.Provider = strings.TrimSpace(strings.ToUpper(p.Provider))
 	p.Status = strings.TrimSpace(p.Status)
 	p.Health = strings.TrimSpace(strings.ToUpper(p.Health))
 	p.Severity = strings.TrimSpace(p.Severity)
@@ -97,6 +99,7 @@ func ParsePagination(values url.Values, allowedSortFields ...string) (*Paginatio
 		Sort:       values.Get("sort"),
 		Order:      values.Get("order"),
 		Kind:       values.Get("kind"),
+		Provider:   values.Get("provider"),
 		Status:     values.Get("status"),
 		Health:     values.Get("health"),
 		Severity:   values.Get("severity"),

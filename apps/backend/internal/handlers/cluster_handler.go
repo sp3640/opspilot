@@ -97,31 +97,13 @@ func (h *ClusterHandler) List(c *gin.Context) {
 		return
 	}
 
+	req.Provider = provider
 	req.Status = status
-	if provider != "" {
-		if req.Search == "" {
-			req.Search = provider
-		} else {
-			req.Search = req.Search + " " + provider
-		}
-	}
 
 	result, err := h.service.ListClusters(userID, req)
 	if err != nil {
 		response.InternalServerError(c, err)
 		return
-	}
-
-	if provider != "" {
-		filtered := make([]dto.ClusterResponse, 0, len(result.Items))
-		for _, item := range result.Items {
-			if strings.EqualFold(strings.TrimSpace(item.Provider), provider) {
-				filtered = append(filtered, item)
-			}
-		}
-		result.Items = filtered
-		result.Total = int64(len(filtered))
-		result.TotalPages = 1
 	}
 
 	response.OK(c, "Clusters fetched successfully", result)

@@ -25,14 +25,6 @@ func (r *CommentRepository) GetByID(id uint) (*models.Comment, error) {
 	return &comment, nil
 }
 
-func (r *CommentRepository) GetByIncidentID(incidentID uint) ([]models.Comment, error) {
-	var comments []models.Comment
-	if err := r.db.Where("incident_id = ?", incidentID).Order("created_at ASC").Find(&comments).Error; err != nil {
-		return nil, err
-	}
-	return comments, nil
-}
-
 func (r *CommentRepository) ListByIncidentID(req *models.PaginationRequest, incidentID uint) ([]models.Comment, int64, error) {
 	if err := req.Validate("created_at", "updated_at"); err != nil {
 		return nil, 0, err

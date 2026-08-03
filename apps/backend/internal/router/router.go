@@ -16,6 +16,8 @@ func RegisterRoutes(
 	userHandler *handlers.UserHandler,
 	projectHandler *handlers.ProjectHandler,
 	incidentHandler *handlers.IncidentHandler,
+	alertHandler *handlers.AlertHandler,
+	metricHandler *handlers.MetricHandler,
 	clusterHandler *handlers.ClusterHandler,
 	resourceHandler *handlers.ResourceHandler,
 	commentHandler *handlers.CommentHandler,
@@ -83,11 +85,35 @@ func RegisterRoutes(
 			incidents.GET("/:id/audit-logs", auditHandler.GetIncidentAuditLogs)
 		}
 
+		alerts := api.Group("/alerts")
+		alerts.Use(middleware.AuthMiddleware(cfg))
+		{
+			alerts.POST("", alertHandler.Create)
+			alerts.GET("", alertHandler.List)
+			alerts.GET("/:id", alertHandler.GetByID)
+			alerts.PUT("/:id", alertHandler.Update)
+			alerts.DELETE("/:id", alertHandler.Delete)
+			alerts.POST("/:id/acknowledge", alertHandler.Acknowledge)
+			alerts.POST("/:id/resolve", alertHandler.Resolve)
+			alerts.POST("/:id/reopen", alertHandler.Reopen)
+			alerts.POST("/:id/incident", alertHandler.AttachIncident)
+		}
+
+		metricsRoutes := api.Group("/metrics")
+		metricsRoutes.Use(middleware.AuthMiddleware(cfg))
+		{
+			metricsRoutes.GET("", metricHandler.List)
+			metricsRoutes.GET("/latest", metricHandler.GetLatest)
+			metricsRoutes.GET("/history", metricHandler.GetHistory)
+			metricsRoutes.GET("/aggregate", metricHandler.Aggregate)
+		}
+
 		clusters := api.Group("/clusters")
 		clusters.Use(middleware.AuthMiddleware(cfg))
 		{
 			clusters.POST("", clusterHandler.Create)
 			clusters.GET("", clusterHandler.List)
+			clusters.GET("/:id/metrics", metricHandler.GetClusterMetrics)
 			clusters.GET("/:id", clusterHandler.GetByID)
 			clusters.PUT("/:id", clusterHandler.Update)
 			clusters.DELETE("/:id", clusterHandler.Delete)
@@ -101,6 +127,7 @@ func RegisterRoutes(
 			resources.POST("/sync", resourceHandler.Sync)
 			resources.POST("", resourceHandler.Create)
 			resources.GET("", resourceHandler.List)
+			resources.GET("/:id/metrics", metricHandler.GetResourceMetrics)
 			resources.GET("/:id", resourceHandler.GetByID)
 			resources.PUT("/:id", resourceHandler.Update)
 			resources.DELETE("/:id", resourceHandler.Delete)
@@ -116,11 +143,11 @@ func RegisterRoutes(
 		dashboard := api.Group("/dashboard")
 		dashboard.Use(middleware.AuthMiddleware(cfg))
 		{
-			dashboard.GET("/summary", dashboardHandler.Summary)
-			dashboard.GET("/recent-incidents", dashboardHandler.RecentIncidents)
-			dashboard.GET("/activity", dashboardHandler.Activity)
-			dashboard.GET("/stats", dashboardHandler.Stats)
-			dashboard.GET("/services", dashboardHandler.Services)
+			dashboard.GET("/overview", dashboardHandler.Overview)
+			dashboard.GET("/resources", dashboardHandler.Resources)
+			dashboard.GET("/alerts", dashboardHandler.Alerts)
+			dashboard.GET("/clusters", dashboardHandler.Clusters)
+			dashboard.GET("/metrics", dashboardHandler.Metrics)
 		}
 	}
 }
