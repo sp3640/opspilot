@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -114,6 +115,13 @@ function LoginPageContent() {
               {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
+
+          <p className="mt-6 text-center text-sm text-gray-400">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="font-medium text-blue-400 hover:text-blue-300">
+              Create one
+            </Link>
+          </p>
         </div>
       </div>
     </div>

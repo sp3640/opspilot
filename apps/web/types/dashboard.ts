@@ -1,4 +1,4 @@
-export interface DashboardSummary {
+export interface DashboardOverview {
   greeting: string;
   environment: string;
   lastDeployment: string;
@@ -17,7 +17,7 @@ export interface IncidentMetrics {
   resolved: number;
 }
 
-export interface DashboardStats {
+export interface DashboardMetrics {
   projects: number;
   incidents: IncidentMetrics;
   auditLogs: number;
@@ -36,16 +36,29 @@ export interface DashboardActivity {
   timestamp: string;
 }
 
-export interface ServiceHealth {
+export interface DashboardAlert {
+  id: number;
+  title: string;
+  severity: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface DashboardServiceHealth {
   name: string;
   status: "healthy" | "degraded" | "unhealthy";
   responseTime: number;
   health: number;
 }
 
+// Backward-compatible aliases used by existing dashboard components.
+export type DashboardSummary = DashboardOverview;
+export type DashboardStats = DashboardMetrics;
+export type ServiceHealth = DashboardServiceHealth;
+
 export interface DashboardData {
-  summary: DashboardSummary;
-  stats: DashboardStats;
+  summary: DashboardOverview;
+  stats: DashboardMetrics;
   activity: DashboardActivity[];
-  services: ServiceHealth[];
+  services: DashboardServiceHealth[];
 }

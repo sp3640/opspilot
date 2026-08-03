@@ -1,38 +1,53 @@
 import { api } from "@/lib/api";
 import type {
-  DashboardSummary,
-  DashboardStats,
   DashboardActivity,
-  ServiceHealth,
+  DashboardAlert,
+  DashboardMetrics,
+  DashboardOverview,
+  DashboardServiceHealth,
 } from "@/types/dashboard";
 
 export const dashboardService = {
-  getSummary: async (): Promise<DashboardSummary> => {
-    const response = await api.get<{ success: boolean; data: DashboardSummary }>(
-      "/dashboard/summary"
+  getOverview: async (): Promise<DashboardOverview> => {
+    const response = await api.get<{ success: boolean; data: DashboardOverview }>(
+      "/dashboard/overview"
     );
     return response.data.data;
   },
 
-  getStats: async (): Promise<DashboardStats> => {
-    const response = await api.get<{ success: boolean; data: DashboardStats }>(
-      "/dashboard/stats"
-    );
-    return response.data.data;
-  },
-
-  getActivity: async (): Promise<DashboardActivity[]> => {
+  getResources: async (): Promise<DashboardActivity[]> => {
     const response = await api.get<{
       success: boolean;
       data: DashboardActivity[];
-    }>("/dashboard/activity");
+    }>("/dashboard/resources");
     return response.data.data;
   },
 
-  getServices: async (): Promise<ServiceHealth[]> => {
-    const response = await api.get<{ success: boolean; data: ServiceHealth[] }>(
-      "/dashboard/services"
+  getAlerts: async (): Promise<DashboardAlert[]> => {
+    const response = await api.get<{
+      success: boolean;
+      data: DashboardAlert[];
+    }>("/dashboard/alerts");
+    return response.data.data;
+  },
+
+  getClusters: async (): Promise<DashboardServiceHealth[]> => {
+    const response = await api.get<{ success: boolean; data: DashboardServiceHealth[] }>(
+      "/dashboard/clusters"
     );
     return response.data.data;
   },
+
+  getMetrics: async (): Promise<DashboardMetrics> => {
+    const response = await api.get<{ success: boolean; data: DashboardMetrics }>(
+      "/dashboard/metrics"
+    );
+    return response.data.data;
+  },
+
+  // Backward-compatible service aliases used by existing dashboard hooks/components.
+  getSummary: async (): Promise<DashboardOverview> => dashboardService.getOverview(),
+  getStats: async (): Promise<DashboardMetrics> => dashboardService.getMetrics(),
+  getActivity: async (): Promise<DashboardActivity[]> => dashboardService.getResources(),
+  getServices: async (): Promise<DashboardServiceHealth[]> => dashboardService.getClusters(),
 };
