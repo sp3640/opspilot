@@ -16,6 +16,8 @@ func RegisterRoutes(
 	userHandler *handlers.UserHandler,
 	projectHandler *handlers.ProjectHandler,
 	incidentHandler *handlers.IncidentHandler,
+	clusterHandler *handlers.ClusterHandler,
+	resourceHandler *handlers.ResourceHandler,
 	commentHandler *handlers.CommentHandler,
 	auditHandler *handlers.AuditHandler,
 	dashboardHandler *handlers.DashboardHandler,
@@ -79,6 +81,29 @@ func RegisterRoutes(
 			incidents.POST("/:id/comments", commentHandler.Create)
 			incidents.GET("/:id/comments", commentHandler.List)
 			incidents.GET("/:id/audit-logs", auditHandler.GetIncidentAuditLogs)
+		}
+
+		clusters := api.Group("/clusters")
+		clusters.Use(middleware.AuthMiddleware(cfg))
+		{
+			clusters.POST("", clusterHandler.Create)
+			clusters.GET("", clusterHandler.List)
+			clusters.GET("/:id", clusterHandler.GetByID)
+			clusters.PUT("/:id", clusterHandler.Update)
+			clusters.DELETE("/:id", clusterHandler.Delete)
+			clusters.POST("/:id/validate", clusterHandler.Validate)
+			clusters.POST("/:id/default", clusterHandler.SetDefault)
+		}
+
+		resources := api.Group("/resources")
+		resources.Use(middleware.AuthMiddleware(cfg))
+		{
+			resources.POST("/sync", resourceHandler.Sync)
+			resources.POST("", resourceHandler.Create)
+			resources.GET("", resourceHandler.List)
+			resources.GET("/:id", resourceHandler.GetByID)
+			resources.PUT("/:id", resourceHandler.Update)
+			resources.DELETE("/:id", resourceHandler.Delete)
 		}
 
 		comments := api.Group("/comments")

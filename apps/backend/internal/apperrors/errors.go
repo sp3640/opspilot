@@ -23,6 +23,25 @@ var (
 	ErrInvalidStatus    = errors.New("invalid status")
 	ErrInvalidProject   = errors.New("invalid project")
 
+	// Alert errors
+	ErrAlertNotFound            = errors.New("alert not found")
+	ErrInvalidAlertSeverity     = errors.New("invalid alert severity")
+	ErrInvalidAlertStatus       = errors.New("invalid alert status")
+	ErrInvalidAlertSource       = errors.New("invalid alert source")
+	ErrInvalidAlertResourceType = errors.New("invalid alert resource type")
+
+	// Cluster errors
+	ErrClusterNotFound              = errors.New("cluster not found")
+	ErrInvalidClusterProvider       = errors.New("invalid cluster provider")
+	ErrInvalidClusterStatus         = errors.New("invalid cluster status")
+	ErrInvalidClusterConnectionType = errors.New("invalid cluster connection type")
+
+	// Resource errors
+	ErrResourceNotFound      = errors.New("resource not found")
+	ErrInvalidResourceKind   = errors.New("invalid resource kind")
+	ErrInvalidResourceStatus = errors.New("invalid resource status")
+	ErrInvalidResourceHealth = errors.New("invalid resource health")
+
 	// Comment errors
 	ErrCommentNotFound       = errors.New("comment not found")
 	ErrCommentForbidden      = errors.New("forbidden")

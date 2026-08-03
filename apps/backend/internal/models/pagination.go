@@ -21,8 +21,11 @@ type PaginationRequest struct {
 	Search     string    `json:"search"`
 	Sort       string    `json:"sort"`
 	Order      string    `json:"order"`
+	Kind       string    `json:"kind"`
 	Status     string    `json:"status"`
+	Health     string    `json:"health"`
 	Severity   string    `json:"severity"`
+	Source     string    `json:"source"`
 	ProjectID  uuid.UUID `json:"project_id"`
 	IncidentID uint      `json:"incident_id"`
 	Action     string    `json:"action"`
@@ -48,8 +51,11 @@ func (p *PaginationRequest) Normalize() {
 	if p.Sort == "" {
 		p.Sort = "created_at"
 	}
+	p.Kind = strings.TrimSpace(p.Kind)
 	p.Status = strings.TrimSpace(p.Status)
+	p.Health = strings.TrimSpace(strings.ToUpper(p.Health))
 	p.Severity = strings.TrimSpace(p.Severity)
+	p.Source = strings.TrimSpace(strings.ToUpper(p.Source))
 	p.Action = strings.TrimSpace(strings.ToUpper(p.Action))
 	p.EntityType = strings.TrimSpace(strings.ToLower(p.EntityType))
 }
@@ -90,8 +96,11 @@ func ParsePagination(values url.Values, allowedSortFields ...string) (*Paginatio
 		Search:     values.Get("search"),
 		Sort:       values.Get("sort"),
 		Order:      values.Get("order"),
+		Kind:       values.Get("kind"),
 		Status:     values.Get("status"),
+		Health:     values.Get("health"),
 		Severity:   values.Get("severity"),
+		Source:     values.Get("source"),
 		Action:     values.Get("action"),
 		EntityType: values.Get("entityType"),
 	}

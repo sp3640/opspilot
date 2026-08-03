@@ -8,24 +8,72 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/config"
+	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/database"
+	"github.com/sp3640/opspilot/backend/internal/discovery"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
+	kubeintegration "github.com/sp3640/opspilot/backend/internal/integrations/kubernetes"
 	"github.com/sp3640/opspilot/backend/internal/logger"
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 	"github.com/sp3640/opspilot/backend/internal/middleware"
 	"github.com/sp3640/opspilot/backend/internal/repository"
+	"github.com/sp3640/opspilot/backend/internal/resourcesync"
 	"github.com/sp3640/opspilot/backend/internal/router"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
 
 const shutdownTimeout = 30 * time.Second
+
+type discoveryClusterLoader struct {
+	repo *repository.ClusterRepository
+}
+
+func (l *discoveryClusterLoader) LoadCluster(_ context.Context, clusterID uuid.UUID) (*discovery.ClusterDescriptor, error) {
+	if l == nil || l.repo == nil {
+		return nil, nil
+	}
+
+	cluster, err := l.repo.FindByID(clusterID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &discovery.ClusterDescriptor{
+		ID:                  cluster.ID,
+		ProjectID:           cluster.ProjectID,
+		Name:                cluster.Name,
+		Provider:            cluster.Provider,
+		Status:              cluster.Status,
+		KubeconfigEncrypted: []byte(cluster.KubeconfigEncrypted),
+		CreatedBy:           cluster.CreatedBy,
+	}, nil
+}
+
+type kubernetesDiscoveryProviderFactory struct{}
+
+func (f *kubernetesDiscoveryProviderFactory) NewDiscoveryProvider(cluster *discovery.ClusterDescriptor) (discovery.DiscoveryProvider, error) {
+	if cluster == nil {
+		return nil, nil
+	}
+
+	if strings.TrimSpace(strings.ToUpper(cluster.Provider)) != constants.ClusterProviderKubernetes {
+		return nil, nil
+	}
+
+	client := kubeintegration.NewClient(cluster.KubeconfigEncrypted)
+	validator := kubeintegration.NewValidator(client)
+
+	return kubeintegration.NewDiscoveryProvider(cluster.ProjectID, cluster.ID, cluster.Name, cluster.CreatedBy, client, validator), nil
+}
 
 func main() {
 	logger.Configure()
@@ -59,6 +107,8 @@ func run() error {
 	userRepo := repository.NewUserRepository(database.DB)
 	projectRepo := repository.NewProjectRepository(database.DB)
 	incidentRepo := repository.NewIncidentRepository(database.DB)
+	clusterRepo := repository.NewClusterRepository(database.DB)
+	resourceRepo := repository.NewResourceRepository(database.DB)
 	commentRepo := repository.NewCommentRepository(database.DB)
 	auditRepo := repository.NewAuditRepository(database.DB)
 	dashboardRepo := repository.NewDashboardRepository(database.DB)
@@ -69,6 +119,16 @@ func run() error {
 		WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
+	clusterService := services.NewClusterService(clusterRepo, auditService)
+	resourceSyncEngine := resourcesync.NewSyncEngine(resourceRepo)
+	resourceService := services.NewResourceService(resourceRepo, resourceSyncEngine, auditService)
+	discoveryWorker := discovery.NewDiscoveryWorker(
+		nil,
+		&discoveryClusterLoader{repo: clusterRepo},
+		resourceService,
+		&kubernetesDiscoveryProviderFactory{},
+		auditService,
+	)
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
@@ -76,6 +136,8 @@ func run() error {
 	userHandler := handlers.NewUserHandler(userService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
+	clusterHandler := handlers.NewClusterHandler(clusterService)
+	resourceHandler := handlers.NewResourceHandler(resourceService, clusterService, discoveryWorker)
 	commentHandler := handlers.NewCommentHandler(commentService)
 	auditHandler := handlers.NewAuditHandler(auditService)
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
@@ -114,7 +176,7 @@ func run() error {
 			"Content-Length",
 		},
 		AllowCredentials: true,
-		MaxAge: 12 * time.Hour,
+		MaxAge:           12 * time.Hour,
 	}))
 
 	r.Use(
@@ -138,6 +200,8 @@ func run() error {
 		userHandler,
 		projectHandler,
 		incidentHandler,
+		clusterHandler,
+		resourceHandler,
 		commentHandler,
 		auditHandler,
 		dashboardHandler,

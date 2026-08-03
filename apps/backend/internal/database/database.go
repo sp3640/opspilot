@@ -44,6 +44,10 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&models.User{},
 		&models.Project{},
 		&models.Incident{},
+		&models.Alert{},
+		&models.Cluster{},
+		&models.Resource{},
+		&models.Metric{},
 		&models.Comment{},
 		&models.AuditLog{},
 	)
