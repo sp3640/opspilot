@@ -121,6 +121,7 @@ func run() error {
 	invitationRepo := repository.NewInvitationRepository(database.DB)
 	projectRepo := repository.NewProjectRepository(database.DB)
 	applicationRepo := repository.NewApplicationRepository(database.DB)
+	deploymentRepo := repository.NewDeploymentRepository(database.DB)
 	teamRepo := repository.NewTeamRepository(database.DB)
 	projectTeamRepo := repository.NewProjectTeamRepository(database.DB)
 	teamMemberRepo := repository.NewTeamMemberRepository(database.DB)
@@ -141,6 +142,7 @@ func run() error {
 		WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
+	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
@@ -178,6 +180,7 @@ func run() error {
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
@@ -249,6 +252,7 @@ func run() error {
 		invitationHandler,
 		projectHandler,
 		applicationHandler,
+		deploymentHandler,
 		teamHandler,
 		projectTeamHandler,
 		incidentHandler,

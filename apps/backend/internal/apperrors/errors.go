@@ -74,10 +74,21 @@ var (
 	ErrApplicationForbidden      = errors.New("forbidden")
 	ErrApplicationAlreadyExists  = errors.New("application already exists")
 	ErrInvalidApplicationName    = errors.New("application name is required")
+	ErrInvalidApplication        = errors.New("invalid application")
 	ErrInvalidApplicationSlug    = errors.New("invalid application slug")
 	ErrInvalidApplicationRuntime = errors.New("invalid application runtime")
 	ErrInvalidApplicationStatus  = errors.New("invalid application status")
 	ErrInvalidApplicationPort    = errors.New("invalid application port")
+
+	// Deployment errors
+	ErrDeploymentNotFound           = errors.New("deployment not found")
+	ErrDeploymentForbidden          = errors.New("forbidden")
+	ErrInvalidDeploymentImage       = errors.New("deployment image is required")
+	ErrInvalidDeploymentReplica     = errors.New("deployment replica count must be greater than zero")
+	ErrInvalidDeploymentStrategy    = errors.New("invalid deployment strategy")
+	ErrInvalidDeploymentEnvironment = errors.New("invalid deployment environment")
+	ErrInvalidDeploymentNamespace   = errors.New("invalid deployment namespace")
+	ErrInvalidDeploymentStatus      = errors.New("invalid deployment status")
 
 	// Resource errors
 	ErrResourceNotFound      = errors.New("resource not found")

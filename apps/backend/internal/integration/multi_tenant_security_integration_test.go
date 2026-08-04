@@ -255,7 +255,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	dsn := fmt.Sprintf("file:multi_tenant_security_%d?mode=memory&cache=private", time.Now().UnixNano())
+	dsn := fmt.Sprintf("file:multi_tenant_security_%s?mode=memory&cache=private", uuid.NewString())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
@@ -277,6 +277,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	organizationRepo := repository.NewOrganizationRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	applicationRepo := repository.NewApplicationRepository(db)
+	deploymentRepo := repository.NewDeploymentRepository(db)
 	invitationRepo := repository.NewInvitationRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
 	projectTeamRepo := repository.NewProjectTeamRepository(db)
@@ -296,6 +297,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
+	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
@@ -312,6 +314,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
@@ -351,6 +354,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 		invitationHandler,
 		projectHandler,
 		applicationHandler,
+		deploymentHandler,
 		teamHandler,
 		projectTeamHandler,
 		incidentHandler,

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/sp3640/opspilot/backend/internal/config"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
@@ -199,13 +201,14 @@ type rbacTestApp struct {
 	userRepo         *repository.UserRepository
 	organizationRepo *repository.OrganizationRepository
 	metricService    *services.MetricService
+	deploymentRepo   *repository.DeploymentRepository
 }
 
 func setupRBACApp(t *testing.T) *rbacTestApp {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	dsn := fmt.Sprintf("file:rbac_%d?mode=memory&cache=private", time.Now().UnixNano())
+	dsn := fmt.Sprintf("file:rbac_%s?mode=memory&cache=private", uuid.NewString())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
 		t.Fatalf("open sqlite db: %v", err)
@@ -222,6 +225,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	invitationRepo := repository.NewInvitationRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	applicationRepo := repository.NewApplicationRepository(db)
+	deploymentRepo := repository.NewDeploymentRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
 	projectTeamRepo := repository.NewProjectTeamRepository(db)
 	teamMemberRepo := repository.NewTeamMemberRepository(db)
@@ -240,6 +244,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
+	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
@@ -256,6 +261,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
@@ -295,6 +301,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		invitationHandler,
 		projectHandler,
 		applicationHandler,
+		deploymentHandler,
 		teamHandler,
 		projectTeamHandler,
 		incidentHandler,
@@ -315,6 +322,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		userRepo:         userRepo,
 		organizationRepo: organizationRepo,
 		metricService:    metricService,
+		deploymentRepo:   deploymentRepo,
 	}
 }
 

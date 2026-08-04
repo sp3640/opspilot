@@ -18,6 +18,7 @@ func RegisterRoutes(
 	invitationHandler *handlers.InvitationHandler,
 	projectHandler *handlers.ProjectHandler,
 	applicationHandler *handlers.ApplicationHandler,
+	deploymentHandler *handlers.DeploymentHandler,
 	teamHandler *handlers.TeamHandler,
 	projectTeamHandler *handlers.ProjectTeamHandler,
 	incidentHandler *handlers.IncidentHandler,
@@ -95,6 +96,7 @@ func RegisterRoutes(
 			projects.DELETE("/:id", projectHandler.Delete)
 			projects.POST("/:id/applications", applicationHandler.Create)
 			projects.GET("/:id/applications", applicationHandler.ListByProject)
+			projects.GET("/:id/deployments", deploymentHandler.ListByProject)
 			projects.POST("/:id/teams", projectTeamHandler.AssignTeam)
 			projects.GET("/:id/teams", projectTeamHandler.ListProjectTeams)
 			projects.DELETE("/:id/teams/:teamId", projectTeamHandler.RemoveTeam)
@@ -107,6 +109,18 @@ func RegisterRoutes(
 			applications.GET("/:id", applicationHandler.GetByID)
 			applications.PUT("/:id", applicationHandler.Update)
 			applications.DELETE("/:id", applicationHandler.Delete)
+			applications.GET("/:id/deployments", deploymentHandler.ListByApplication)
+		}
+
+		deployments := api.Group("/deployments")
+		deployments.Use(middleware.AuthMiddleware(cfg))
+		{
+			deployments.POST("", deploymentHandler.Create)
+			deployments.GET("", deploymentHandler.List)
+			deployments.GET("/:id", deploymentHandler.GetByID)
+			deployments.PATCH("/:id", deploymentHandler.Update)
+			deployments.DELETE("/:id", deploymentHandler.Delete)
+			deployments.PATCH("/:id/cancel", deploymentHandler.Cancel)
 		}
 
 		teams := api.Group("/teams")
