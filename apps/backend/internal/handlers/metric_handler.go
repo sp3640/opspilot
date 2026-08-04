@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
@@ -25,7 +26,14 @@ func NewMetricHandler(service *services.MetricService) *MetricHandler {
 }
 
 func (h *MetricHandler) List(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	req, ok := parsePagination(c, "created_at", "timestamp", "metric_type", "metric_name", "resource_kind", "value")
 	if !ok {
@@ -38,7 +46,7 @@ func (h *MetricHandler) List(c *gin.Context) {
 	}
 	req.ProjectID = projectID
 
-	result, err := h.service.GetMetrics(userID, req)
+	result, err := h.service.GetMetrics(organizationID, req)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -48,7 +56,14 @@ func (h *MetricHandler) List(c *gin.Context) {
 }
 
 func (h *MetricHandler) GetLatest(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	projectID, ok := parseRequiredUUID(c, "projectId")
 	if !ok {
@@ -71,7 +86,7 @@ func (h *MetricHandler) GetLatest(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.GetLatest(userID, projectID, clusterID, resourceID, metricType, metricName)
+	result, err := h.service.GetLatest(organizationID, projectID, clusterID, resourceID, metricType, metricName)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -81,7 +96,14 @@ func (h *MetricHandler) GetLatest(c *gin.Context) {
 }
 
 func (h *MetricHandler) GetHistory(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	projectID, ok := parseRequiredUUID(c, "projectId")
 	if !ok {
@@ -120,7 +142,7 @@ func (h *MetricHandler) GetHistory(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.GetHistory(userID, projectID, clusterID, resourceID, metricType, metricName, start, end, limit)
+	result, err := h.service.GetHistory(organizationID, projectID, clusterID, resourceID, metricType, metricName, start, end, limit)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -130,7 +152,14 @@ func (h *MetricHandler) GetHistory(c *gin.Context) {
 }
 
 func (h *MetricHandler) Aggregate(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	projectID, ok := parseRequiredUUID(c, "projectId")
 	if !ok {
@@ -158,7 +187,7 @@ func (h *MetricHandler) Aggregate(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Aggregate(userID, projectID, metricType, metricName, interval, startTime, endTime)
+	result, err := h.service.Aggregate(organizationID, projectID, metricType, metricName, interval, startTime, endTime)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -168,7 +197,14 @@ func (h *MetricHandler) Aggregate(c *gin.Context) {
 }
 
 func (h *MetricHandler) GetResourceMetrics(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	resourceIDValue, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -204,7 +240,7 @@ func (h *MetricHandler) GetResourceMetrics(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.GetHistory(userID, projectID, nil, &resourceIDValue, metricType, metricName, start, end, limit)
+	result, err := h.service.GetHistory(organizationID, projectID, nil, &resourceIDValue, metricType, metricName, start, end, limit)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -214,7 +250,14 @@ func (h *MetricHandler) GetResourceMetrics(c *gin.Context) {
 }
 
 func (h *MetricHandler) GetClusterMetrics(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	clusterIDValue, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -250,7 +293,7 @@ func (h *MetricHandler) GetClusterMetrics(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.GetHistory(userID, projectID, &clusterIDValue, nil, metricType, metricName, start, end, limit)
+	result, err := h.service.GetHistory(organizationID, projectID, &clusterIDValue, nil, metricType, metricName, start, end, limit)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return

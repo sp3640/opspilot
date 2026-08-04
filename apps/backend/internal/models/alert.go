@@ -10,6 +10,7 @@ import (
 
 type Alert struct {
 	ID              uint            `json:"id" gorm:"primaryKey;autoIncrement"`
+	OrganizationID  uuid.UUID       `json:"organization_id" gorm:"type:uuid;not null;index:idx_alerts_organization_id"`
 	ProjectID       uuid.UUID       `json:"project_id" gorm:"type:uuid;not null;index:idx_alerts_project_id;index:idx_alerts_project_fingerprint,priority:1"`
 	Project         *Project        `json:"-" gorm:"foreignKey:ProjectID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 	IncidentID      *uint           `json:"incident_id,omitempty" gorm:"index:idx_alerts_incident_id"`

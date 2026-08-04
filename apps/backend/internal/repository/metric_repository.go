@@ -29,12 +29,12 @@ func (r *MetricRepository) BulkCreate(metrics []models.Metric) error {
 	return r.db.Create(&metrics).Error
 }
 
-func (r *MetricRepository) List(req *models.PaginationRequest, userID uint) ([]models.Metric, int64, error) {
+func (r *MetricRepository) List(req *models.PaginationRequest, organizationID uuid.UUID) ([]models.Metric, int64, error) {
 	if err := req.Validate("created_at", "timestamp", "metric_type", "metric_name", "resource_kind", "value"); err != nil {
 		return nil, 0, err
 	}
 
-	query := r.baseOwnedQuery(userID)
+	query := r.baseOwnedQuery(organizationID)
 
 	if req.Search != "" {
 		query = query.Where(
@@ -94,8 +94,8 @@ func (r *MetricRepository) List(req *models.PaginationRequest, userID uint) ([]m
 	return items, total, nil
 }
 
-func (r *MetricRepository) ListByResource(resourceID uuid.UUID, metricType, metricName string, startTime, endTime *time.Time, limit int, userID uint) ([]models.Metric, error) {
-	query := r.baseOwnedQuery(userID).Where("metrics.resource_id = ?", resourceID)
+func (r *MetricRepository) ListByResource(resourceID uuid.UUID, metricType, metricName string, startTime, endTime *time.Time, limit int, organizationID uuid.UUID) ([]models.Metric, error) {
+	query := r.baseOwnedQuery(organizationID).Where("metrics.resource_id = ?", resourceID)
 	query = applyMetricFilters(query, metricType, metricName, startTime, endTime)
 
 	if limit <= 0 {
@@ -113,8 +113,8 @@ func (r *MetricRepository) ListByResource(resourceID uuid.UUID, metricType, metr
 	return items, nil
 }
 
-func (r *MetricRepository) ListByCluster(clusterID uuid.UUID, metricType, metricName string, startTime, endTime *time.Time, limit int, userID uint) ([]models.Metric, error) {
-	query := r.baseOwnedQuery(userID).Where("metrics.cluster_id = ?", clusterID)
+func (r *MetricRepository) ListByCluster(clusterID uuid.UUID, metricType, metricName string, startTime, endTime *time.Time, limit int, organizationID uuid.UUID) ([]models.Metric, error) {
+	query := r.baseOwnedQuery(organizationID).Where("metrics.cluster_id = ?", clusterID)
 	query = applyMetricFilters(query, metricType, metricName, startTime, endTime)
 
 	if limit <= 0 {
@@ -132,8 +132,8 @@ func (r *MetricRepository) ListByCluster(clusterID uuid.UUID, metricType, metric
 	return items, nil
 }
 
-func (r *MetricRepository) ListByProject(projectID uuid.UUID, metricType, metricName string, startTime, endTime *time.Time, limit int, userID uint) ([]models.Metric, error) {
-	query := r.baseOwnedQuery(userID).Where("metrics.project_id = ?", projectID)
+func (r *MetricRepository) ListByProject(projectID uuid.UUID, metricType, metricName string, startTime, endTime *time.Time, limit int, organizationID uuid.UUID) ([]models.Metric, error) {
+	query := r.baseOwnedQuery(organizationID).Where("metrics.project_id = ?", projectID)
 	query = applyMetricFilters(query, metricType, metricName, startTime, endTime)
 
 	if limit <= 0 {
@@ -161,10 +161,10 @@ func (r *MetricRepository) DeleteOlderThan(projectID uuid.UUID, cutoff time.Time
 	return result.RowsAffected, nil
 }
 
-func (r *MetricRepository) Aggregate(projectID uuid.UUID, metricType, metricName string, startTime, endTime time.Time, interval string, userID uint) ([]models.MetricAggregatePoint, error) {
+func (r *MetricRepository) Aggregate(projectID uuid.UUID, metricType, metricName string, startTime, endTime time.Time, interval string, organizationID uuid.UUID) ([]models.MetricAggregatePoint, error) {
 	interval = normalizeInterval(interval)
 
-	query := r.baseOwnedQuery(userID).
+	query := r.baseOwnedQuery(organizationID).
 		Where("metrics.project_id = ?", projectID).
 		Where("metrics.timestamp >= ? AND metrics.timestamp <= ?", startTime, endTime)
 
@@ -203,8 +203,8 @@ func (r *MetricRepository) Aggregate(projectID uuid.UUID, metricType, metricName
 	return points, nil
 }
 
-func (r *MetricRepository) Latest(projectID uuid.UUID, clusterID *uuid.UUID, resourceID *uuid.UUID, metricType, metricName string, userID uint) (*models.Metric, error) {
-	query := r.baseOwnedQuery(userID).Where("metrics.project_id = ?", projectID)
+func (r *MetricRepository) Latest(projectID uuid.UUID, clusterID *uuid.UUID, resourceID *uuid.UUID, metricType, metricName string, organizationID uuid.UUID) (*models.Metric, error) {
+	query := r.baseOwnedQuery(organizationID).Where("metrics.project_id = ?", projectID)
 
 	if clusterID != nil {
 		query = query.Where("metrics.cluster_id = ?", *clusterID)
@@ -227,23 +227,31 @@ func (r *MetricRepository) Latest(projectID uuid.UUID, clusterID *uuid.UUID, res
 	return &metric, nil
 }
 
-func (r *MetricRepository) ProjectBelongsToUser(projectID uuid.UUID, userID uint) (bool, error) {
+func (r *MetricRepository) ProjectBelongsToOrganization(projectID, organizationID uuid.UUID) (bool, error) {
 	var project models.Project
 
-	if err := r.db.Where("id = ?", projectID).First(&project).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", projectID, organizationID).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return false, nil
 		}
 		return false, err
 	}
 
-	return project.OwnerID == userID, nil
+	return true, nil
 }
 
-func (r *MetricRepository) baseOwnedQuery(userID uint) *gorm.DB {
+func (r *MetricRepository) GetProjectOrganizationID(projectID uuid.UUID) (uuid.UUID, error) {
+	var project models.Project
+	if err := r.db.Select("organization_id").Where("id = ?", projectID).First(&project).Error; err != nil {
+		return uuid.Nil, err
+	}
+
+	return project.OrganizationID, nil
+}
+
+func (r *MetricRepository) baseOwnedQuery(organizationID uuid.UUID) *gorm.DB {
 	return r.db.Model(&models.Metric{}).
-		Joins("JOIN projects ON projects.id = metrics.project_id").
-		Where("projects.owner_id = ?", userID)
+		Where("metrics.organization_id = ?", organizationID)
 }
 
 func applyMetricFilters(query *gorm.DB, metricType, metricName string, startTime, endTime *time.Time) *gorm.DB {

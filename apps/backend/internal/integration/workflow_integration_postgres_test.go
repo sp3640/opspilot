@@ -64,7 +64,11 @@ func resetPostgresIntegrationSchema(t *testing.T, db *gorm.DB) {
 		&models.Cluster{},
 		&models.Alert{},
 		&models.Incident{},
+		&models.TeamMember{},
+		&models.Team{},
 		&models.Project{},
+		&models.Invitation{},
+		&models.Organization{},
 		&models.User{},
 	); err != nil {
 		t.Fatalf("reset postgres schema: %v", err)

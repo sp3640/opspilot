@@ -31,17 +31,18 @@ func NewProjectService(repo *repository.ProjectRepository, userRepo *repository.
 }
 
 // Create persists a new project and returns its full DTO representation.
-func (s *ProjectService) Create(ctx context.Context, name, description string, userID uint) (*dto.ProjectResponse, error) {
+func (s *ProjectService) Create(ctx context.Context, name, description string, userID uint, organizationID uuid.UUID) (*dto.ProjectResponse, error) {
 	name, description, err := normalizeProjectInput(name, description)
 	if err != nil {
 		return nil, err
 	}
 
 	project := &models.Project{
-		Name:        name,
-		Description: description,
-		Slug:        utils.GenerateSlug(name),
-		OwnerID:     userID,
+		Name:           name,
+		Description:    description,
+		Slug:           utils.GenerateSlug(name),
+		OwnerID:        userID,
+		OrganizationID: organizationID,
 	}
 
 	if err := s.repo.Create(project); err != nil {
@@ -49,7 +50,7 @@ func (s *ProjectService) Create(ctx context.Context, name, description string, u
 	}
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogCreate(userID, "project", project.ID.String(), &project.ID, nil); err != nil {
+		if err := s.auditRepo.LogCreate(userID, organizationID, "project", project.ID.String(), &project.ID, nil); err != nil {
 			logAuditFailure(ctx, "create", "project", uint(0), err)
 		}
 	}
@@ -62,8 +63,8 @@ func (s *ProjectService) Create(ctx context.Context, name, description string, u
 }
 
 // ListMyProjects returns a paginated list of projects owned by the user.
-func (s *ProjectService) ListMyProjects(userID uint, req *models.PaginationRequest) (*dto.ProjectListResponse, error) {
-	items, total, err := s.repo.ListByUserID(req, userID)
+func (s *ProjectService) ListMyProjects(userID uint, organizationID uuid.UUID, req *models.PaginationRequest) (*dto.ProjectListResponse, error) {
+	items, total, err := s.repo.ListByOrganizationID(req, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +85,8 @@ func (s *ProjectService) ListMyProjects(userID uint, req *models.PaginationReque
 }
 
 // GetProjectByID returns a single project the user owns, as a DTO.
-func (s *ProjectService) GetProjectByID(id uuid.UUID, userID uint) (*dto.ProjectResponse, error) {
-	project, err := s.repo.GetByIDAndUserID(id, userID)
+func (s *ProjectService) GetProjectByID(id uuid.UUID, organizationID uuid.UUID) (*dto.ProjectResponse, error) {
+	project, err := s.repo.GetByIDAndOrganizationID(id, organizationID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return nil, apperrors.ErrProjectForbidden
@@ -104,13 +105,13 @@ func (s *ProjectService) GetProjectByID(id uuid.UUID, userID uint) (*dto.Project
 }
 
 // UpdateProject applies name/description changes and returns the updated DTO.
-func (s *ProjectService) UpdateProject(ctx context.Context, id uuid.UUID, userID uint, name, description string) (*dto.ProjectResponse, error) {
+func (s *ProjectService) UpdateProject(ctx context.Context, id uuid.UUID, userID uint, organizationID uuid.UUID, name, description string) (*dto.ProjectResponse, error) {
 	name, description, err := normalizeProjectInput(name, description)
 	if err != nil {
 		return nil, err
 	}
 
-	project, err := s.repo.GetByIDAndUserID(id, userID)
+	project, err := s.repo.GetByIDAndOrganizationID(id, organizationID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return nil, apperrors.ErrProjectForbidden
@@ -134,12 +135,12 @@ func (s *ProjectService) UpdateProject(ctx context.Context, id uuid.UUID, userID
 	if s.auditRepo != nil {
 		entityIDStr := project.ID.String()
 		if previousName != name {
-			if err := s.auditRepo.LogUpdate(userID, "project", entityIDStr, &project.ID, nil, "name", previousName, name); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "project", entityIDStr, &project.ID, nil, "name", previousName, name); err != nil {
 				logAuditFailure(ctx, "update", "project", uint(0), err)
 			}
 		}
 		if previousDescription != description {
-			if err := s.auditRepo.LogUpdate(userID, "project", entityIDStr, &project.ID, nil, "description", previousDescription, description); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "project", entityIDStr, &project.ID, nil, "description", previousDescription, description); err != nil {
 				logAuditFailure(ctx, "update", "project", uint(0), err)
 			}
 		}
@@ -153,8 +154,8 @@ func (s *ProjectService) UpdateProject(ctx context.Context, id uuid.UUID, userID
 }
 
 // DeleteProject soft-deletes a project owned by the user.
-func (s *ProjectService) DeleteProject(ctx context.Context, id uuid.UUID, userID uint) error {
-	project, err := s.repo.GetByIDAndUserID(id, userID)
+func (s *ProjectService) DeleteProject(ctx context.Context, id uuid.UUID, userID uint, organizationID uuid.UUID) error {
+	project, err := s.repo.GetByIDAndOrganizationID(id, organizationID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return apperrors.ErrProjectForbidden
@@ -165,12 +166,12 @@ func (s *ProjectService) DeleteProject(ctx context.Context, id uuid.UUID, userID
 		return err
 	}
 
-	if err := s.repo.Delete(project.ID); err != nil {
+	if err := s.repo.Delete(project.ID, organizationID); err != nil {
 		return err
 	}
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogDelete(userID, "project", project.ID.String(), &project.ID, nil); err != nil {
+		if err := s.auditRepo.LogDelete(userID, organizationID, "project", project.ID.String(), &project.ID, nil); err != nil {
 			logAuditFailure(ctx, "delete", "project", uint(0), err)
 		}
 	}

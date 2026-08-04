@@ -1,11 +1,27 @@
 "use client";
 
+import { useMemo } from "react";
+
+import { useOrganizations } from "@/hooks/use-organizations";
 import { navigationGroups } from "@/constants/navigation";
 import { Logo } from "./logo";
 import { NavItem } from "./nav-item";
 import { SidebarGroup } from "./sidebar-group";
 
+const organizationListParams = {
+  page: 1,
+  limit: 1,
+  sort: "updated_at" as const,
+  order: "desc" as const,
+};
+
 export function Sidebar() {
+  const { data } = useOrganizations(organizationListParams);
+
+  const organizationName = useMemo(() => {
+    return data?.items?.[0]?.name ?? "Workspace";
+  }, [data]);
+
   return (
     <aside
       className="
@@ -61,9 +77,7 @@ export function Sidebar() {
           </span>
         </div>
 
-        <p className="mt-2 text-xs text-zinc-400">
-          Workspace: Enterprise
-        </p>
+        <p className="mt-2 text-xs text-zinc-400">Workspace: {organizationName}</p>
       </div>
     </aside>
   );

@@ -30,50 +30,53 @@ func (s *AuditService) WithIncidentRepo(incidentRepo *repository.IncidentReposit
 	return s
 }
 
-func (s *AuditService) LogCreate(userID uint, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
+func (s *AuditService) LogCreate(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
 	log := &models.AuditLog{
-		UserID:     userID,
-		ProjectID:  projectID,
-		IncidentID: incidentID,
-		EntityType: entityType,
-		EntityID:   entityID,
-		Action:     models.AuditActionCreate,
+		UserID:         userID,
+		OrganizationID: organizationID,
+		ProjectID:      projectID,
+		IncidentID:     incidentID,
+		EntityType:     entityType,
+		EntityID:       entityID,
+		Action:         models.AuditActionCreate,
 	}
 
 	return s.repo.Create(log)
 }
 
-func (s *AuditService) LogUpdate(userID uint, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint, fieldName string, oldValue string, newValue string) error {
+func (s *AuditService) LogUpdate(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint, fieldName string, oldValue string, newValue string) error {
 	log := &models.AuditLog{
-		UserID:     userID,
-		ProjectID:  projectID,
-		IncidentID: incidentID,
-		EntityType: entityType,
-		EntityID:   entityID,
-		Action:     models.AuditActionUpdate,
-		FieldName:  fieldName,
-		OldValue:   oldValue,
-		NewValue:   newValue,
+		UserID:         userID,
+		OrganizationID: organizationID,
+		ProjectID:      projectID,
+		IncidentID:     incidentID,
+		EntityType:     entityType,
+		EntityID:       entityID,
+		Action:         models.AuditActionUpdate,
+		FieldName:      fieldName,
+		OldValue:       oldValue,
+		NewValue:       newValue,
 	}
 
 	return s.repo.Create(log)
 }
 
-func (s *AuditService) LogDelete(userID uint, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
+func (s *AuditService) LogDelete(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
 	log := &models.AuditLog{
-		UserID:     userID,
-		ProjectID:  projectID,
-		IncidentID: incidentID,
-		EntityType: entityType,
-		EntityID:   entityID,
-		Action:     models.AuditActionDelete,
+		UserID:         userID,
+		OrganizationID: organizationID,
+		ProjectID:      projectID,
+		IncidentID:     incidentID,
+		EntityType:     entityType,
+		EntityID:       entityID,
+		Action:         models.AuditActionDelete,
 	}
 
 	return s.repo.Create(log)
 }
 
-func (s *AuditService) ListIncidentAuditLogs(userID uint, incidentID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
-	if _, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID); err != nil {
+func (s *AuditService) ListIncidentAuditLogs(userID uint, organizationID uuid.UUID, incidentID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	if _, err := s.incidentRepo.GetByIDAndOrganizationID(incidentID, organizationID); err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return nil, apperrors.ErrProjectForbidden
 		}
@@ -83,7 +86,7 @@ func (s *AuditService) ListIncidentAuditLogs(userID uint, incidentID uint, req *
 		return nil, err
 	}
 
-	items, total, err := s.repo.ListByIncidentID(req, incidentID)
+	items, total, err := s.repo.ListByIncidentID(req, incidentID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,8 +100,8 @@ func (s *AuditService) ListIncidentAuditLogs(userID uint, incidentID uint, req *
 	}, nil
 }
 
-func (s *AuditService) ListProjectAuditLogs(userID uint, projectID uuid.UUID, req *models.PaginationRequest) (*models.PaginationResponse, error) {
-	if _, err := s.projectRepo.GetByIDAndUserID(projectID, userID); err != nil {
+func (s *AuditService) ListProjectAuditLogs(userID uint, organizationID uuid.UUID, projectID uuid.UUID, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	if _, err := s.projectRepo.GetByIDAndOrganizationID(projectID, organizationID); err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return nil, apperrors.ErrProjectForbidden
 		}
@@ -108,7 +111,7 @@ func (s *AuditService) ListProjectAuditLogs(userID uint, projectID uuid.UUID, re
 		return nil, err
 	}
 
-	items, total, err := s.repo.ListByProjectID(req, projectID)
+	items, total, err := s.repo.ListByProjectID(req, projectID, organizationID)
 	if err != nil {
 		return nil, err
 	}

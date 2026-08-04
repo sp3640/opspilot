@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/response"
@@ -27,6 +28,10 @@ func NewAlertHandler(service *services.AlertService) *AlertHandler {
 }
 
 func (h *AlertHandler) Create(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	var req dto.CreateAlertRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
@@ -34,6 +39,10 @@ func (h *AlertHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 	alert, err := h.service.CreateAlert(
 		c.Request.Context(),
 		req.ProjectID,
@@ -50,6 +59,7 @@ func (h *AlertHandler) Create(c *gin.Context) {
 		&req.FirstSeenAt,
 		&req.LastSeenAt,
 		userID,
+		organizationID,
 	)
 	if err != nil {
 		h.handleServiceError(c, err)
@@ -60,7 +70,14 @@ func (h *AlertHandler) Create(c *gin.Context) {
 }
 
 func (h *AlertHandler) List(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	req, ok := parsePagination(c, "created_at", "updated_at", "severity", "status", "last_seen_at")
 	if !ok {
@@ -89,7 +106,7 @@ func (h *AlertHandler) List(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.ListAlerts(userID, req)
+	result, err := h.service.ListAlerts(organizationID, req)
 	if err != nil {
 		response.InternalServerError(c, err)
 		return
@@ -99,7 +116,14 @@ func (h *AlertHandler) List(c *gin.Context) {
 }
 
 func (h *AlertHandler) GetByID(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	alertID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -107,7 +131,7 @@ func (h *AlertHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	alert, err := h.service.GetAlert(uint(alertID), userID)
+	alert, err := h.service.GetAlert(uint(alertID), organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -117,7 +141,15 @@ func (h *AlertHandler) GetByID(c *gin.Context) {
 }
 
 func (h *AlertHandler) Update(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	alertID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -135,6 +167,7 @@ func (h *AlertHandler) Update(c *gin.Context) {
 		c.Request.Context(),
 		uint(alertID),
 		userID,
+		organizationID,
 		req.ProjectID,
 		req.IncidentID,
 		req.Title,
@@ -160,7 +193,15 @@ func (h *AlertHandler) Update(c *gin.Context) {
 }
 
 func (h *AlertHandler) Delete(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	alertID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -168,7 +209,7 @@ func (h *AlertHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteAlert(c.Request.Context(), uint(alertID), userID)
+	err = h.service.DeleteAlert(c.Request.Context(), uint(alertID), userID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -178,7 +219,15 @@ func (h *AlertHandler) Delete(c *gin.Context) {
 }
 
 func (h *AlertHandler) Acknowledge(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	alertID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -186,7 +235,7 @@ func (h *AlertHandler) Acknowledge(c *gin.Context) {
 		return
 	}
 
-	alert, err := h.service.AcknowledgeAlert(c.Request.Context(), uint(alertID), userID)
+	alert, err := h.service.AcknowledgeAlert(c.Request.Context(), uint(alertID), userID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -196,7 +245,15 @@ func (h *AlertHandler) Acknowledge(c *gin.Context) {
 }
 
 func (h *AlertHandler) Resolve(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	alertID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -204,7 +261,7 @@ func (h *AlertHandler) Resolve(c *gin.Context) {
 		return
 	}
 
-	alert, err := h.service.ResolveAlert(c.Request.Context(), uint(alertID), userID)
+	alert, err := h.service.ResolveAlert(c.Request.Context(), uint(alertID), userID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -214,7 +271,15 @@ func (h *AlertHandler) Resolve(c *gin.Context) {
 }
 
 func (h *AlertHandler) Reopen(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	alertID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -222,7 +287,7 @@ func (h *AlertHandler) Reopen(c *gin.Context) {
 		return
 	}
 
-	alert, err := h.service.ReopenAlert(c.Request.Context(), uint(alertID), userID)
+	alert, err := h.service.ReopenAlert(c.Request.Context(), uint(alertID), userID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -232,7 +297,15 @@ func (h *AlertHandler) Reopen(c *gin.Context) {
 }
 
 func (h *AlertHandler) AttachIncident(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	alertID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -246,7 +319,7 @@ func (h *AlertHandler) AttachIncident(c *gin.Context) {
 		return
 	}
 
-	alert, err := h.service.AttachIncident(c.Request.Context(), uint(alertID), req.IncidentID, userID)
+	alert, err := h.service.AttachIncident(c.Request.Context(), uint(alertID), req.IncidentID, userID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -258,7 +331,7 @@ func (h *AlertHandler) AttachIncident(c *gin.Context) {
 func (h *AlertHandler) handleServiceError(c *gin.Context, err error) {
 	switch err {
 	case apperrors.ErrAlertNotFound, apperrors.ErrIncidentNotFound:
-		response.Error(c, http.StatusNotFound, err.Error())
+		response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 	case apperrors.ErrProjectForbidden, apperrors.ErrInvalidProject:
 		response.Error(c, http.StatusForbidden, err.Error())
 	case apperrors.ErrInvalidAlertSeverity, apperrors.ErrInvalidAlertStatus, apperrors.ErrInvalidAlertSource, apperrors.ErrInvalidAlertResourceType:

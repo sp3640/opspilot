@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -28,6 +29,8 @@ type Config struct {
 
 	JWTSecret string
 	JWTExpiry string
+
+	ClusterCredentialEncryptionKey string
 }
 
 // Load reads environment configuration and validates all startup-critical values.
@@ -67,8 +70,9 @@ func Load() (*Config, error) {
 		DBName:     strings.TrimSpace(getEnv("DB_NAME", "")),
 		DBSSLMode:  getEnv("DB_SSLMODE", "disable"),
 
-		JWTSecret: strings.TrimSpace(getEnv("JWT_SECRET", "")),
-		JWTExpiry: getEnv("JWT_EXPIRY", "24h"),
+		JWTSecret:                      strings.TrimSpace(getEnv("JWT_SECRET", "")),
+		JWTExpiry:                      getEnv("JWT_EXPIRY", "24h"),
+		ClusterCredentialEncryptionKey: strings.TrimSpace(getEnv("CLUSTER_CREDENTIAL_ENCRYPTION_KEY", "")),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -111,6 +115,9 @@ func (c *Config) Validate() error {
 	if len(c.JWTSecret) < 32 {
 		return fmt.Errorf("JWT_SECRET must be set and contain at least 32 characters")
 	}
+	if err := validateClusterCredentialEncryptionKey(c.ClusterCredentialEncryptionKey); err != nil {
+		return err
+	}
 
 	if c.DBURL != "" {
 		if err := validateDatabaseURL(c.DBURL); err != nil {
@@ -125,6 +132,22 @@ func (c *Config) Validate() error {
 	if _, err := validatePort(c.DBPort, "DB_PORT"); err != nil {
 		return err
 	}
+	return nil
+}
+
+func validateClusterCredentialEncryptionKey(value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("CLUSTER_CREDENTIAL_ENCRYPTION_KEY must be configured")
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return fmt.Errorf("CLUSTER_CREDENTIAL_ENCRYPTION_KEY must be valid base64")
+	}
+	if len(decoded) != 32 {
+		return fmt.Errorf("CLUSTER_CREDENTIAL_ENCRYPTION_KEY must decode to 32 bytes")
+	}
+
 	return nil
 }
 

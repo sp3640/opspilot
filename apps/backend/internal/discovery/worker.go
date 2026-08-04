@@ -23,6 +23,7 @@ var (
 
 type ClusterDescriptor struct {
 	ID                  uuid.UUID
+	OrganizationID      uuid.UUID
 	ProjectID           uuid.UUID
 	Name                string
 	Provider            string
@@ -36,7 +37,7 @@ type ClusterLoader interface {
 }
 
 type ResourceSyncService interface {
-	SyncResources(ctx context.Context, projectID uuid.UUID, userID uint, discoveredResources []models.Resource) (*resourcesync.SyncResult, error)
+	SyncResources(ctx context.Context, projectID uuid.UUID, userID uint, organizationID uuid.UUID, discoveredResources []models.Resource) (*resourcesync.SyncResult, error)
 }
 
 type DiscoveryProviderFactory interface {
@@ -44,8 +45,8 @@ type DiscoveryProviderFactory interface {
 }
 
 type DiscoveryAuditor interface {
-	LogCreate(userID uint, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error
-	LogUpdate(userID uint, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint, fieldName string, oldValue string, newValue string) error
+	LogCreate(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error
+	LogUpdate(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint, fieldName string, oldValue string, newValue string) error
 }
 
 type WorkerResult struct {
@@ -160,7 +161,7 @@ func (w *DiscoveryWorker) Run(ctx context.Context, clusterID uuid.UUID) (*Worker
 		}, validationErr
 	}
 
-	syncResult, err := w.resources.SyncResources(ctx, cluster.ProjectID, cluster.CreatedBy, execution.Result.Resources)
+	syncResult, err := w.resources.SyncResources(ctx, cluster.ProjectID, cluster.CreatedBy, cluster.OrganizationID, execution.Result.Resources)
 	if err != nil {
 		w.auditDiscoveryFailed(cluster, err)
 		return &WorkerResult{
@@ -190,8 +191,8 @@ func (w *DiscoveryWorker) auditDiscoveryStarted(cluster *ClusterDescriptor, prov
 		return
 	}
 
-	_ = w.audit.LogCreate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil)
-	_ = w.audit.LogUpdate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "provider", "", string(provider))
+	_ = w.audit.LogCreate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil)
+	_ = w.audit.LogUpdate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "provider", "", string(provider))
 }
 
 func (w *DiscoveryWorker) auditDiscoveryCompleted(cluster *ClusterDescriptor, discoveredCount int) {
@@ -199,8 +200,8 @@ func (w *DiscoveryWorker) auditDiscoveryCompleted(cluster *ClusterDescriptor, di
 		return
 	}
 
-	_ = w.audit.LogUpdate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "status", "RUNNING", "COMPLETED")
-	_ = w.audit.LogUpdate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "discovered_count", "0", strconv.Itoa(discoveredCount))
+	_ = w.audit.LogUpdate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "status", "RUNNING", "COMPLETED")
+	_ = w.audit.LogUpdate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "discovered_count", "0", strconv.Itoa(discoveredCount))
 }
 
 func (w *DiscoveryWorker) auditDiscoveryFailed(cluster *ClusterDescriptor, discoveryErr error) {
@@ -208,8 +209,8 @@ func (w *DiscoveryWorker) auditDiscoveryFailed(cluster *ClusterDescriptor, disco
 		return
 	}
 
-	_ = w.audit.LogUpdate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "status", "RUNNING", "FAILED")
-	_ = w.audit.LogUpdate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "error", "", discoveryErr.Error())
+	_ = w.audit.LogUpdate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "status", "RUNNING", "FAILED")
+	_ = w.audit.LogUpdate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "error", "", discoveryErr.Error())
 }
 
 func (w *DiscoveryWorker) auditValidationFailure(cluster *ClusterDescriptor, validationErr error) {
@@ -217,8 +218,8 @@ func (w *DiscoveryWorker) auditValidationFailure(cluster *ClusterDescriptor, val
 		return
 	}
 
-	_ = w.audit.LogUpdate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "validation", "passed", "failed")
-	_ = w.audit.LogUpdate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "validation_error", "", validationErr.Error())
+	_ = w.audit.LogUpdate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "validation", "passed", "failed")
+	_ = w.audit.LogUpdate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "validation_error", "", validationErr.Error())
 }
 
 func (w *DiscoveryWorker) auditResourcesSynced(cluster *ClusterDescriptor, syncResult *resourcesync.SyncResult) {
@@ -227,5 +228,5 @@ func (w *DiscoveryWorker) auditResourcesSynced(cluster *ClusterDescriptor, syncR
 	}
 
 	total := syncResult.Created + syncResult.Updated + syncResult.Deleted + syncResult.Restored
-	_ = w.audit.LogUpdate(cluster.CreatedBy, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "resources_synced", "0", strconv.Itoa(total))
+	_ = w.audit.LogUpdate(cluster.CreatedBy, cluster.OrganizationID, "discovery", cluster.ID.String(), &cluster.ProjectID, nil, "resources_synced", "0", strconv.Itoa(total))
 }

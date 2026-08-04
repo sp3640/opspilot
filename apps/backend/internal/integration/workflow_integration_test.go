@@ -12,7 +12,6 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/discovery"
 	"github.com/sp3640/opspilot/backend/internal/dto"
-	kubeintegration "github.com/sp3640/opspilot/backend/internal/integrations/kubernetes"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/monitoring"
 	"github.com/sp3640/opspilot/backend/internal/repository"
@@ -63,6 +62,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	ctx := context.Background()
 
 	userRepo := repository.NewUserRepository(db)
+	organizationRepo := repository.NewOrganizationRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
 	alertRepo := repository.NewAlertRepository(db)
@@ -73,16 +73,16 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	auditRepo := repository.NewAuditRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
 
-	testConfig := &config.Config{JWTSecret: "this-is-a-very-long-test-jwt-secret-1234567890"}
+	testConfig := &config.Config{JWTSecret: "this-is-a-very-long-test-jwt-secret-1234567890", ClusterCredentialEncryptionKey: testClusterEncryptionKey()}
 
-	userService := services.NewUserService(userRepo, testConfig)
+	userService := services.NewUserService(userRepo, organizationRepo, testConfig)
 	auditService := services.NewAuditService(auditRepo).
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
-	clusterService := services.NewClusterService(clusterRepo, auditService)
+	clusterService := services.NewClusterService(clusterRepo, auditService, testClusterCredentialCipher(t))
 	resourceService := services.NewResourceService(resourceRepo, resourcesync.NewSyncEngine(resourceRepo), auditService)
 	metricService := services.NewMetricService(metricRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
@@ -106,9 +106,13 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	if claims.UserID != owner.ID {
 		t.Fatalf("unexpected token user id: got %d want %d", claims.UserID, owner.ID)
 	}
+	if owner.OrganizationID == nil {
+		t.Fatalf("expected owner organization id")
+	}
+	organizationID := *owner.OrganizationID
 
 	// 2) Project creation
-	projectResp, err := projectService.Create(ctx, "OpsPilot Integration", "Workflow integration project", owner.ID)
+	projectResp, err := projectService.Create(ctx, "OpsPilot Integration", "Workflow integration project", owner.ID, organizationID)
 	if err != nil {
 		t.Fatalf("create project: %v", err)
 	}
@@ -134,6 +138,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 		nil,
 		nil,
 		owner.ID,
+		organizationID,
 	)
 	if err != nil {
 		t.Fatalf("create cluster: %v", err)
@@ -144,34 +149,15 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	}
 
 	// 4) Cluster validation
-	validator := kubeintegration.NewValidator(kubeintegration.NewClient([]byte(clusterResp.KubeconfigEncrypted)))
-	_, validationErr := validator.ValidateConnection(ctx)
-	if validationErr == nil {
-		t.Fatalf("expected validation failure for invalid kubeconfig")
-	}
-	validatedAt := time.Now().UTC()
-	validatedCluster, err := clusterService.UpdateCluster(
-		ctx,
-		clusterID,
-		owner.ID,
-		projectID,
-		clusterResp.Name,
-		clusterResp.Provider,
-		constants.ClusterStatusDisconnected,
-		clusterResp.ConnectionType,
-		clusterResp.KubeconfigEncrypted,
-		clusterResp.APIEndpoint,
-		clusterResp.Region,
-		clusterResp.Version,
-		validationErr.Error(),
-		clusterResp.Metadata,
-		&validatedAt,
-		clusterResp.LastDiscoveryAt,
-	)
+	validationResult, err := clusterService.ValidateClusterCredential(ctx, clusterID, organizationID)
 	if err != nil {
-		t.Fatalf("update validated cluster: %v", err)
+		t.Fatalf("validate cluster credential: %v", err)
 	}
-	if validatedCluster.LastValidatedAt == nil {
+	if !validationResult.Healthy {
+		t.Fatalf("expected local credential validation to succeed: %+v", validationResult)
+	}
+	validatedCluster := validationResult.Cluster
+	if validatedCluster == nil || validatedCluster.LastValidatedAt == nil {
 		t.Fatalf("expected last validated at to be set")
 	}
 
@@ -212,7 +198,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	}
 
 	// 6) Resource synchronization
-	syncResult, err := resourceService.SyncResources(ctx, projectID, owner.ID, execution.Result.Resources)
+	syncResult, err := resourceService.SyncResources(ctx, projectID, owner.ID, organizationID, execution.Result.Resources)
 	if err != nil {
 		t.Fatalf("sync resources: %v", err)
 	}
@@ -220,7 +206,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 		t.Fatalf("expected at least one created resource, got %d", syncResult.Created)
 	}
 
-	syncedResources, err := resourceRepo.ListByProject(projectID)
+	syncedResources, err := resourceRepo.ListByProject(projectID, organizationID)
 	if err != nil {
 		t.Fatalf("list synced resources: %v", err)
 	}
@@ -254,7 +240,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 		t.Fatalf("expected one stored metric, got %d", len(storedMetrics))
 	}
 
-	latestMetric, err := metricService.GetLatest(owner.ID, projectID, &clusterID, &primaryResource.ID, constants.MetricTypeCPU, "cpu.usage.millicores")
+	latestMetric, err := metricService.GetLatest(organizationID, projectID, &clusterID, &primaryResource.ID, constants.MetricTypeCPU, "cpu.usage.millicores")
 	if err != nil {
 		t.Fatalf("get latest metric: %v", err)
 	}
@@ -280,13 +266,14 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 		&now,
 		&now,
 		owner.ID,
+		organizationID,
 	)
 	if err != nil {
 		t.Fatalf("create alert: %v", err)
 	}
 
 	// 9) Alert acknowledgement
-	acknowledgedAlert, err := alertService.AcknowledgeAlert(ctx, alertResp.ID, owner.ID)
+	acknowledgedAlert, err := alertService.AcknowledgeAlert(ctx, alertResp.ID, owner.ID, organizationID)
 	if err != nil {
 		t.Fatalf("acknowledge alert: %v", err)
 	}
@@ -303,13 +290,14 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 		constants.StatusOpen,
 		projectID,
 		owner.ID,
+		organizationID,
 	)
 	if err != nil {
 		t.Fatalf("create incident: %v", err)
 	}
 
 	// 11) Alert -> Incident linking
-	linkedAlert, err := alertService.AttachIncident(ctx, alertResp.ID, incidentResp.ID, owner.ID)
+	linkedAlert, err := alertService.AttachIncident(ctx, alertResp.ID, incidentResp.ID, owner.ID, organizationID)
 	if err != nil {
 		t.Fatalf("attach alert to incident: %v", err)
 	}
@@ -318,7 +306,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	}
 
 	// 12) Alert resolution
-	resolvedAlert, err := alertService.ResolveAlert(ctx, alertResp.ID, owner.ID)
+	resolvedAlert, err := alertService.ResolveAlert(ctx, alertResp.ID, owner.ID, organizationID)
 	if err != nil {
 		t.Fatalf("resolve alert: %v", err)
 	}
@@ -344,7 +332,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	}
 
 	// 14) Audit log generation
-	auditLogs, err := auditRepo.GetByProjectID(projectID)
+	auditLogs, err := auditRepo.GetByProjectID(projectID, organizationID)
 	if err != nil {
 		t.Fatalf("list project audit logs: %v", err)
 	}
@@ -420,7 +408,13 @@ func migrateIntegrationSchema(t *testing.T, db *gorm.DB) {
 
 	err := db.AutoMigrate(
 		&models.User{},
+		&models.Organization{},
+		&models.Invitation{},
 		&models.Project{},
+		&models.Application{},
+		&models.Team{},
+		&models.ProjectTeam{},
+		&models.TeamMember{},
 		&models.Incident{},
 		&models.Alert{},
 		&models.Cluster{},

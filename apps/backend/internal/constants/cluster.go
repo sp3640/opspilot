@@ -2,15 +2,26 @@ package constants
 
 // Cluster status values.
 const (
-	ClusterStatusConnected    = "CONNECTED"
-	ClusterStatusDisconnected = "DISCONNECTED"
-	ClusterStatusFailed       = "FAILED"
-	ClusterStatusPending      = "PENDING"
+	ClusterStatusPendingValidation = "PENDING_VALIDATION"
+	ClusterStatusHealthy           = "HEALTHY"
+	ClusterStatusInvalid           = "INVALID"
+
+	ClusterStatusPending      = ClusterStatusPendingValidation
+	ClusterStatusConnected    = ClusterStatusHealthy
+	ClusterStatusDisconnected = ClusterStatusInvalid
+	ClusterStatusFailed       = ClusterStatusInvalid
 )
 
 // Cluster provider values.
 const (
-	ClusterProviderKubernetes = "KUBERNETES"
+	ClusterProviderAKS      = "AKS"
+	ClusterProviderEKS      = "EKS"
+	ClusterProviderGKE      = "GKE"
+	ClusterProviderOnPrem   = "ON-PREM"
+	ClusterProviderKind     = "KIND"
+	ClusterProviderMinikube = "MINIKUBE"
+
+	ClusterProviderKubernetes = ClusterProviderKind
 	ClusterProviderDocker     = "DOCKER"
 	ClusterProviderVM         = "VM"
 	ClusterProviderAzure      = "AZURE"
@@ -18,9 +29,13 @@ const (
 	ClusterProviderCustom     = "CUSTOM"
 )
 
-// Cluster connection type values.
+// Cluster credential type values.
 const (
-	ClusterConnectionTypeKubeconfig = "KUBECONFIG"
+	ClusterCredentialTypeKubeConfig     = "KUBECONFIG"
+	ClusterCredentialTypeBearerToken    = "BEARER_TOKEN"
+	ClusterCredentialTypeServiceAccount = "SERVICE_ACCOUNT"
+
+	ClusterConnectionTypeKubeconfig = ClusterCredentialTypeKubeConfig
 	ClusterConnectionTypeAPI        = "API"
 	ClusterConnectionTypeSocket     = "SOCKET"
 	ClusterConnectionTypeCustom     = "CUSTOM"
@@ -28,6 +43,9 @@ const (
 
 // ValidClusterStatuses is the slice of all valid cluster status values.
 var ValidClusterStatuses = []string{
+	ClusterStatusPendingValidation,
+	ClusterStatusHealthy,
+	ClusterStatusInvalid,
 	ClusterStatusConnected,
 	ClusterStatusDisconnected,
 	ClusterStatusFailed,
@@ -36,6 +54,12 @@ var ValidClusterStatuses = []string{
 
 // ValidClusterProviders is the slice of all valid cluster provider values.
 var ValidClusterProviders = []string{
+	ClusterProviderAKS,
+	ClusterProviderEKS,
+	ClusterProviderGKE,
+	ClusterProviderOnPrem,
+	ClusterProviderKind,
+	ClusterProviderMinikube,
 	ClusterProviderKubernetes,
 	ClusterProviderDocker,
 	ClusterProviderVM,
@@ -44,8 +68,11 @@ var ValidClusterProviders = []string{
 	ClusterProviderCustom,
 }
 
-// ValidClusterConnectionTypes is the slice of all valid cluster connection type values.
+// ValidClusterConnectionTypes is the slice of all valid cluster credential type values.
 var ValidClusterConnectionTypes = []string{
+	ClusterCredentialTypeKubeConfig,
+	ClusterCredentialTypeBearerToken,
+	ClusterCredentialTypeServiceAccount,
 	ClusterConnectionTypeKubeconfig,
 	ClusterConnectionTypeAPI,
 	ClusterConnectionTypeSocket,
@@ -54,10 +81,9 @@ var ValidClusterConnectionTypes = []string{
 
 func IsValidClusterStatus(status string) bool {
 	switch status {
-	case ClusterStatusConnected,
-		ClusterStatusDisconnected,
-		ClusterStatusFailed,
-		ClusterStatusPending:
+	case ClusterStatusPendingValidation,
+		ClusterStatusHealthy,
+		ClusterStatusInvalid:
 		return true
 	default:
 		return false
@@ -66,8 +92,14 @@ func IsValidClusterStatus(status string) bool {
 
 func IsValidClusterProvider(provider string) bool {
 	switch provider {
-	case ClusterProviderKubernetes,
-		ClusterProviderDocker,
+	case ClusterProviderAKS,
+		ClusterProviderEKS,
+		ClusterProviderGKE,
+		ClusterProviderOnPrem,
+		ClusterProviderKind,
+		ClusterProviderMinikube:
+		return true
+	case ClusterProviderDocker,
 		ClusterProviderVM,
 		ClusterProviderAzure,
 		ClusterProviderAWS,
@@ -79,8 +111,14 @@ func IsValidClusterProvider(provider string) bool {
 }
 
 func IsValidClusterConnectionType(connectionType string) bool {
-	switch connectionType {
-	case ClusterConnectionTypeKubeconfig,
+	return IsValidClusterCredentialType(connectionType)
+}
+
+func IsValidClusterCredentialType(credentialType string) bool {
+	switch credentialType {
+	case ClusterCredentialTypeKubeConfig,
+		ClusterCredentialTypeBearerToken,
+		ClusterCredentialTypeServiceAccount,
 		ClusterConnectionTypeAPI,
 		ClusterConnectionTypeSocket,
 		ClusterConnectionTypeCustom:

@@ -40,9 +40,20 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
 	}
 
+	if err := runOrganizationBackfillMigration(db); err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("run organization backfill migration: %w", err)
+	}
+
 	err = db.AutoMigrate(
 		&models.User{},
+		&models.Organization{},
+		&models.Invitation{},
 		&models.Project{},
+		&models.Application{},
+		&models.Team{},
+		&models.ProjectTeam{},
+		&models.TeamMember{},
 		&models.Incident{},
 		&models.Alert{},
 		&models.Cluster{},

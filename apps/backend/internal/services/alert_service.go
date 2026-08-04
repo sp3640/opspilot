@@ -63,6 +63,7 @@ func (s *AlertService) CreateAlert(
 	firstSeenAt,
 	lastSeenAt *time.Time,
 	userID uint,
+	organizationID uuid.UUID,
 ) (*dto.AlertResponse, error) {
 	title = strings.TrimSpace(title)
 	description = strings.TrimSpace(description)
@@ -72,7 +73,7 @@ func (s *AlertService) CreateAlert(
 		return nil, err
 	}
 
-	belongs, err := s.repo.ProjectBelongsToUser(projectID, userID)
+	belongs, err := s.repo.ProjectBelongsToOrganization(projectID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +83,7 @@ func (s *AlertService) CreateAlert(
 
 	fingerprint := GenerateFingerprint(projectID, resourceType, resourceID, severity, title)
 
-	existing, err := s.repo.FindByFingerprint(projectID, fingerprint)
+	existing, err := s.repo.FindByFingerprint(projectID, organizationID, fingerprint)
 	if err == nil {
 		now := time.Now()
 		updatedMetadata := existing.Metadata
@@ -103,7 +104,7 @@ func (s *AlertService) CreateAlert(
 
 		if s.auditRepo != nil {
 			entityID := strconv.FormatUint(uint64(existing.ID), 10)
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &existing.ProjectID, existing.IncidentID, "occurrence_count", strconv.Itoa(previousCount), strconv.Itoa(existing.OccurrenceCount)); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &existing.ProjectID, existing.IncidentID, "occurrence_count", strconv.Itoa(previousCount), strconv.Itoa(existing.OccurrenceCount)); err != nil {
 				logAuditFailure(ctx, "update", "alert", existing.ID, err)
 			}
 		}
@@ -136,6 +137,7 @@ func (s *AlertService) CreateAlert(
 	}
 
 	alert := &models.Alert{
+		OrganizationID:  organizationID,
 		ProjectID:       projectID,
 		IncidentID:      incidentID,
 		Title:           title,
@@ -159,7 +161,7 @@ func (s *AlertService) CreateAlert(
 	}
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogCreate(userID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID); err != nil {
+		if err := s.auditRepo.LogCreate(userID, organizationID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID); err != nil {
 			logAuditFailure(ctx, "create", "alert", alert.ID, err)
 		}
 	}
@@ -172,6 +174,7 @@ func (s *AlertService) UpdateAlert(
 	ctx context.Context,
 	id,
 	userID uint,
+	organizationID uuid.UUID,
 	projectID uuid.UUID,
 	incidentID *uint,
 	title,
@@ -192,12 +195,12 @@ func (s *AlertService) UpdateAlert(
 		return nil, err
 	}
 
-	alert, err := s.getOwnedAlert(id, userID)
+	alert, err := s.getOwnedAlert(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
 
-	belongs, err := s.repo.ProjectBelongsToUser(projectID, userID)
+	belongs, err := s.repo.ProjectBelongsToOrganization(projectID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +209,7 @@ func (s *AlertService) UpdateAlert(
 	}
 
 	if incidentID != nil {
-		if err := s.ensureIncidentBelongsToUser(*incidentID, userID, projectID); err != nil {
+		if err := s.ensureIncidentBelongsToUser(*incidentID, organizationID, projectID); err != nil {
 			return nil, err
 		}
 	}
@@ -251,37 +254,37 @@ func (s *AlertService) UpdateAlert(
 	if s.auditRepo != nil {
 		entityID := strconv.FormatUint(uint64(alert.ID), 10)
 		if previousTitle != alert.Title {
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "title", previousTitle, alert.Title); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "title", previousTitle, alert.Title); err != nil {
 				logAuditFailure(ctx, "update", "alert", alert.ID, err)
 			}
 		}
 		if previousDescription != alert.Description {
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "description", previousDescription, alert.Description); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "description", previousDescription, alert.Description); err != nil {
 				logAuditFailure(ctx, "update", "alert", alert.ID, err)
 			}
 		}
 		if previousSeverity != alert.Severity {
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "severity", previousSeverity, alert.Severity); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "severity", previousSeverity, alert.Severity); err != nil {
 				logAuditFailure(ctx, "update", "alert", alert.ID, err)
 			}
 		}
 		if previousStatus != alert.Status {
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "status", previousStatus, alert.Status); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "status", previousStatus, alert.Status); err != nil {
 				logAuditFailure(ctx, "update", "alert", alert.ID, err)
 			}
 		}
 		if previousSource != alert.Source {
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "source", previousSource, alert.Source); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "source", previousSource, alert.Source); err != nil {
 				logAuditFailure(ctx, "update", "alert", alert.ID, err)
 			}
 		}
 		if previousResourceType != alert.ResourceType {
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "resource_type", previousResourceType, alert.ResourceType); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "resource_type", previousResourceType, alert.ResourceType); err != nil {
 				logAuditFailure(ctx, "update", "alert", alert.ID, err)
 			}
 		}
 		if previousResourceID != alert.ResourceID {
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "resource_id", previousResourceID, alert.ResourceID); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "resource_id", previousResourceID, alert.ResourceID); err != nil {
 				logAuditFailure(ctx, "update", "alert", alert.ID, err)
 			}
 		}
@@ -291,18 +294,18 @@ func (s *AlertService) UpdateAlert(
 	return &response, nil
 }
 
-func (s *AlertService) DeleteAlert(ctx context.Context, id, userID uint) error {
-	alert, err := s.getOwnedAlert(id, userID)
+func (s *AlertService) DeleteAlert(ctx context.Context, id, userID uint, organizationID uuid.UUID) error {
+	alert, err := s.getOwnedAlert(id, organizationID)
 	if err != nil {
 		return err
 	}
 
-	if err := s.repo.Delete(alert.ID); err != nil {
+	if err := s.repo.Delete(alert.ID, organizationID); err != nil {
 		return err
 	}
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogDelete(userID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID); err != nil {
+		if err := s.auditRepo.LogDelete(userID, organizationID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID); err != nil {
 			logAuditFailure(ctx, "delete", "alert", alert.ID, err)
 		}
 	}
@@ -310,8 +313,8 @@ func (s *AlertService) DeleteAlert(ctx context.Context, id, userID uint) error {
 	return nil
 }
 
-func (s *AlertService) GetAlert(id, userID uint) (*dto.AlertResponse, error) {
-	alert, err := s.getOwnedAlert(id, userID)
+func (s *AlertService) GetAlert(id uint, organizationID uuid.UUID) (*dto.AlertResponse, error) {
+	alert, err := s.getOwnedAlert(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -320,8 +323,8 @@ func (s *AlertService) GetAlert(id, userID uint) (*dto.AlertResponse, error) {
 	return &response, nil
 }
 
-func (s *AlertService) ListAlerts(userID uint, req *models.PaginationRequest) (*dto.AlertListResponse, error) {
-	items, total, err := s.repo.List(req, userID)
+func (s *AlertService) ListAlerts(organizationID uuid.UUID, req *models.PaginationRequest) (*dto.AlertListResponse, error) {
+	items, total, err := s.repo.List(req, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -336,8 +339,8 @@ func (s *AlertService) ListAlerts(userID uint, req *models.PaginationRequest) (*
 	}, nil
 }
 
-func (s *AlertService) ResolveAlert(ctx context.Context, id, userID uint) (*dto.AlertResponse, error) {
-	alert, err := s.getOwnedAlert(id, userID)
+func (s *AlertService) ResolveAlert(ctx context.Context, id, userID uint, organizationID uuid.UUID) (*dto.AlertResponse, error) {
+	alert, err := s.getOwnedAlert(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -352,7 +355,7 @@ func (s *AlertService) ResolveAlert(ctx context.Context, id, userID uint) (*dto.
 	alert.ResolvedAt = &resolvedAt
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogUpdate(userID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID, "status", previousStatus, constants.AlertStatusResolved); err != nil {
+		if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID, "status", previousStatus, constants.AlertStatusResolved); err != nil {
 			logAuditFailure(ctx, "resolve", "alert", alert.ID, err)
 		}
 	}
@@ -361,8 +364,8 @@ func (s *AlertService) ResolveAlert(ctx context.Context, id, userID uint) (*dto.
 	return &response, nil
 }
 
-func (s *AlertService) AcknowledgeAlert(ctx context.Context, id, userID uint) (*dto.AlertResponse, error) {
-	alert, err := s.getOwnedAlert(id, userID)
+func (s *AlertService) AcknowledgeAlert(ctx context.Context, id, userID uint, organizationID uuid.UUID) (*dto.AlertResponse, error) {
+	alert, err := s.getOwnedAlert(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +380,7 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, id, userID uint) (*
 	alert.AcknowledgedAt = &acknowledgedAt
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogUpdate(userID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID, "status", previousStatus, constants.AlertStatusAcknowledged); err != nil {
+		if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID, "status", previousStatus, constants.AlertStatusAcknowledged); err != nil {
 			logAuditFailure(ctx, "acknowledge", "alert", alert.ID, err)
 		}
 	}
@@ -386,13 +389,13 @@ func (s *AlertService) AcknowledgeAlert(ctx context.Context, id, userID uint) (*
 	return &response, nil
 }
 
-func (s *AlertService) AttachIncident(ctx context.Context, id, incidentID, userID uint) (*dto.AlertResponse, error) {
-	alert, err := s.getOwnedAlert(id, userID)
+func (s *AlertService) AttachIncident(ctx context.Context, id, incidentID, userID uint, organizationID uuid.UUID) (*dto.AlertResponse, error) {
+	alert, err := s.getOwnedAlert(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
 
-	incident, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID)
+	incident, err := s.incidentRepo.GetByIDAndOrganizationID(incidentID, organizationID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return nil, apperrors.ErrProjectForbidden
@@ -422,11 +425,11 @@ func (s *AlertService) AttachIncident(ctx context.Context, id, incidentID, userI
 			oldIncident = strconv.FormatUint(uint64(*previousIncidentID), 10)
 		}
 		newIncident := strconv.FormatUint(uint64(incidentID), 10)
-		if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "incident_id", oldIncident, newIncident); err != nil {
+		if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "incident_id", oldIncident, newIncident); err != nil {
 			logAuditFailure(ctx, "attach_incident", "alert", alert.ID, err)
 		}
 		if statusBefore != alert.Status {
-			if err := s.auditRepo.LogUpdate(userID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "status", statusBefore, alert.Status); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", entityID, &alert.ProjectID, alert.IncidentID, "status", statusBefore, alert.Status); err != nil {
 				logAuditFailure(ctx, "attach_incident", "alert", alert.ID, err)
 			}
 		}
@@ -437,8 +440,8 @@ func (s *AlertService) AttachIncident(ctx context.Context, id, incidentID, userI
 }
 
 // RefreshLastSeen is retained for scheduled alert freshness workflows and dedup pipelines.
-func (s *AlertService) RefreshLastSeen(ctx context.Context, id, userID uint) (*dto.AlertResponse, error) {
-	alert, err := s.getOwnedAlert(id, userID)
+func (s *AlertService) RefreshLastSeen(ctx context.Context, id, userID uint, organizationID uuid.UUID) (*dto.AlertResponse, error) {
+	alert, err := s.getOwnedAlert(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +456,7 @@ func (s *AlertService) RefreshLastSeen(ctx context.Context, id, userID uint) (*d
 	alert.LastSeenAt = now
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogUpdate(userID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID, "occurrence_count", strconv.Itoa(previousCount), strconv.Itoa(alert.OccurrenceCount)); err != nil {
+		if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID, "occurrence_count", strconv.Itoa(previousCount), strconv.Itoa(alert.OccurrenceCount)); err != nil {
 			logAuditFailure(ctx, "refresh_last_seen", "alert", alert.ID, err)
 		}
 	}
@@ -462,8 +465,8 @@ func (s *AlertService) RefreshLastSeen(ctx context.Context, id, userID uint) (*d
 	return &response, nil
 }
 
-func (s *AlertService) ReopenAlert(ctx context.Context, id, userID uint) (*dto.AlertResponse, error) {
-	alert, err := s.getOwnedAlert(id, userID)
+func (s *AlertService) ReopenAlert(ctx context.Context, id, userID uint, organizationID uuid.UUID) (*dto.AlertResponse, error) {
+	alert, err := s.getOwnedAlert(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -479,7 +482,7 @@ func (s *AlertService) ReopenAlert(ctx context.Context, id, userID uint) (*dto.A
 	alert.LastSeenAt = now
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogUpdate(userID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID, "status", previousStatus, constants.AlertStatusOpen); err != nil {
+		if err := s.auditRepo.LogUpdate(userID, organizationID, "alert", strconv.FormatUint(uint64(alert.ID), 10), &alert.ProjectID, alert.IncidentID, "status", previousStatus, constants.AlertStatusOpen); err != nil {
 			logAuditFailure(ctx, "reopen", "alert", alert.ID, err)
 		}
 	}
@@ -488,8 +491,8 @@ func (s *AlertService) ReopenAlert(ctx context.Context, id, userID uint) (*dto.A
 	return &response, nil
 }
 
-func (s *AlertService) getOwnedAlert(id, userID uint) (*models.Alert, error) {
-	alert, err := s.repo.FindByID(id)
+func (s *AlertService) getOwnedAlert(id uint, organizationID uuid.UUID) (*models.Alert, error) {
+	alert, err := s.repo.FindByID(id, organizationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.ErrAlertNotFound
@@ -497,7 +500,7 @@ func (s *AlertService) getOwnedAlert(id, userID uint) (*models.Alert, error) {
 		return nil, err
 	}
 
-	belongs, err := s.repo.ProjectBelongsToUser(alert.ProjectID, userID)
+	belongs, err := s.repo.ProjectBelongsToOrganization(alert.ProjectID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -508,12 +511,12 @@ func (s *AlertService) getOwnedAlert(id, userID uint) (*models.Alert, error) {
 	return alert, nil
 }
 
-func (s *AlertService) ensureIncidentBelongsToUser(incidentID, userID uint, projectID uuid.UUID) error {
+func (s *AlertService) ensureIncidentBelongsToUser(incidentID uint, organizationID uuid.UUID, projectID uuid.UUID) error {
 	if s.incidentRepo == nil {
 		return apperrors.ErrIncidentNotFound
 	}
 
-	incident, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID)
+	incident, err := s.incidentRepo.GetByIDAndOrganizationID(incidentID, organizationID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return apperrors.ErrProjectForbidden

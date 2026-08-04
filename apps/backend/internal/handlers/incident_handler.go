@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
@@ -21,6 +22,10 @@ func NewIncidentHandler(service *services.IncidentService) *IncidentHandler {
 }
 
 func (h *IncidentHandler) Create(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	var req dto.CreateIncidentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
@@ -28,6 +33,10 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	incident, err := h.service.CreateIncident(
 		c.Request.Context(),
@@ -37,6 +46,7 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 		req.Status,
 		req.ProjectID,
 		userID,
+		organizationID,
 	)
 	if err != nil {
 		switch err {
@@ -56,7 +66,14 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 }
 
 func (h *IncidentHandler) List(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	req, ok := parsePagination(c, "title", "severity", "status", "created_at", "updated_at")
 	if !ok {
@@ -68,7 +85,7 @@ func (h *IncidentHandler) List(c *gin.Context) {
 	}
 
 	req.ProjectID = projectID
-	result, err := h.service.ListMyIncidents(userID, req)
+	result, err := h.service.ListMyIncidents(organizationID, req)
 	if err != nil {
 		response.InternalServerError(c, err)
 		return
@@ -78,7 +95,14 @@ func (h *IncidentHandler) List(c *gin.Context) {
 }
 
 func (h *IncidentHandler) GetByID(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	incidentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -86,11 +110,11 @@ func (h *IncidentHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	incident, err := h.service.GetIncidentByID(uint(incidentID), userID)
+	incident, err := h.service.GetIncidentByID(uint(incidentID), organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrIncidentNotFound:
-			response.Error(c, http.StatusNotFound, err.Error())
+			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
@@ -103,7 +127,15 @@ func (h *IncidentHandler) GetByID(c *gin.Context) {
 }
 
 func (h *IncidentHandler) Update(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	incidentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -121,6 +153,7 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 		c.Request.Context(),
 		uint(incidentID),
 		userID,
+		organizationID,
 		req.Title,
 		req.Description,
 		req.Severity,
@@ -130,7 +163,7 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 	if err != nil {
 		switch err {
 		case apperrors.ErrIncidentNotFound:
-			response.Error(c, http.StatusNotFound, err.Error())
+			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		case apperrors.ErrInvalidSeverity:
@@ -149,7 +182,15 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 }
 
 func (h *IncidentHandler) Delete(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	incidentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -157,11 +198,11 @@ func (h *IncidentHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteIncident(c.Request.Context(), uint(incidentID), userID)
+	err = h.service.DeleteIncident(c.Request.Context(), uint(incidentID), userID, organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrIncidentNotFound:
-			response.Error(c, http.StatusNotFound, err.Error())
+			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:

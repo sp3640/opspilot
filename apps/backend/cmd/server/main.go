@@ -28,6 +28,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"github.com/sp3640/opspilot/backend/internal/resourcesync"
 	"github.com/sp3640/opspilot/backend/internal/router"
+	"github.com/sp3640/opspilot/backend/internal/security"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
 
@@ -39,17 +40,18 @@ type discoveryClusterLoader struct {
 }
 
 func (l *discoveryClusterLoader) LoadCluster(_ context.Context, clusterID uuid.UUID) (*discovery.ClusterDescriptor, error) {
-	if l == nil || l.repo == nil {
+	if l == nil || l.db == nil {
 		return nil, nil
 	}
 
-	cluster, err := l.repo.FindByID(clusterID)
-	if err != nil {
+	var cluster models.Cluster
+	if err := l.db.Where("id = ?", clusterID).First(&cluster).Error; err != nil {
 		return nil, err
 	}
 
 	return &discovery.ClusterDescriptor{
 		ID:                  cluster.ID,
+		OrganizationID:      cluster.OrganizationID,
 		ProjectID:           cluster.ProjectID,
 		Name:                cluster.Name,
 		Provider:            cluster.Provider,
@@ -115,7 +117,13 @@ func run() error {
 	}()
 
 	userRepo := repository.NewUserRepository(database.DB)
+	organizationRepo := repository.NewOrganizationRepository(database.DB)
+	invitationRepo := repository.NewInvitationRepository(database.DB)
 	projectRepo := repository.NewProjectRepository(database.DB)
+	applicationRepo := repository.NewApplicationRepository(database.DB)
+	teamRepo := repository.NewTeamRepository(database.DB)
+	projectTeamRepo := repository.NewProjectTeamRepository(database.DB)
+	teamMemberRepo := repository.NewTeamMemberRepository(database.DB)
 	incidentRepo := repository.NewIncidentRepository(database.DB)
 	alertRepo := repository.NewAlertRepository(database.DB)
 	clusterRepo := repository.NewClusterRepository(database.DB)
@@ -125,14 +133,23 @@ func run() error {
 	auditRepo := repository.NewAuditRepository(database.DB)
 	dashboardRepo := repository.NewDashboardRepository(database.DB)
 
-	userService := services.NewUserService(userRepo, cfg)
+	userService := services.NewUserService(userRepo, organizationRepo, cfg)
+	organizationService := services.NewOrganizationService(organizationRepo)
+	invitationService := services.NewInvitationService(invitationRepo, userRepo)
 	auditService := services.NewAuditService(auditRepo).
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
+	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
+	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
+	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
-	clusterService := services.NewClusterService(clusterRepo, auditService)
+	clusterCredentialCipher, err := security.NewClusterCredentialCipher(cfg.ClusterCredentialEncryptionKey)
+	if err != nil {
+		return fmt.Errorf("initialize cluster credential cipher: %w", err)
+	}
+	clusterService := services.NewClusterService(clusterRepo, auditService, clusterCredentialCipher)
 	resourceSyncEngine := resourcesync.NewSyncEngine(resourceRepo)
 	resourceService := services.NewResourceService(resourceRepo, resourceSyncEngine, auditService)
 	metricService := services.NewMetricService(metricRepo, auditService)
@@ -157,7 +174,12 @@ func run() error {
 
 	authHandler := handlers.NewAuthHandler(userService)
 	userHandler := handlers.NewUserHandler(userService)
+	organizationHandler := handlers.NewOrganizationHandler(organizationService)
+	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	projectHandler := handlers.NewProjectHandler(projectService)
+	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	teamHandler := handlers.NewTeamHandler(teamService)
+	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
 	alertHandler := handlers.NewAlertHandler(alertService)
 	metricHandler := handlers.NewMetricHandler(metricService)
@@ -223,7 +245,12 @@ func run() error {
 		cfg,
 		authHandler,
 		userHandler,
+		organizationHandler,
+		invitationHandler,
 		projectHandler,
+		applicationHandler,
+		teamHandler,
+		projectTeamHandler,
 		incidentHandler,
 		alertHandler,
 		metricHandler,

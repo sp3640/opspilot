@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -40,8 +43,44 @@ func (h *UserHandler) Me(c *gin.Context) {
 	}
 
 	response.OK(c, "User fetched successfully", gin.H{
-		"id":    user.ID,
-		"name":  user.Name,
-		"email": user.Email,
+		"id":               user.ID,
+		"name":             user.Name,
+		"email":            user.Email,
+		"role":             resolvedRole(user.Role),
+		"organizationId":   resolvedOrganizationID(user.OrganizationID),
+		"organizationName": resolvedOrganizationName(user.Organization),
+		"organizationSlug": resolvedOrganizationSlug(user.Organization),
 	})
+}
+
+func resolvedRole(role string) string {
+	if strings.TrimSpace(role) == "" {
+		return models.RoleUser
+	}
+
+	return role
+}
+
+func resolvedOrganizationID(organizationID *uuid.UUID) string {
+	if organizationID == nil {
+		return ""
+	}
+
+	return organizationID.String()
+}
+
+func resolvedOrganizationName(organization *models.Organization) string {
+	if organization == nil {
+		return ""
+	}
+
+	return organization.Name
+}
+
+func resolvedOrganizationSlug(organization *models.Organization) string {
+	if organization == nil {
+		return ""
+	}
+
+	return organization.Slug
 }

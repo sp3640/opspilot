@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
@@ -23,6 +24,10 @@ func NewProjectHandler(service *services.ProjectService) *ProjectHandler {
 }
 
 func (h *ProjectHandler) Create(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	var req dto.CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
@@ -30,8 +35,12 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
-	project, err := h.service.Create(c.Request.Context(), req.Name, req.Description, userID)
+	project, err := h.service.Create(c.Request.Context(), req.Name, req.Description, userID, organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectAlreadyExists:
@@ -48,14 +57,22 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 }
 
 func (h *ProjectHandler) List(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	req, ok := parsePagination(c, "name", "created_at", "updated_at")
 	if !ok {
 		return
 	}
 
-	result, err := h.service.ListMyProjects(userID, req)
+	result, err := h.service.ListMyProjects(userID, organizationID, req)
 	if err != nil {
 		response.InternalServerError(c, err)
 		return
@@ -65,7 +82,19 @@ func (h *ProjectHandler) List(c *gin.Context) {
 }
 
 func (h *ProjectHandler) GetByID(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	_, hasUser := c.Get("userID")
+	if !hasUser {
+		response.Unauthorized(c, "missing user context")
+		return
+	}
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -73,11 +102,11 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	project, err := h.service.GetProjectByID(projectID, userID)
+	project, err := h.service.GetProjectByID(projectID, organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:
-			response.Error(c, http.StatusNotFound, err.Error())
+			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
@@ -90,7 +119,15 @@ func (h *ProjectHandler) GetByID(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Update(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -104,13 +141,13 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	project, err := h.service.UpdateProject(c.Request.Context(), projectID, userID, req.Name, req.Description)
+	project, err := h.service.UpdateProject(c.Request.Context(), projectID, userID, organizationID, req.Name, req.Description)
 	if err != nil {
 		switch err {
 		case apperrors.ErrInvalidProjectName, apperrors.ErrInvalidProjectDescription:
 			response.BadRequest(c, err.Error())
 		case apperrors.ErrProjectNotFound:
-			response.Error(c, http.StatusNotFound, err.Error())
+			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:
@@ -123,7 +160,15 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Delete(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	projectID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -131,11 +176,11 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteProject(c.Request.Context(), projectID, userID)
+	err = h.service.DeleteProject(c.Request.Context(), projectID, userID, organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectNotFound:
-			response.Error(c, http.StatusNotFound, err.Error())
+			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 		case apperrors.ErrProjectForbidden:
 			response.Error(c, http.StatusForbidden, err.Error())
 		default:

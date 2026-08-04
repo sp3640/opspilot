@@ -45,11 +45,11 @@ func (r *ProjectRepository) GetByID(id uuid.UUID) (*models.Project, error) {
 	return &project, nil
 }
 
-// GetByIDAndUserID returns a project only when it is owned by userID.
-func (r *ProjectRepository) GetByIDAndUserID(id uuid.UUID, userID uint) (*models.Project, error) {
+// GetByIDAndOrganizationID returns a project only when it belongs to organizationID.
+func (r *ProjectRepository) GetByIDAndOrganizationID(id uuid.UUID, organizationID uuid.UUID) (*models.Project, error) {
 	var project models.Project
 
-	err := r.db.Where("id = ? AND owner_id = ?", id, userID).First(&project).Error
+	err := r.db.Where("id = ? AND organization_id = ?", id, organizationID).First(&project).Error
 	if err != nil {
 		return nil, err
 	}
@@ -68,11 +68,11 @@ func (r *ProjectRepository) GetBySlug(slug string) (*models.Project, error) {
 	return &project, nil
 }
 
-// GetAllByUserID returns all projects owned by userID.
-func (r *ProjectRepository) GetAllByUserID(userID uint) ([]models.Project, error) {
+// GetAllByOrganizationID returns all projects in an organization.
+func (r *ProjectRepository) GetAllByOrganizationID(organizationID uuid.UUID) ([]models.Project, error) {
 	var projects []models.Project
 
-	err := r.db.Where("owner_id = ?", userID).Find(&projects).Error
+	err := r.db.Where("organization_id = ?", organizationID).Find(&projects).Error
 	if err != nil {
 		return nil, err
 	}
@@ -80,12 +80,12 @@ func (r *ProjectRepository) GetAllByUserID(userID uint) ([]models.Project, error
 	return projects, nil
 }
 
-// ListByUserID returns a paginated project list and total for userID.
-func (r *ProjectRepository) ListByUserID(req *models.PaginationRequest, userID uint) ([]models.Project, int64, error) {
+// ListByOrganizationID returns a paginated project list and total for organizationID.
+func (r *ProjectRepository) ListByOrganizationID(req *models.PaginationRequest, organizationID uuid.UUID) ([]models.Project, int64, error) {
 	if err := req.Validate("name", "created_at", "updated_at"); err != nil {
 		return nil, 0, err
 	}
-	query := r.db.Model(&models.Project{}).Where("owner_id = ?", userID)
+	query := r.db.Model(&models.Project{}).Where("organization_id = ?", organizationID)
 
 	if req.Search != "" {
 		query = query.Where("name ILIKE ?", "%"+req.Search+"%")
@@ -122,10 +122,10 @@ func (r *ProjectRepository) ListByUserID(req *models.PaginationRequest, userID u
 	return projects, total, nil
 }
 
-// CountByUserID returns the number of active projects owned by userID.
-func (r *ProjectRepository) CountByUserID(userID uint) (int64, error) {
+// CountByOrganizationID returns the number of active projects in organizationID.
+func (r *ProjectRepository) CountByOrganizationID(organizationID uuid.UUID) (int64, error) {
 	var count int64
-	if err := r.db.Model(&models.Project{}).Where("owner_id = ?", userID).Count(&count).Error; err != nil {
+	if err := r.db.Model(&models.Project{}).Where("organization_id = ?", organizationID).Count(&count).Error; err != nil {
 		return 0, err
 	}
 
@@ -137,9 +137,9 @@ func (r *ProjectRepository) Update(project *models.Project) error {
 	return r.db.Model(project).Updates(project).Error
 }
 
-// Delete soft-deletes the project identified by id.
-func (r *ProjectRepository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&models.Project{}, id).Error
+// Delete soft-deletes the project identified by id and organization.
+func (r *ProjectRepository) Delete(id uuid.UUID, organizationID uuid.UUID) error {
+	return r.db.Where("id = ? AND organization_id = ?", id, organizationID).Delete(&models.Project{}).Error
 }
 
 func isDuplicateSlugError(err error) bool {

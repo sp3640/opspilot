@@ -26,34 +26,33 @@ func (r *AlertRepository) Update(alert *models.Alert) error {
 	return r.db.Model(alert).Updates(alert).Error
 }
 
-func (r *AlertRepository) Delete(id uint) error {
-	return r.db.Delete(&models.Alert{}, id).Error
+func (r *AlertRepository) Delete(id uint, organizationID uuid.UUID) error {
+	return r.db.Where("id = ? AND organization_id = ?", id, organizationID).Delete(&models.Alert{}).Error
 }
 
-func (r *AlertRepository) FindByID(id uint) (*models.Alert, error) {
+func (r *AlertRepository) FindByID(id uint, organizationID uuid.UUID) (*models.Alert, error) {
 	var alert models.Alert
-	if err := r.db.First(&alert, id).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", id, organizationID).First(&alert).Error; err != nil {
 		return nil, err
 	}
 	return &alert, nil
 }
 
-func (r *AlertRepository) FindByFingerprint(projectID uuid.UUID, fingerprint string) (*models.Alert, error) {
+func (r *AlertRepository) FindByFingerprint(projectID, organizationID uuid.UUID, fingerprint string) (*models.Alert, error) {
 	var alert models.Alert
-	if err := r.db.Where("project_id = ? AND fingerprint = ?", projectID, fingerprint).First(&alert).Error; err != nil {
+	if err := r.db.Where("project_id = ? AND organization_id = ? AND fingerprint = ?", projectID, organizationID, fingerprint).First(&alert).Error; err != nil {
 		return nil, err
 	}
 	return &alert, nil
 }
 
-func (r *AlertRepository) List(req *models.PaginationRequest, userID uint) ([]models.Alert, int64, error) {
+func (r *AlertRepository) List(req *models.PaginationRequest, organizationID uuid.UUID) ([]models.Alert, int64, error) {
 	if err := req.Validate("created_at", "updated_at", "severity", "status", "last_seen_at"); err != nil {
 		return nil, 0, err
 	}
 
 	query := r.db.Model(&models.Alert{}).
-		Joins("JOIN projects ON projects.id = alerts.project_id").
-		Where("projects.owner_id = ?", userID)
+		Where("alerts.organization_id = ?", organizationID)
 
 	if req.Search != "" {
 		query = query.Where(
@@ -166,15 +165,15 @@ func (r *AlertRepository) RefreshLastSeen(id uint, lastSeenAt time.Time) error {
 	return r.db.Model(&models.Alert{}).Where("id = ?", id).Update("last_seen_at", lastSeenAt).Error
 }
 
-func (r *AlertRepository) ProjectBelongsToUser(projectID uuid.UUID, userID uint) (bool, error) {
+func (r *AlertRepository) ProjectBelongsToOrganization(projectID, organizationID uuid.UUID) (bool, error) {
 	var project models.Project
 
-	if err := r.db.Where("id = ?", projectID).First(&project).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", projectID, organizationID).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return false, nil
 		}
 		return false, err
 	}
 
-	return project.OwnerID == userID, nil
+	return true, nil
 }

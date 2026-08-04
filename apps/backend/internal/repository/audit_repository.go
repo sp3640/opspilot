@@ -18,27 +18,27 @@ func (r *AuditRepository) Create(log *models.AuditLog) error {
 	return r.db.Create(log).Error
 }
 
-func (r *AuditRepository) GetByIncidentID(incidentID uint) ([]models.AuditLog, error) {
+func (r *AuditRepository) GetByIncidentID(incidentID uint, organizationID uuid.UUID) ([]models.AuditLog, error) {
 	var logs []models.AuditLog
-	if err := r.db.Where("incident_id = ?", incidentID).Order("created_at DESC").Find(&logs).Error; err != nil {
+	if err := r.db.Where("incident_id = ? AND organization_id = ?", incidentID, organizationID).Order("created_at DESC").Find(&logs).Error; err != nil {
 		return nil, err
 	}
 	return logs, nil
 }
 
-func (r *AuditRepository) GetByProjectID(projectID uuid.UUID) ([]models.AuditLog, error) {
+func (r *AuditRepository) GetByProjectID(projectID, organizationID uuid.UUID) ([]models.AuditLog, error) {
 	var logs []models.AuditLog
-	if err := r.db.Where("project_id = ?", projectID).Order("created_at DESC").Find(&logs).Error; err != nil {
+	if err := r.db.Where("project_id = ? AND organization_id = ?", projectID, organizationID).Order("created_at DESC").Find(&logs).Error; err != nil {
 		return nil, err
 	}
 	return logs, nil
 }
 
-func (r *AuditRepository) ListByProjectID(req *models.PaginationRequest, projectID uuid.UUID) ([]models.AuditLog, int64, error) {
+func (r *AuditRepository) ListByProjectID(req *models.PaginationRequest, projectID, organizationID uuid.UUID) ([]models.AuditLog, int64, error) {
 	if err := req.Validate("created_at", "entity_type", "action"); err != nil {
 		return nil, 0, err
 	}
-	query := r.db.Model(&models.AuditLog{}).Where("project_id = ?", projectID)
+	query := r.db.Model(&models.AuditLog{}).Where("project_id = ? AND organization_id = ?", projectID, organizationID)
 
 	if req.Search != "" {
 		query = query.Where("entity_type ILIKE ?", "%"+req.Search+"%")
@@ -81,11 +81,11 @@ func (r *AuditRepository) ListByProjectID(req *models.PaginationRequest, project
 	return logs, total, nil
 }
 
-func (r *AuditRepository) ListByIncidentID(req *models.PaginationRequest, incidentID uint) ([]models.AuditLog, int64, error) {
+func (r *AuditRepository) ListByIncidentID(req *models.PaginationRequest, incidentID uint, organizationID uuid.UUID) ([]models.AuditLog, int64, error) {
 	if err := req.Validate("created_at", "entity_type", "action"); err != nil {
 		return nil, 0, err
 	}
-	query := r.db.Model(&models.AuditLog{}).Where("incident_id = ?", incidentID)
+	query := r.db.Model(&models.AuditLog{}).Where("incident_id = ? AND organization_id = ?", incidentID, organizationID)
 
 	if req.Search != "" {
 		query = query.Where("entity_type ILIKE ?", "%"+req.Search+"%")
@@ -128,8 +128,8 @@ func (r *AuditRepository) ListByIncidentID(req *models.PaginationRequest, incide
 	return logs, total, nil
 }
 
-func (r *AuditRepository) ClearIncidentReference(incidentID uint) error {
+func (r *AuditRepository) ClearIncidentReference(incidentID uint, organizationID uuid.UUID) error {
 	return r.db.Model(&models.AuditLog{}).
-		Where("incident_id = ?", incidentID).
+		Where("incident_id = ? AND organization_id = ?", incidentID, organizationID).
 		Update("incident_id", nil).Error
 }

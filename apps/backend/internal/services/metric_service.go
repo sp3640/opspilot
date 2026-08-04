@@ -31,7 +31,11 @@ func NewMetricService(repo *repository.MetricRepository, auditService *AuditServ
 }
 
 func (s *MetricService) StoreMetrics(ctx context.Context, projectID uuid.UUID, userID uint, requests []dto.CreateMetricRequest) ([]dto.MetricResponse, error) {
-	if err := s.validateProjectOwnership(projectID, userID); err != nil {
+	organizationID, err := s.repo.GetProjectOrganizationID(projectID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrInvalidProject
+		}
 		return nil, err
 	}
 
@@ -43,7 +47,7 @@ func (s *MetricService) StoreMetrics(ctx context.Context, projectID uuid.UUID, u
 	items := make([]models.Metric, 0, len(requests))
 
 	for _, request := range requests {
-		metric, err := s.buildMetricModel(projectID, request, now)
+		metric, err := s.buildMetricModel(projectID, organizationID, request, now)
 		if err != nil {
 			return nil, err
 		}
@@ -58,23 +62,33 @@ func (s *MetricService) StoreMetrics(ctx context.Context, projectID uuid.UUID, u
 }
 
 func (s *MetricService) StoreSnapshot(ctx context.Context, projectID uuid.UUID, userID uint, requests []dto.CreateMetricRequest) ([]dto.MetricResponse, error) {
+	organizationID := uuid.Nil
 	stored, err := s.StoreMetrics(ctx, projectID, userID, requests)
 	if err != nil {
 		return nil, err
 	}
 
+	if organizationID == uuid.Nil {
+		organizationID, err = s.repo.GetProjectOrganizationID(projectID)
+		if err != nil {
+			organizationID = uuid.Nil
+		}
+	}
+
 	if s.auditRepo != nil && len(stored) > 0 {
 		snapshotID := projectID.String() + ":" + time.Now().UTC().Format(time.RFC3339)
-		if err := s.auditRepo.LogCreate(userID, "metric_snapshot", snapshotID, &projectID, nil); err != nil {
-			logAuditFailure(ctx, "snapshot_store", "metric_snapshot", 0, err)
+		if organizationID != uuid.Nil {
+			if err := s.auditRepo.LogCreate(userID, organizationID, "metric_snapshot", snapshotID, &projectID, nil); err != nil {
+				logAuditFailure(ctx, "snapshot_store", "metric_snapshot", 0, err)
+			}
 		}
 	}
 
 	return stored, nil
 }
 
-func (s *MetricService) GetMetrics(userID uint, req *models.PaginationRequest) (*dto.MetricListResponse, error) {
-	items, total, err := s.repo.List(req, userID)
+func (s *MetricService) GetMetrics(organizationID uuid.UUID, req *models.PaginationRequest) (*dto.MetricListResponse, error) {
+	items, total, err := s.repo.List(req, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +103,8 @@ func (s *MetricService) GetMetrics(userID uint, req *models.PaginationRequest) (
 	}, nil
 }
 
-func (s *MetricService) GetLatest(userID uint, projectID uuid.UUID, clusterID, resourceID *uuid.UUID, metricType, metricName string) (*dto.MetricResponse, error) {
-	if err := s.validateProjectOwnership(projectID, userID); err != nil {
+func (s *MetricService) GetLatest(organizationID uuid.UUID, projectID uuid.UUID, clusterID, resourceID *uuid.UUID, metricType, metricName string) (*dto.MetricResponse, error) {
+	if err := s.validateProjectOwnership(projectID, organizationID); err != nil {
 		return nil, err
 	}
 
@@ -99,7 +113,7 @@ func (s *MetricService) GetLatest(userID uint, projectID uuid.UUID, clusterID, r
 		return nil, err
 	}
 
-	metric, err := s.repo.Latest(projectID, clusterID, resourceID, normalizedType, strings.TrimSpace(metricName), userID)
+	metric, err := s.repo.Latest(projectID, clusterID, resourceID, normalizedType, strings.TrimSpace(metricName), organizationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, gorm.ErrRecordNotFound
@@ -111,8 +125,8 @@ func (s *MetricService) GetLatest(userID uint, projectID uuid.UUID, clusterID, r
 	return &response, nil
 }
 
-func (s *MetricService) GetHistory(userID uint, projectID uuid.UUID, clusterID, resourceID *uuid.UUID, metricType, metricName string, startTime, endTime *time.Time, limit int) ([]dto.MetricResponse, error) {
-	if err := s.validateProjectOwnership(projectID, userID); err != nil {
+func (s *MetricService) GetHistory(organizationID uuid.UUID, projectID uuid.UUID, clusterID, resourceID *uuid.UUID, metricType, metricName string, startTime, endTime *time.Time, limit int) ([]dto.MetricResponse, error) {
+	if err := s.validateProjectOwnership(projectID, organizationID); err != nil {
 		return nil, err
 	}
 
@@ -125,11 +139,11 @@ func (s *MetricService) GetHistory(userID uint, projectID uuid.UUID, clusterID, 
 
 	var items []models.Metric
 	if resourceID != nil {
-		items, err = s.repo.ListByResource(*resourceID, normalizedType, metricName, startTime, endTime, limit, userID)
+		items, err = s.repo.ListByResource(*resourceID, normalizedType, metricName, startTime, endTime, limit, organizationID)
 	} else if clusterID != nil {
-		items, err = s.repo.ListByCluster(*clusterID, normalizedType, metricName, startTime, endTime, limit, userID)
+		items, err = s.repo.ListByCluster(*clusterID, normalizedType, metricName, startTime, endTime, limit, organizationID)
 	} else {
-		items, err = s.repo.ListByProject(projectID, normalizedType, metricName, startTime, endTime, limit, userID)
+		items, err = s.repo.ListByProject(projectID, normalizedType, metricName, startTime, endTime, limit, organizationID)
 	}
 	if err != nil {
 		return nil, err
@@ -138,8 +152,8 @@ func (s *MetricService) GetHistory(userID uint, projectID uuid.UUID, clusterID, 
 	return mapper.MapMetrics(items), nil
 }
 
-func (s *MetricService) Aggregate(userID uint, projectID uuid.UUID, metricType, metricName, interval string, startTime, endTime time.Time) (*dto.MetricAggregateResponse, error) {
-	if err := s.validateProjectOwnership(projectID, userID); err != nil {
+func (s *MetricService) Aggregate(organizationID uuid.UUID, projectID uuid.UUID, metricType, metricName, interval string, startTime, endTime time.Time) (*dto.MetricAggregateResponse, error) {
+	if err := s.validateProjectOwnership(projectID, organizationID); err != nil {
 		return nil, err
 	}
 
@@ -159,7 +173,7 @@ func (s *MetricService) Aggregate(userID uint, projectID uuid.UUID, metricType, 
 	}
 
 	metricName = strings.TrimSpace(metricName)
-	points, err := s.repo.Aggregate(projectID, normalizedType, metricName, startTime, endTime, interval, userID)
+	points, err := s.repo.Aggregate(projectID, normalizedType, metricName, startTime, endTime, interval, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +199,7 @@ func (s *MetricService) Aggregate(userID uint, projectID uuid.UUID, metricType, 
 	}
 
 	unit := ""
-	latest, latestErr := s.repo.Latest(projectID, nil, nil, normalizedType, metricName, userID)
+	latest, latestErr := s.repo.Latest(projectID, nil, nil, normalizedType, metricName, organizationID)
 	if latestErr == nil {
 		unit = latest.Unit
 	}
@@ -207,7 +221,7 @@ func (s *MetricService) Aggregate(userID uint, projectID uuid.UUID, metricType, 
 	}, nil
 }
 
-func (s *MetricService) buildMetricModel(projectID uuid.UUID, request dto.CreateMetricRequest, now time.Time) (models.Metric, error) {
+func (s *MetricService) buildMetricModel(projectID, organizationID uuid.UUID, request dto.CreateMetricRequest, now time.Time) (models.Metric, error) {
 	if request.ProjectID != uuid.Nil && request.ProjectID != projectID {
 		return models.Metric{}, apperrors.ErrInvalidProject
 	}
@@ -250,22 +264,23 @@ func (s *MetricService) buildMetricModel(projectID uuid.UUID, request dto.Create
 	}
 
 	return models.Metric{
-		ProjectID:    projectID,
-		ClusterID:    request.ClusterID,
-		ResourceID:   request.ResourceID,
-		ResourceKind: resourceKind,
-		MetricType:   metricType,
-		MetricName:   metricName,
-		Value:        request.Value,
-		Unit:         strings.TrimSpace(request.Unit),
-		Timestamp:    timestamp,
-		Labels:       labels,
-		Metadata:     metadata,
+		OrganizationID: organizationID,
+		ProjectID:      projectID,
+		ClusterID:      request.ClusterID,
+		ResourceID:     request.ResourceID,
+		ResourceKind:   resourceKind,
+		MetricType:     metricType,
+		MetricName:     metricName,
+		Value:          request.Value,
+		Unit:           strings.TrimSpace(request.Unit),
+		Timestamp:      timestamp,
+		Labels:         labels,
+		Metadata:       metadata,
 	}, nil
 }
 
-func (s *MetricService) validateProjectOwnership(projectID uuid.UUID, userID uint) error {
-	belongs, err := s.repo.ProjectBelongsToUser(projectID, userID)
+func (s *MetricService) validateProjectOwnership(projectID, organizationID uuid.UUID) error {
+	belongs, err := s.repo.ProjectBelongsToOrganization(projectID, organizationID)
 	if err != nil {
 		return err
 	}

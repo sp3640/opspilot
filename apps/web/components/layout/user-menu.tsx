@@ -1,6 +1,33 @@
 import { ChevronDown } from "lucide-react";
+import { useMemo } from "react";
+
+import { useOrganizations } from "@/hooks/use-organizations";
+import { useAuthStore } from "@/store/auth-store";
+
+const organizationListParams = {
+  page: 1,
+  limit: 1,
+  sort: "updated_at" as const,
+  order: "desc" as const,
+};
 
 export function UserMenu() {
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const { data } = useOrganizations(organizationListParams);
+
+  const name = currentUser?.name?.trim() || "User";
+  const email = currentUser?.email?.trim() || "";
+  const role = currentUser?.role?.trim() || "User";
+  const organizationName = useMemo(() => {
+    return data?.items?.[0]?.name?.trim() || "No organization";
+  }, [data]);
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((token) => token[0]?.toUpperCase() ?? "")
+    .join("") || "U";
+
   return (
     <button
       className="
@@ -35,17 +62,17 @@ export function UserMenu() {
           background: "var(--primary)",
         }}
       >
-        SR
+        {initials}
       </div>
 
       <div className="text-left">
-        <p className="text-sm font-semibold">
-          Siddharth
-        </p>
+        <p className="text-sm font-semibold">{name}</p>
 
-        <p className="text-xs text-zinc-400">
-          Platform Admin
-        </p>
+        <p className="text-xs text-zinc-400">{email}</p>
+
+        <p className="text-xs text-zinc-500">{organizationName}</p>
+
+        <p className="text-xs text-zinc-500">{role}</p>
       </div>
 
       <ChevronDown className="h-4 w-4 text-zinc-500" />

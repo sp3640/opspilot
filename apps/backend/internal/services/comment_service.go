@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
@@ -26,13 +27,13 @@ func NewCommentService(commentRepo *repository.CommentRepository, incidentRepo *
 	}
 }
 
-func (s *CommentService) CreateComment(ctx context.Context, content string, incidentID, userID uint) (*models.Comment, error) {
+func (s *CommentService) CreateComment(ctx context.Context, content string, incidentID, userID uint, organizationID uuid.UUID) (*models.Comment, error) {
 	trimmedContent := strings.TrimSpace(content)
 	if !isValidCommentContent(trimmedContent) {
 		return nil, apperrors.ErrInvalidCommentContent
 	}
 
-	if _, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID); err != nil {
+	if _, err := s.incidentRepo.GetByIDAndOrganizationID(incidentID, organizationID); err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return nil, apperrors.ErrProjectForbidden
 		}
@@ -55,7 +56,7 @@ func (s *CommentService) CreateComment(ctx context.Context, content string, inci
 	if s.auditRepo != nil {
 		incidentIDValue := comment.IncidentID
 		incidentIDPtr := &incidentIDValue
-		if err := s.auditRepo.LogCreate(userID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr); err != nil {
+		if err := s.auditRepo.LogCreate(userID, organizationID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr); err != nil {
 			logAuditFailure(ctx, "create", "comment", comment.ID, err)
 		}
 	}
@@ -63,8 +64,8 @@ func (s *CommentService) CreateComment(ctx context.Context, content string, inci
 	return comment, nil
 }
 
-func (s *CommentService) ListCommentsByIncidentID(incidentID, userID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
-	if _, err := s.incidentRepo.GetByIDAndUserID(incidentID, userID); err != nil {
+func (s *CommentService) ListCommentsByIncidentID(incidentID uint, organizationID uuid.UUID, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	if _, err := s.incidentRepo.GetByIDAndOrganizationID(incidentID, organizationID); err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
 			return nil, apperrors.ErrProjectForbidden
 		}
@@ -88,7 +89,7 @@ func (s *CommentService) ListCommentsByIncidentID(incidentID, userID uint, req *
 	}, nil
 }
 
-func (s *CommentService) UpdateComment(ctx context.Context, id, userID uint, content string) (*models.Comment, error) {
+func (s *CommentService) UpdateComment(ctx context.Context, id, userID uint, organizationID uuid.UUID, content string) (*models.Comment, error) {
 	comment, err := s.commentRepo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -115,7 +116,7 @@ func (s *CommentService) UpdateComment(ctx context.Context, id, userID uint, con
 	if s.auditRepo != nil && previousContent != trimmedContent {
 		incidentIDValue := comment.IncidentID
 		incidentIDPtr := &incidentIDValue
-		if err := s.auditRepo.LogUpdate(userID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr, "content", previousContent, trimmedContent); err != nil {
+		if err := s.auditRepo.LogUpdate(userID, organizationID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr, "content", previousContent, trimmedContent); err != nil {
 			logAuditFailure(ctx, "update", "comment", comment.ID, err)
 		}
 	}
@@ -123,7 +124,7 @@ func (s *CommentService) UpdateComment(ctx context.Context, id, userID uint, con
 	return comment, nil
 }
 
-func (s *CommentService) DeleteComment(ctx context.Context, id, userID uint) error {
+func (s *CommentService) DeleteComment(ctx context.Context, id, userID uint, organizationID uuid.UUID) error {
 	comment, err := s.commentRepo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -143,7 +144,7 @@ func (s *CommentService) DeleteComment(ctx context.Context, id, userID uint) err
 	if s.auditRepo != nil {
 		incidentIDValue := comment.IncidentID
 		incidentIDPtr := &incidentIDValue
-		if err := s.auditRepo.LogDelete(userID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr); err != nil {
+		if err := s.auditRepo.LogDelete(userID, organizationID, "comment", strconv.FormatUint(uint64(comment.ID), 10), nil, incidentIDPtr); err != nil {
 			logAuditFailure(ctx, "delete", "comment", comment.ID, err)
 		}
 	}

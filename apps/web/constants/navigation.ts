@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Building2,
   Database,
   LayoutDashboard,
   FolderKanban,
@@ -59,6 +60,11 @@ export const navigationGroups = [
         title: "Audit Logs",
         href: "/audit",
         icon: ClipboardList,
+      },
+      {
+        title: "Organization",
+        href: "/organization",
+        icon: Building2,
       },
       {
         title: "Settings",

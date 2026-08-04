@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/discovery"
 	"github.com/sp3640/opspilot/backend/internal/dto"
@@ -17,7 +18,7 @@ import (
 )
 
 type resourceClusterReader interface {
-	GetCluster(id uuid.UUID, userID uint) (*dto.ClusterResponse, error)
+	GetCluster(id uuid.UUID, organizationID uuid.UUID) (*dto.ClusterResponse, error)
 }
 
 type resourceSyncRunner interface {
@@ -44,6 +45,10 @@ func NewResourceHandler(service *services.ResourceService, clusterReader resourc
 }
 
 func (h *ResourceHandler) Create(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	var req dto.CreateResourceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, err.Error())
@@ -51,6 +56,10 @@ func (h *ResourceHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 	resource, err := h.service.CreateResource(
 		c.Request.Context(),
 		req.ProjectID,
@@ -69,6 +78,7 @@ func (h *ResourceHandler) Create(c *gin.Context) {
 		req.Annotations,
 		req.Metadata,
 		userID,
+		organizationID,
 	)
 	if err != nil {
 		h.handleServiceError(c, err)
@@ -79,7 +89,14 @@ func (h *ResourceHandler) Create(c *gin.Context) {
 }
 
 func (h *ResourceHandler) List(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	req, ok := parsePagination(c, "created_at", "updated_at", "name", "kind", "status", "health")
 	if !ok {
@@ -108,7 +125,7 @@ func (h *ResourceHandler) List(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.ListResources(userID, req)
+	result, err := h.service.ListResources(organizationID, req)
 	if err != nil {
 		response.InternalServerError(c, err)
 		return
@@ -118,7 +135,14 @@ func (h *ResourceHandler) List(c *gin.Context) {
 }
 
 func (h *ResourceHandler) GetByID(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	resourceID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -126,7 +150,7 @@ func (h *ResourceHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	resource, err := h.service.GetResource(resourceID, userID)
+	resource, err := h.service.GetResource(resourceID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -136,7 +160,15 @@ func (h *ResourceHandler) GetByID(c *gin.Context) {
 }
 
 func (h *ResourceHandler) Update(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	resourceID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -154,6 +186,7 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 		c.Request.Context(),
 		resourceID,
 		userID,
+		organizationID,
 		req.ProjectID,
 		req.ParentResourceID,
 		req.Kind,
@@ -179,7 +212,15 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 }
 
 func (h *ResourceHandler) Delete(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	resourceID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -187,7 +228,7 @@ func (h *ResourceHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteResource(c.Request.Context(), resourceID, userID)
+	err = h.service.DeleteResource(c.Request.Context(), resourceID, userID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -197,6 +238,10 @@ func (h *ResourceHandler) Delete(c *gin.Context) {
 }
 
 func (h *ResourceHandler) Sync(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	if h.syncRunner == nil || h.clusterReader == nil {
 		response.InternalServerError(c)
 		return
@@ -208,8 +253,11 @@ func (h *ResourceHandler) Sync(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
-	cluster, err := h.clusterReader.GetCluster(req.ClusterID, userID)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+	cluster, err := h.clusterReader.GetCluster(req.ClusterID, organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrClusterNotFound:
@@ -258,7 +306,7 @@ func (h *ResourceHandler) Sync(c *gin.Context) {
 func (h *ResourceHandler) handleServiceError(c *gin.Context, err error) {
 	switch err {
 	case apperrors.ErrResourceNotFound:
-		response.Error(c, http.StatusNotFound, err.Error())
+		response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 	case apperrors.ErrProjectForbidden, apperrors.ErrInvalidProject:
 		response.Error(c, http.StatusForbidden, err.Error())
 	case apperrors.ErrInvalidResourceKind, apperrors.ErrInvalidResourceStatus, apperrors.ErrInvalidResourceHealth:

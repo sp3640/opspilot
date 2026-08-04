@@ -50,32 +50,31 @@ func (r *ResourceRepository) BulkUpdate(resources []models.Resource) error {
 	})
 }
 
-func (r *ResourceRepository) FindByID(id uuid.UUID) (*models.Resource, error) {
+func (r *ResourceRepository) FindByID(id uuid.UUID, organizationID uuid.UUID) (*models.Resource, error) {
 	var resource models.Resource
-	if err := r.db.First(&resource, id).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", id, organizationID).First(&resource).Error; err != nil {
 		return nil, err
 	}
 
 	return &resource, nil
 }
 
-func (r *ResourceRepository) FindByExternalID(projectID uuid.UUID, kind, externalID string) (*models.Resource, error) {
+func (r *ResourceRepository) FindByExternalID(projectID, organizationID uuid.UUID, kind, externalID string) (*models.Resource, error) {
 	var resource models.Resource
-	if err := r.db.Unscoped().Where("project_id = ? AND kind = ? AND external_id = ?", projectID, kind, externalID).First(&resource).Error; err != nil {
+	if err := r.db.Unscoped().Where("project_id = ? AND organization_id = ? AND kind = ? AND external_id = ?", projectID, organizationID, kind, externalID).First(&resource).Error; err != nil {
 		return nil, err
 	}
 
 	return &resource, nil
 }
 
-func (r *ResourceRepository) List(req *models.PaginationRequest, userID uint) ([]models.Resource, int64, error) {
+func (r *ResourceRepository) List(req *models.PaginationRequest, organizationID uuid.UUID) ([]models.Resource, int64, error) {
 	if err := req.Validate("created_at", "updated_at", "name", "kind", "status", "health"); err != nil {
 		return nil, 0, err
 	}
 
 	query := r.db.Model(&models.Resource{}).
-		Joins("JOIN projects ON projects.id = resources.project_id").
-		Where("projects.owner_id = ?", userID)
+		Where("resources.organization_id = ?", organizationID)
 
 	if req.Search != "" {
 		query = query.Where(
@@ -145,17 +144,17 @@ func (r *ResourceRepository) List(req *models.PaginationRequest, userID uint) ([
 	return resources, total, nil
 }
 
-func (r *ResourceRepository) ListByProject(projectID uuid.UUID) ([]models.Resource, error) {
+func (r *ResourceRepository) ListByProject(projectID, organizationID uuid.UUID) ([]models.Resource, error) {
 	var resources []models.Resource
-	if err := r.db.Where("project_id = ?", projectID).Order("kind ASC").Order("name ASC").Find(&resources).Error; err != nil {
+	if err := r.db.Where("project_id = ? AND organization_id = ?", projectID, organizationID).Order("kind ASC").Order("name ASC").Find(&resources).Error; err != nil {
 		return nil, err
 	}
 
 	return resources, nil
 }
 
-func (r *ResourceRepository) SoftDelete(id uuid.UUID) error {
-	return r.db.Delete(&models.Resource{}, id).Error
+func (r *ResourceRepository) SoftDelete(id, organizationID uuid.UUID) error {
+	return r.db.Where("id = ? AND organization_id = ?", id, organizationID).Delete(&models.Resource{}).Error
 }
 
 func (r *ResourceRepository) BulkSoftDelete(resources []models.Resource) error {
@@ -188,30 +187,30 @@ func (r *ResourceRepository) BulkRestore(resources []models.Resource) error {
 	return r.db.Unscoped().Model(&models.Resource{}).Where("id IN ?", ids).Update("deleted_at", nil).Error
 }
 
-func (r *ResourceRepository) Delete(id uuid.UUID) error {
-	return r.db.Unscoped().Delete(&models.Resource{}, id).Error
+func (r *ResourceRepository) Delete(id, organizationID uuid.UUID) error {
+	return r.db.Unscoped().Where("id = ? AND organization_id = ?", id, organizationID).Delete(&models.Resource{}).Error
 }
 
-func (r *ResourceRepository) Exists(projectID uuid.UUID, kind, externalID string) (bool, error) {
+func (r *ResourceRepository) Exists(projectID, organizationID uuid.UUID, kind, externalID string) (bool, error) {
 	var count int64
-	if err := r.db.Unscoped().Model(&models.Resource{}).Where("project_id = ? AND kind = ? AND external_id = ?", projectID, kind, externalID).Count(&count).Error; err != nil {
+	if err := r.db.Unscoped().Model(&models.Resource{}).Where("project_id = ? AND organization_id = ? AND kind = ? AND external_id = ?", projectID, organizationID, kind, externalID).Count(&count).Error; err != nil {
 		return false, err
 	}
 
 	return count > 0, nil
 }
 
-func (r *ResourceRepository) ProjectBelongsToUser(projectID uuid.UUID, userID uint) (bool, error) {
+func (r *ResourceRepository) ProjectBelongsToOrganization(projectID, organizationID uuid.UUID) (bool, error) {
 	var project models.Project
 
-	if err := r.db.Where("id = ?", projectID).First(&project).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", projectID, organizationID).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return false, nil
 		}
 		return false, err
 	}
 
-	return project.OwnerID == userID, nil
+	return true, nil
 }
 
 func (r *ResourceRepository) ListResources(ctx context.Context, projectID string) ([]models.Resource, error) {

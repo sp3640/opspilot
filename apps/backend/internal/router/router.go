@@ -14,7 +14,12 @@ func RegisterRoutes(
 	cfg *config.Config,
 	authHandler *handlers.AuthHandler,
 	userHandler *handlers.UserHandler,
+	organizationHandler *handlers.OrganizationHandler,
+	invitationHandler *handlers.InvitationHandler,
 	projectHandler *handlers.ProjectHandler,
+	applicationHandler *handlers.ApplicationHandler,
+	teamHandler *handlers.TeamHandler,
+	projectTeamHandler *handlers.ProjectTeamHandler,
 	incidentHandler *handlers.IncidentHandler,
 	alertHandler *handlers.AlertHandler,
 	metricHandler *handlers.MetricHandler,
@@ -56,6 +61,28 @@ func RegisterRoutes(
 		}
 
 		// =========================
+		// Protected Organization Routes
+		// =========================
+		organizations := api.Group("/organizations")
+		organizations.Use(middleware.AuthMiddleware(cfg))
+		{
+			organizations.POST("", organizationHandler.Create)
+			organizations.GET("", organizationHandler.List)
+			organizations.GET("/:id", organizationHandler.GetByID)
+			organizations.PUT("/:id", organizationHandler.Update)
+			organizations.DELETE("/:id", organizationHandler.Delete)
+		}
+
+		invitations := api.Group("/invitations")
+		invitations.Use(middleware.AuthMiddleware(cfg))
+		{
+			invitations.POST("", invitationHandler.Invite)
+			invitations.GET("", invitationHandler.List)
+			invitations.POST("/accept", invitationHandler.Accept)
+			invitations.DELETE("/:id", invitationHandler.Revoke)
+		}
+
+		// =========================
 		// Protected Project Routes
 		// =========================
 		projects := api.Group("/projects")
@@ -66,7 +93,34 @@ func RegisterRoutes(
 			projects.GET("/:id", projectHandler.GetByID)
 			projects.PUT("/:id", projectHandler.Update)
 			projects.DELETE("/:id", projectHandler.Delete)
+			projects.POST("/:id/applications", applicationHandler.Create)
+			projects.GET("/:id/applications", applicationHandler.ListByProject)
+			projects.POST("/:id/teams", projectTeamHandler.AssignTeam)
+			projects.GET("/:id/teams", projectTeamHandler.ListProjectTeams)
+			projects.DELETE("/:id/teams/:teamId", projectTeamHandler.RemoveTeam)
 			projects.GET("/:id/audit-logs", auditHandler.GetProjectAuditLogs)
+		}
+
+		applications := api.Group("/applications")
+		applications.Use(middleware.AuthMiddleware(cfg))
+		{
+			applications.GET("/:id", applicationHandler.GetByID)
+			applications.PUT("/:id", applicationHandler.Update)
+			applications.DELETE("/:id", applicationHandler.Delete)
+		}
+
+		teams := api.Group("/teams")
+		teams.Use(middleware.AuthMiddleware(cfg))
+		{
+			teams.POST("", teamHandler.Create)
+			teams.GET("", teamHandler.List)
+			teams.GET("/:id", teamHandler.GetByID)
+			teams.GET("/:id/projects", projectTeamHandler.ListTeamProjects)
+			teams.PUT("/:id", teamHandler.Update)
+			teams.DELETE("/:id", teamHandler.Delete)
+			teams.POST("/:id/members", teamHandler.AddMember)
+			teams.DELETE("/:id/members/:userId", teamHandler.RemoveMember)
+			teams.GET("/:id/members", teamHandler.ListMembers)
 		}
 
 		// =========================

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,28 @@ func parseOptionalUUID(c *gin.Context, key string) (uuid.UUID, bool) {
 	parsed, err := uuid.Parse(strings.TrimSpace(rawValue))
 	if err != nil {
 		response.BadRequest(c, "invalid "+key)
+		return uuid.Nil, false
+	}
+
+	return parsed, true
+}
+
+func parseOrganizationIDFromContext(c *gin.Context) (uuid.UUID, bool) {
+	rawValue, exists := c.Get("organizationID")
+	if !exists {
+		response.Unauthorized(c, "missing organization context")
+		return uuid.Nil, false
+	}
+
+	value, ok := rawValue.(string)
+	if !ok {
+		response.Unauthorized(c, "invalid organization context")
+		return uuid.Nil, false
+	}
+
+	parsed, err := uuid.Parse(strings.TrimSpace(value))
+	if err != nil {
+		response.Unauthorized(c, fmt.Sprintf("invalid organization context: %v", err))
 		return uuid.Nil, false
 	}
 

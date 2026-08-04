@@ -2,7 +2,6 @@ package repository
 
 import (
 	"github.com/google/uuid"
-	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -19,35 +18,31 @@ func (r *IncidentRepository) Create(incident *models.Incident) error {
 	return r.db.Create(incident).Error
 }
 
-func (r *IncidentRepository) GetByID(id uint) (*models.Incident, error) {
+func (r *IncidentRepository) GetByID(id uint, organizationID uuid.UUID) (*models.Incident, error) {
 	var incident models.Incident
-	if err := r.db.First(&incident, id).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", id, organizationID).First(&incident).Error; err != nil {
 		return nil, err
 	}
 	return &incident, nil
 }
 
-// GetByIDAndUserID returns an incident only when it is owned by userID.
-func (r *IncidentRepository) GetByIDAndUserID(id, userID uint) (*models.Incident, error) {
+// GetByIDAndOrganizationID returns an incident only when it belongs to organizationID.
+func (r *IncidentRepository) GetByIDAndOrganizationID(id uint, organizationID uuid.UUID) (*models.Incident, error) {
 	var incident models.Incident
 
-	if err := r.db.Where("id = ?", id).First(&incident).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", id, organizationID).First(&incident).Error; err != nil {
 		return nil, err
-	}
-
-	if incident.UserID != userID {
-		return nil, apperrors.ErrProjectForbidden
 	}
 
 	return &incident, nil
 }
 
-func (r *IncidentRepository) ListByUserID(req *models.PaginationRequest, userID uint) ([]models.Incident, int64, error) {
+func (r *IncidentRepository) ListByOrganizationID(req *models.PaginationRequest, organizationID uuid.UUID) ([]models.Incident, int64, error) {
 	if err := req.Validate("title", "severity", "status", "created_at", "updated_at"); err != nil {
 		return nil, 0, err
 	}
 
-	query := r.db.Model(&models.Incident{}).Where("user_id = ?", userID)
+	query := r.db.Model(&models.Incident{}).Where("organization_id = ?", organizationID)
 
 	if req.Search != "" {
 		query = query.Where(
@@ -115,19 +110,19 @@ func (r *IncidentRepository) Update(incident *models.Incident) error {
 	return r.db.Model(incident).Updates(incident).Error
 }
 
-func (r *IncidentRepository) Delete(id uint) error {
-	return r.db.Delete(&models.Incident{}, id).Error
+func (r *IncidentRepository) Delete(id uint, organizationID uuid.UUID) error {
+	return r.db.Where("id = ? AND organization_id = ?", id, organizationID).Delete(&models.Incident{}).Error
 }
 
-func (r *IncidentRepository) ProjectBelongsToUser(projectID uuid.UUID, userID uint) (bool, error) {
+func (r *IncidentRepository) ProjectBelongsToOrganization(projectID, organizationID uuid.UUID) (bool, error) {
 	var project models.Project
 
-	if err := r.db.Where("id = ?", projectID).First(&project).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", projectID, organizationID).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return false, nil
 		}
 		return false, err
 	}
 
-	return project.OwnerID == userID, nil
+	return true, nil
 }

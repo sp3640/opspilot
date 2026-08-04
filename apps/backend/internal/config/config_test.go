@@ -1,16 +1,18 @@
 package config
 
 import (
+	"encoding/base64"
 	"strings"
 	"testing"
 )
 
 func TestConfigValidate(t *testing.T) {
 	validConfig := Config{
-		AppEnv:    "production",
-		Port:      "8080",
-		DBURL:     "postgres://opspilot:password@db:5432/opspilot?sslmode=require",
-		JWTSecret: strings.Repeat("a", 32),
+		AppEnv:                         "production",
+		Port:                           "8080",
+		DBURL:                          "postgres://opspilot:password@db:5432/opspilot?sslmode=require",
+		JWTSecret:                      strings.Repeat("a", 32),
+		ClusterCredentialEncryptionKey: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
 	}
 
 	tests := []struct {
@@ -32,6 +34,14 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "rejects non PostgreSQL URL",
 			edit: func(cfg *Config) { cfg.DBURL = "mysql://db/opspilot" },
+		},
+		{
+			name: "rejects missing cluster encryption key",
+			edit: func(cfg *Config) { cfg.ClusterCredentialEncryptionKey = "" },
+		},
+		{
+			name: "rejects invalid cluster encryption key",
+			edit: func(cfg *Config) { cfg.ClusterCredentialEncryptionKey = "not-base64" },
 		},
 	}
 

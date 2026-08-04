@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -28,6 +29,10 @@ func NewCommentHandler(service *services.CommentService) *CommentHandler {
 }
 
 func (h *CommentHandler) Create(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	incidentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "invalid incident id")
@@ -41,8 +46,12 @@ func (h *CommentHandler) Create(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
-	comment, err := h.service.CreateComment(c.Request.Context(), req.Content, uint(incidentID), userID)
+	comment, err := h.service.CreateComment(c.Request.Context(), req.Content, uint(incidentID), userID, organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrInvalidCommentContent:
@@ -61,19 +70,26 @@ func (h *CommentHandler) Create(c *gin.Context) {
 }
 
 func (h *CommentHandler) List(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	incidentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "invalid incident id")
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	req, ok := parsePagination(c, "created_at", "updated_at")
 	if !ok {
 		return
 	}
-	result, err := h.service.ListCommentsByIncidentID(uint(incidentID), userID, req)
+	result, err := h.service.ListCommentsByIncidentID(uint(incidentID), organizationID, req)
 	if err != nil {
 		switch err {
 		case apperrors.ErrProjectForbidden:
@@ -90,6 +106,10 @@ func (h *CommentHandler) List(c *gin.Context) {
 }
 
 func (h *CommentHandler) Update(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	commentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "invalid comment id")
@@ -103,8 +123,12 @@ func (h *CommentHandler) Update(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
-	comment, err := h.service.UpdateComment(c.Request.Context(), uint(commentID), userID, req.Content)
+	comment, err := h.service.UpdateComment(c.Request.Context(), uint(commentID), userID, organizationID, req.Content)
 	if err != nil {
 		switch err {
 		case apperrors.ErrInvalidCommentContent:
@@ -123,6 +147,10 @@ func (h *CommentHandler) Update(c *gin.Context) {
 }
 
 func (h *CommentHandler) Delete(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
 	commentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		response.BadRequest(c, "invalid comment id")
@@ -130,8 +158,12 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 	}
 
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
-	err = h.service.DeleteComment(c.Request.Context(), uint(commentID), userID)
+	err = h.service.DeleteComment(c.Request.Context(), uint(commentID), userID, organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrCommentNotFound:

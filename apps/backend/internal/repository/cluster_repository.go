@@ -24,22 +24,22 @@ func (r *ClusterRepository) Update(cluster *models.Cluster) error {
 	return r.db.Model(cluster).Select("*").Omit("ID", "CreatedAt", "DeletedAt").Updates(cluster).Error
 }
 
-func (r *ClusterRepository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&models.Cluster{}, id).Error
+func (r *ClusterRepository) Delete(id uuid.UUID, organizationID uuid.UUID) error {
+	return r.db.Where("id = ? AND organization_id = ?", id, organizationID).Delete(&models.Cluster{}).Error
 }
 
-func (r *ClusterRepository) FindByID(id uuid.UUID) (*models.Cluster, error) {
+func (r *ClusterRepository) FindByID(id uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {
 	var cluster models.Cluster
-	if err := r.db.First(&cluster, id).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", id, organizationID).First(&cluster).Error; err != nil {
 		return nil, err
 	}
 	return &cluster, nil
 }
 
-func (r *ClusterRepository) FindByProject(projectID uuid.UUID) ([]models.Cluster, error) {
+func (r *ClusterRepository) FindByProject(projectID uuid.UUID, organizationID uuid.UUID) ([]models.Cluster, error) {
 	var clusters []models.Cluster
 	if err := r.db.
-		Where("project_id = ?", projectID).
+		Where("project_id = ? AND organization_id = ?", projectID, organizationID).
 		Order("is_default DESC").
 		Order("created_at ASC").
 		Find(&clusters).Error; err != nil {
@@ -49,14 +49,13 @@ func (r *ClusterRepository) FindByProject(projectID uuid.UUID) ([]models.Cluster
 	return clusters, nil
 }
 
-func (r *ClusterRepository) List(req *models.PaginationRequest, userID uint) ([]models.Cluster, int64, error) {
+func (r *ClusterRepository) List(req *models.PaginationRequest, organizationID uuid.UUID) ([]models.Cluster, int64, error) {
 	if err := req.Validate("created_at", "updated_at", "name", "provider", "status", "last_validated_at", "last_discovery_at"); err != nil {
 		return nil, 0, err
 	}
 
 	query := r.db.Model(&models.Cluster{}).
-		Joins("JOIN projects ON projects.id = clusters.project_id").
-		Where("projects.owner_id = ?", userID)
+		Where("clusters.organization_id = ?", organizationID)
 
 	if req.Search != "" {
 		query = query.Where(
@@ -124,23 +123,23 @@ func (r *ClusterRepository) List(req *models.PaginationRequest, userID uint) ([]
 	return clusters, total, nil
 }
 
-func (r *ClusterRepository) GetDefaultCluster(projectID uuid.UUID) (*models.Cluster, error) {
+func (r *ClusterRepository) GetDefaultCluster(projectID uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {
 	var cluster models.Cluster
-	if err := r.db.Where("project_id = ? AND is_default = ?", projectID, true).First(&cluster).Error; err != nil {
+	if err := r.db.Where("project_id = ? AND organization_id = ? AND is_default = ?", projectID, organizationID, true).First(&cluster).Error; err != nil {
 		return nil, err
 	}
 
 	return &cluster, nil
 }
 
-func (r *ClusterRepository) SetDefaultCluster(projectID, clusterID uuid.UUID) error {
+func (r *ClusterRepository) SetDefaultCluster(projectID, clusterID, organizationID uuid.UUID) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.Cluster{}).Where("project_id = ?", projectID).Update("is_default", false).Error; err != nil {
+		if err := tx.Model(&models.Cluster{}).Where("project_id = ? AND organization_id = ?", projectID, organizationID).Update("is_default", false).Error; err != nil {
 			return err
 		}
 
 		result := tx.Model(&models.Cluster{}).
-			Where("project_id = ? AND id = ?", projectID, clusterID).
+			Where("project_id = ? AND id = ? AND organization_id = ?", projectID, clusterID, organizationID).
 			Update("is_default", true)
 		if result.Error != nil {
 			return result.Error
@@ -153,27 +152,27 @@ func (r *ClusterRepository) SetDefaultCluster(projectID, clusterID uuid.UUID) er
 	})
 }
 
-func (r *ClusterRepository) UpdateValidation(id uuid.UUID, status string, lastValidatedAt *time.Time, validationError string) error {
-	return r.db.Model(&models.Cluster{}).Where("id = ?", id).Updates(map[string]interface{}{
+func (r *ClusterRepository) UpdateValidation(id uuid.UUID, organizationID uuid.UUID, status string, lastValidatedAt *time.Time, validationError string) error {
+	return r.db.Model(&models.Cluster{}).Where("id = ? AND organization_id = ?", id, organizationID).Updates(map[string]interface{}{
 		"status":            status,
 		"last_validated_at": lastValidatedAt,
 		"validation_error":  validationError,
 	}).Error
 }
 
-func (r *ClusterRepository) UpdateDiscovery(id uuid.UUID, lastDiscoveryAt time.Time) error {
-	return r.db.Model(&models.Cluster{}).Where("id = ?", id).Update("last_discovery_at", lastDiscoveryAt).Error
+func (r *ClusterRepository) UpdateDiscovery(id uuid.UUID, organizationID uuid.UUID, lastDiscoveryAt time.Time) error {
+	return r.db.Model(&models.Cluster{}).Where("id = ? AND organization_id = ?", id, organizationID).Update("last_discovery_at", lastDiscoveryAt).Error
 }
 
-func (r *ClusterRepository) ProjectBelongsToUser(projectID uuid.UUID, userID uint) (bool, error) {
+func (r *ClusterRepository) ProjectBelongsToOrganization(projectID uuid.UUID, organizationID uuid.UUID) (bool, error) {
 	var project models.Project
 
-	if err := r.db.Where("id = ?", projectID).First(&project).Error; err != nil {
+	if err := r.db.Where("id = ? AND organization_id = ?", projectID, organizationID).First(&project).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return false, nil
 		}
 		return false, err
 	}
 
-	return project.OwnerID == userID, nil
+	return true, nil
 }

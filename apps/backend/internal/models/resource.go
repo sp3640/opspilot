@@ -10,6 +10,7 @@ import (
 
 type Resource struct {
 	ID               uuid.UUID       `json:"id" gorm:"type:uuid;primaryKey;not null"`
+	OrganizationID   uuid.UUID       `json:"organization_id" gorm:"type:uuid;not null;index:idx_resources_organization_id"`
 	ProjectID        uuid.UUID       `json:"project_id" gorm:"type:uuid;not null;index:idx_resources_project_id;index:idx_resources_project_external,priority:1;index:idx_resources_project_kind_name,priority:1"`
 	Project          *Project        `json:"-" gorm:"foreignKey:ProjectID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 	ParentResourceID *uuid.UUID      `json:"parent_resource_id,omitempty" gorm:"type:uuid;index:idx_resources_parent_resource_id"`

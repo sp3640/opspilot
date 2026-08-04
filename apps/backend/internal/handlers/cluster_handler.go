@@ -3,15 +3,14 @@ package handlers
 import (
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
-	kubeintegration "github.com/sp3640/opspilot/backend/internal/integrations/kubernetes"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -22,16 +21,6 @@ type clusterDefaultSetter interface {
 
 type ClusterHandler struct {
 	service *services.ClusterService
-}
-
-type ClusterValidationResponse struct {
-	Connected      bool                 `json:"connected"`
-	ClusterVersion string               `json:"clusterVersion,omitempty"`
-	APIServerURL   string               `json:"apiServerUrl,omitempty"`
-	LatencyMs      int64                `json:"latencyMs"`
-	ValidatedAt    time.Time            `json:"validatedAt"`
-	Error          string               `json:"error,omitempty"`
-	Cluster        *dto.ClusterResponse `json:"cluster,omitempty"`
 }
 
 func NewClusterHandler(service *services.ClusterService) *ClusterHandler {
@@ -45,7 +34,15 @@ func (h *ClusterHandler) Create(c *gin.Context) {
 		return
 	}
 
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 	cluster, err := h.service.CreateCluster(
 		c.Request.Context(),
 		req.ProjectID,
@@ -62,6 +59,7 @@ func (h *ClusterHandler) Create(c *gin.Context) {
 		req.LastValidatedAt,
 		req.LastDiscoveryAt,
 		userID,
+		organizationID,
 	)
 	if err != nil {
 		h.handleServiceError(c, err)
@@ -72,7 +70,14 @@ func (h *ClusterHandler) Create(c *gin.Context) {
 }
 
 func (h *ClusterHandler) List(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
 
 	req, ok := parsePagination(c, "created_at", "updated_at", "name", "provider", "status", "last_validated_at", "last_discovery_at")
 	if !ok {
@@ -100,7 +105,7 @@ func (h *ClusterHandler) List(c *gin.Context) {
 	req.Provider = provider
 	req.Status = status
 
-	result, err := h.service.ListClusters(userID, req)
+	result, err := h.service.ListClusters(organizationID, req)
 	if err != nil {
 		response.InternalServerError(c, err)
 		return
@@ -110,7 +115,14 @@ func (h *ClusterHandler) List(c *gin.Context) {
 }
 
 func (h *ClusterHandler) GetByID(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
 
 	clusterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -118,7 +130,7 @@ func (h *ClusterHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	cluster, err := h.service.GetCluster(clusterID, userID)
+	cluster, err := h.service.GetCluster(clusterID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -129,6 +141,14 @@ func (h *ClusterHandler) GetByID(c *gin.Context) {
 
 func (h *ClusterHandler) Update(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
 
 	clusterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -146,6 +166,7 @@ func (h *ClusterHandler) Update(c *gin.Context) {
 		c.Request.Context(),
 		clusterID,
 		userID,
+		organizationID,
 		req.ProjectID,
 		req.Name,
 		req.Provider,
@@ -170,6 +191,14 @@ func (h *ClusterHandler) Update(c *gin.Context) {
 
 func (h *ClusterHandler) Delete(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
 
 	clusterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -177,7 +206,7 @@ func (h *ClusterHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.service.DeleteCluster(c.Request.Context(), clusterID, userID)
+	err = h.service.DeleteCluster(c.Request.Context(), clusterID, userID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -187,7 +216,14 @@ func (h *ClusterHandler) Delete(c *gin.Context) {
 }
 
 func (h *ClusterHandler) Validate(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
 
 	clusterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -195,89 +231,35 @@ func (h *ClusterHandler) Validate(c *gin.Context) {
 		return
 	}
 
-	cluster, err := h.service.GetCluster(clusterID, userID)
+	validationResult, err := h.service.ValidateClusterCredential(c.Request.Context(), clusterID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
 	}
 
-	if strings.TrimSpace(strings.ToUpper(cluster.Provider)) != constants.ClusterProviderKubernetes {
-		response.Error(c, http.StatusBadRequest, apperrors.ErrInvalidClusterProvider.Error())
+	if validationResult == nil {
+		response.InternalServerError(c, apperrors.ErrClusterNotFound)
 		return
 	}
 
-	client := kubeintegration.NewClient([]byte(cluster.KubeconfigEncrypted))
-	validator := kubeintegration.NewValidator(client)
-
-	validatedAt := time.Now().UTC()
-	updatedStatus := constants.ClusterStatusDisconnected
-	updatedValidationError := ""
-	updatedVersion := cluster.Version
-	updatedAPIEndpoint := cluster.APIEndpoint
-
-	validationResult, validationErr := validator.ValidateConnection(c.Request.Context())
-	payload := ClusterValidationResponse{
-		Connected:   false,
-		ValidatedAt: validatedAt,
-	}
-
-	if validationErr == nil && validationResult != nil {
-		payload.Connected = true
-		payload.LatencyMs = validationResult.Latency.Milliseconds()
-		payload.ValidatedAt = validationResult.ValidatedAt
-		payload.APIServerURL = validationResult.APIServerURL
-		if validationResult.ClusterVersion != nil {
-			payload.ClusterVersion = validationResult.ClusterVersion.GitVersion
-		}
-
-		validatedAt = validationResult.ValidatedAt
-		updatedStatus = constants.ClusterStatusConnected
-		if payload.ClusterVersion != "" {
-			updatedVersion = payload.ClusterVersion
-		}
-		if payload.APIServerURL != "" {
-			updatedAPIEndpoint = payload.APIServerURL
-		}
-	} else if validationErr != nil {
-		payload.Error = validationErr.Error()
-		updatedValidationError = validationErr.Error()
-	}
-
-	updatedCluster, err := h.service.UpdateCluster(
-		c.Request.Context(),
-		clusterID,
-		userID,
-		uuid.MustParse(cluster.ProjectID),
-		cluster.Name,
-		cluster.Provider,
-		updatedStatus,
-		cluster.ConnectionType,
-		cluster.KubeconfigEncrypted,
-		updatedAPIEndpoint,
-		cluster.Region,
-		updatedVersion,
-		updatedValidationError,
-		cluster.Metadata,
-		&validatedAt,
-		cluster.LastDiscoveryAt,
-	)
-	if err != nil {
-		h.handleServiceError(c, err)
+	if validationResult.Healthy {
+		response.OK(c, "Cluster credential validated locally", validationResult)
 		return
 	}
 
-	payload.Cluster = updatedCluster
-
-	if payload.Connected {
-		response.OK(c, "Cluster validation successful", payload)
-		return
-	}
-
-	response.OK(c, "Cluster validation failed", payload)
+	response.Error(c, http.StatusBadRequest, validationResult.Error)
 }
 
 func (h *ClusterHandler) SetDefault(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
 
 	clusterID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -285,7 +267,7 @@ func (h *ClusterHandler) SetDefault(c *gin.Context) {
 		return
 	}
 
-	cluster, err := h.service.SetDefaultCluster(c.Request.Context(), clusterID, userID)
+	cluster, err := h.service.SetDefaultCluster(c.Request.Context(), clusterID, userID, organizationID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -297,7 +279,7 @@ func (h *ClusterHandler) SetDefault(c *gin.Context) {
 func (h *ClusterHandler) handleServiceError(c *gin.Context, err error) {
 	switch err {
 	case apperrors.ErrClusterNotFound:
-		response.Error(c, http.StatusNotFound, err.Error())
+		response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 	case apperrors.ErrProjectForbidden, apperrors.ErrInvalidProject:
 		response.Error(c, http.StatusForbidden, err.Error())
 	case apperrors.ErrInvalidClusterProvider, apperrors.ErrInvalidClusterStatus, apperrors.ErrInvalidClusterConnectionType:

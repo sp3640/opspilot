@@ -53,8 +53,9 @@ func (s *ResourceService) CreateResource(
 	annotations,
 	metadata json.RawMessage,
 	userID uint,
+	organizationID uuid.UUID,
 ) (*dto.ResourceResponse, error) {
-	resource, err := s.buildResourceModel(projectID, parentResourceID, kind, name, displayName, externalID, provider, region, namespace, cluster, status, health, labels, annotations, metadata, userID)
+	resource, err := s.buildResourceModel(projectID, parentResourceID, kind, name, displayName, externalID, provider, region, namespace, cluster, status, health, labels, annotations, metadata, userID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +65,7 @@ func (s *ResourceService) CreateResource(
 	}
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogCreate(userID, "resource", resource.ID.String(), &resource.ProjectID, nil); err != nil {
+		if err := s.auditRepo.LogCreate(userID, organizationID, "resource", resource.ID.String(), &resource.ProjectID, nil); err != nil {
 			logAuditFailure(ctx, "create", "resource", 0, err)
 		}
 	}
@@ -77,6 +78,7 @@ func (s *ResourceService) UpdateResource(
 	ctx context.Context,
 	id uuid.UUID,
 	userID uint,
+	organizationID uuid.UUID,
 	projectID uuid.UUID,
 	parentResourceID *uuid.UUID,
 	kind,
@@ -93,12 +95,12 @@ func (s *ResourceService) UpdateResource(
 	annotations,
 	metadata json.RawMessage,
 ) (*dto.ResourceResponse, error) {
-	resource, err := s.getOwnedResource(id, userID)
+	resource, err := s.getOwnedResource(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
 
-	updated, err := s.buildResourceModel(projectID, parentResourceID, kind, name, displayName, externalID, provider, region, namespace, cluster, status, health, labels, annotations, metadata, userID)
+	updated, err := s.buildResourceModel(projectID, parentResourceID, kind, name, displayName, externalID, provider, region, namespace, cluster, status, health, labels, annotations, metadata, userID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -142,77 +144,77 @@ func (s *ResourceService) UpdateResource(
 	if s.auditRepo != nil {
 		entityID := resource.ID.String()
 		if previousProjectID != resource.ProjectID {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "project_id", previousProjectID.String(), resource.ProjectID.String()); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "project_id", previousProjectID.String(), resource.ProjectID.String()); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if !uuidPointerStringsEqual(previousParentResourceID, resource.ParentResourceID) {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "parent_resource_id", uuidPointerString(previousParentResourceID), uuidPointerString(resource.ParentResourceID)); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "parent_resource_id", uuidPointerString(previousParentResourceID), uuidPointerString(resource.ParentResourceID)); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousKind != resource.Kind {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "kind", previousKind, resource.Kind); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "kind", previousKind, resource.Kind); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousName != resource.Name {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "name", previousName, resource.Name); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "name", previousName, resource.Name); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousDisplayName != resource.DisplayName {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "display_name", previousDisplayName, resource.DisplayName); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "display_name", previousDisplayName, resource.DisplayName); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousExternalID != resource.ExternalID {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "external_id", previousExternalID, resource.ExternalID); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "external_id", previousExternalID, resource.ExternalID); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousProvider != resource.Provider {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "provider", previousProvider, resource.Provider); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "provider", previousProvider, resource.Provider); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousRegion != resource.Region {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "region", previousRegion, resource.Region); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "region", previousRegion, resource.Region); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousNamespace != resource.Namespace {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "namespace", previousNamespace, resource.Namespace); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "namespace", previousNamespace, resource.Namespace); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousCluster != resource.Cluster {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "cluster", previousCluster, resource.Cluster); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "cluster", previousCluster, resource.Cluster); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousStatus != resource.Status {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "status", previousStatus, resource.Status); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "status", previousStatus, resource.Status); err != nil {
 				logAuditFailure(ctx, "status_change", "resource", 0, err)
 			}
 		}
 		if previousHealth != resource.Health {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "health", previousHealth, resource.Health); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "health", previousHealth, resource.Health); err != nil {
 				logAuditFailure(ctx, "health_change", "resource", 0, err)
 			}
 		}
 		if previousLabels != string(resource.Labels) {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "labels", previousLabels, string(resource.Labels)); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "labels", previousLabels, string(resource.Labels)); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousAnnotations != string(resource.Annotations) {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "annotations", previousAnnotations, string(resource.Annotations)); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "annotations", previousAnnotations, string(resource.Annotations)); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
 		if previousMetadata != string(resource.Metadata) {
-			if err := s.auditRepo.LogUpdate(userID, "resource", entityID, &resource.ProjectID, nil, "metadata", previousMetadata, string(resource.Metadata)); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", entityID, &resource.ProjectID, nil, "metadata", previousMetadata, string(resource.Metadata)); err != nil {
 				logAuditFailure(ctx, "update", "resource", 0, err)
 			}
 		}
@@ -222,18 +224,18 @@ func (s *ResourceService) UpdateResource(
 	return &response, nil
 }
 
-func (s *ResourceService) DeleteResource(ctx context.Context, id uuid.UUID, userID uint) error {
-	resource, err := s.getOwnedResource(id, userID)
+func (s *ResourceService) DeleteResource(ctx context.Context, id uuid.UUID, userID uint, organizationID uuid.UUID) error {
+	resource, err := s.getOwnedResource(id, organizationID)
 	if err != nil {
 		return err
 	}
 
-	if err := s.repo.SoftDelete(resource.ID); err != nil {
+	if err := s.repo.SoftDelete(resource.ID, organizationID); err != nil {
 		return err
 	}
 
 	if s.auditRepo != nil {
-		if err := s.auditRepo.LogDelete(userID, "resource", resource.ID.String(), &resource.ProjectID, nil); err != nil {
+		if err := s.auditRepo.LogDelete(userID, organizationID, "resource", resource.ID.String(), &resource.ProjectID, nil); err != nil {
 			logAuditFailure(ctx, "delete", "resource", 0, err)
 		}
 	}
@@ -241,8 +243,8 @@ func (s *ResourceService) DeleteResource(ctx context.Context, id uuid.UUID, user
 	return nil
 }
 
-func (s *ResourceService) GetResource(id uuid.UUID, userID uint) (*dto.ResourceResponse, error) {
-	resource, err := s.getOwnedResource(id, userID)
+func (s *ResourceService) GetResource(id uuid.UUID, organizationID uuid.UUID) (*dto.ResourceResponse, error) {
+	resource, err := s.getOwnedResource(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -251,8 +253,8 @@ func (s *ResourceService) GetResource(id uuid.UUID, userID uint) (*dto.ResourceR
 	return &response, nil
 }
 
-func (s *ResourceService) ListResources(userID uint, req *models.PaginationRequest) (*dto.ResourceListResponse, error) {
-	items, total, err := s.repo.List(req, userID)
+func (s *ResourceService) ListResources(organizationID uuid.UUID, req *models.PaginationRequest) (*dto.ResourceListResponse, error) {
+	items, total, err := s.repo.List(req, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -267,8 +269,8 @@ func (s *ResourceService) ListResources(userID uint, req *models.PaginationReque
 	}, nil
 }
 
-func (s *ResourceService) SyncResources(ctx context.Context, projectID uuid.UUID, userID uint, discoveredResources []models.Resource) (*resourcesync.SyncResult, error) {
-	belongs, err := s.repo.ProjectBelongsToUser(projectID, userID)
+func (s *ResourceService) SyncResources(ctx context.Context, projectID uuid.UUID, userID uint, organizationID uuid.UUID, discoveredResources []models.Resource) (*resourcesync.SyncResult, error) {
+	belongs, err := s.repo.ProjectBelongsToOrganization(projectID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +278,7 @@ func (s *ResourceService) SyncResources(ctx context.Context, projectID uuid.UUID
 		return nil, apperrors.ErrInvalidProject
 	}
 
-	normalizedResources, err := s.normalizeDiscoveredResources(projectID, discoveredResources, userID)
+	normalizedResources, err := s.normalizeDiscoveredResources(projectID, organizationID, discoveredResources, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -295,13 +297,13 @@ func (s *ResourceService) SyncResources(ctx context.Context, projectID uuid.UUID
 		return nil, err
 	}
 
-	s.auditSyncPlan(ctx, userID, projectID, plan, result)
+	s.auditSyncPlan(ctx, userID, organizationID, projectID, plan, result)
 
 	return result, nil
 }
 
-func (s *ResourceService) getOwnedResource(id uuid.UUID, userID uint) (*models.Resource, error) {
-	resource, err := s.repo.FindByID(id)
+func (s *ResourceService) getOwnedResource(id uuid.UUID, organizationID uuid.UUID) (*models.Resource, error) {
+	resource, err := s.repo.FindByID(id, organizationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, apperrors.ErrResourceNotFound
@@ -309,7 +311,7 @@ func (s *ResourceService) getOwnedResource(id uuid.UUID, userID uint) (*models.R
 		return nil, err
 	}
 
-	belongs, err := s.repo.ProjectBelongsToUser(resource.ProjectID, userID)
+	belongs, err := s.repo.ProjectBelongsToOrganization(resource.ProjectID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -337,6 +339,7 @@ func (s *ResourceService) buildResourceModel(
 	annotations,
 	metadata json.RawMessage,
 	userID uint,
+	organizationID uuid.UUID,
 ) (*models.Resource, error) {
 	kind = strings.TrimSpace(kind)
 	name = strings.TrimSpace(name)
@@ -359,7 +362,7 @@ func (s *ResourceService) buildResourceModel(
 		return nil, apperrors.ErrInvalidResourceHealth
 	}
 
-	belongs, err := s.repo.ProjectBelongsToUser(projectID, userID)
+	belongs, err := s.repo.ProjectBelongsToOrganization(projectID, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -383,6 +386,7 @@ func (s *ResourceService) buildResourceModel(
 	}
 
 	resource := &models.Resource{
+		OrganizationID:   organizationID,
 		ProjectID:        projectID,
 		ParentResourceID: parentResourceID,
 		Kind:             kind,
@@ -404,9 +408,10 @@ func (s *ResourceService) buildResourceModel(
 	return resource, nil
 }
 
-func (s *ResourceService) normalizeDiscoveredResources(projectID uuid.UUID, discoveredResources []models.Resource, userID uint) ([]models.Resource, error) {
+func (s *ResourceService) normalizeDiscoveredResources(projectID, organizationID uuid.UUID, discoveredResources []models.Resource, userID uint) ([]models.Resource, error) {
 	normalized := make([]models.Resource, 0, len(discoveredResources))
 	for _, resource := range discoveredResources {
+		resource.OrganizationID = organizationID
 		resource.ProjectID = projectID
 		if resource.CreatedBy == 0 {
 			resource.CreatedBy = userID
@@ -447,14 +452,14 @@ func (s *ResourceService) normalizeDiscoveredResources(projectID uuid.UUID, disc
 	return normalized, nil
 }
 
-func (s *ResourceService) auditSyncPlan(ctx context.Context, userID uint, projectID uuid.UUID, plan *resourcesync.SyncPlan, result *resourcesync.SyncResult) {
+func (s *ResourceService) auditSyncPlan(ctx context.Context, userID uint, organizationID, projectID uuid.UUID, plan *resourcesync.SyncPlan, result *resourcesync.SyncResult) {
 	if s.auditRepo == nil || plan == nil || result == nil {
 		return
 	}
 
 	if result.Created == len(plan.ResourcesToCreate) {
 		for _, resource := range plan.ResourcesToCreate {
-			if err := s.auditRepo.LogCreate(userID, "resource", resourceEntityID(resource), &projectID, nil); err != nil {
+			if err := s.auditRepo.LogCreate(userID, organizationID, "resource", resourceEntityID(resource), &projectID, nil); err != nil {
 				logAuditFailure(ctx, "sync_create", "resource", 0, err)
 			}
 		}
@@ -462,13 +467,13 @@ func (s *ResourceService) auditSyncPlan(ctx context.Context, userID uint, projec
 
 	if result.Updated == len(plan.ResourcesToUpdate) {
 		for _, resource := range plan.ResourcesToUpdate {
-			if err := s.auditRepo.LogUpdate(userID, "resource", resourceEntityID(resource), &projectID, nil, "synchronized", "stale", "current"); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", resourceEntityID(resource), &projectID, nil, "synchronized", "stale", "current"); err != nil {
 				logAuditFailure(ctx, "sync_update", "resource", 0, err)
 			}
-			if err := s.auditRepo.LogUpdate(userID, "resource", resourceEntityID(resource), &projectID, nil, "status", "changed", resource.Status); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", resourceEntityID(resource), &projectID, nil, "status", "changed", resource.Status); err != nil {
 				logAuditFailure(ctx, "sync_status_change", "resource", 0, err)
 			}
-			if err := s.auditRepo.LogUpdate(userID, "resource", resourceEntityID(resource), &projectID, nil, "health", "changed", resource.Health); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", resourceEntityID(resource), &projectID, nil, "health", "changed", resource.Health); err != nil {
 				logAuditFailure(ctx, "sync_health_change", "resource", 0, err)
 			}
 		}
@@ -476,7 +481,7 @@ func (s *ResourceService) auditSyncPlan(ctx context.Context, userID uint, projec
 
 	if result.Deleted == len(plan.ResourcesToDelete) {
 		for _, resource := range plan.ResourcesToDelete {
-			if err := s.auditRepo.LogDelete(userID, "resource", resourceEntityID(resource), &projectID, nil); err != nil {
+			if err := s.auditRepo.LogDelete(userID, organizationID, "resource", resourceEntityID(resource), &projectID, nil); err != nil {
 				logAuditFailure(ctx, "sync_delete", "resource", 0, err)
 			}
 		}
@@ -484,7 +489,7 @@ func (s *ResourceService) auditSyncPlan(ctx context.Context, userID uint, projec
 
 	if result.Restored == len(plan.ResourcesToRestore) {
 		for _, resource := range plan.ResourcesToRestore {
-			if err := s.auditRepo.LogUpdate(userID, "resource", resourceEntityID(resource), &projectID, nil, "deleted_at", "set", "restored"); err != nil {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "resource", resourceEntityID(resource), &projectID, nil, "deleted_at", "set", "restored"); err != nil {
 				logAuditFailure(ctx, "sync_restore", "resource", 0, err)
 			}
 		}
