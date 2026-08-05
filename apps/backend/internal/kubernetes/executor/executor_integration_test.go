@@ -2,8 +2,8 @@ package executor
 
 import (
 	"context"
-	"encoding/json"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -16,18 +16,18 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"github.com/sp3640/opspilot/backend/internal/security"
 	"github.com/sp3640/opspilot/backend/internal/services"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	ktesting "k8s.io/client-go/testing"
 )
 
 type staticClientsetFactory struct {

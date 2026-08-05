@@ -21,7 +21,15 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/database"
 	"github.com/sp3640/opspilot/backend/internal/discovery"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
+	k8sconfigmaps "github.com/sp3640/opspilot/backend/internal/kubernetes/configmaps"
+	k8sruntimedeployments "github.com/sp3640/opspilot/backend/internal/kubernetes/deployments"
+	k8sevents "github.com/sp3640/opspilot/backend/internal/kubernetes/events"
 	k8sexecutor "github.com/sp3640/opspilot/backend/internal/kubernetes/executor"
+	k8singresses "github.com/sp3640/opspilot/backend/internal/kubernetes/ingresses"
+	k8slogs "github.com/sp3640/opspilot/backend/internal/kubernetes/logs"
+	k8spods "github.com/sp3640/opspilot/backend/internal/kubernetes/pods"
+	k8ssecrets "github.com/sp3640/opspilot/backend/internal/kubernetes/secrets"
+	k8sservices "github.com/sp3640/opspilot/backend/internal/kubernetes/services"
 	"github.com/sp3640/opspilot/backend/internal/logger"
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 	"github.com/sp3640/opspilot/backend/internal/middleware"
@@ -154,6 +162,14 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("initialize cluster credential cipher: %w", err)
 	}
+	podService := k8spods.NewPodService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesLogRuntime := k8slogs.NewLogService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesConfigMapRuntime := k8sconfigmaps.NewConfigMapService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesSecretRuntime := k8ssecrets.NewSecretService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesRuntimeDeploymentRuntime := k8sruntimedeployments.NewDeploymentRuntimeService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesServiceRuntime := k8sservices.NewServiceService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesIngressRuntime := k8singresses.NewIngressService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesEventRuntime := k8sevents.NewEventService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	clusterService := services.NewClusterService(clusterRepo, auditService, clusterCredentialCipher)
 	deploymentStatusUpdater := k8sexecutor.NewDeploymentStatusUpdater(deploymentRepo, deploymentHistoryService, auditService)
 	deploymentManifestBuilder := k8sexecutor.NewDeploymentManifestBuilder()
@@ -196,6 +212,14 @@ func run() error {
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	podHandler := handlers.NewPodHandler(podService)
+	kubernetesLogHandler := handlers.NewKubernetesLogHandler(kubernetesLogRuntime)
+	kubernetesConfigMapHandler := handlers.NewKubernetesConfigMapHandler(kubernetesConfigMapRuntime)
+	kubernetesSecretHandler := handlers.NewKubernetesSecretHandler(kubernetesSecretRuntime)
+	kubernetesRuntimeDeploymentHandler := handlers.NewKubernetesRuntimeDeploymentHandler(kubernetesRuntimeDeploymentRuntime)
+	kubernetesServiceHandler := handlers.NewKubernetesServiceHandler(kubernetesServiceRuntime)
+	kubernetesIngressHandler := handlers.NewKubernetesIngressHandler(kubernetesIngressRuntime)
+	kubernetesEventHandler := handlers.NewKubernetesEventHandler(kubernetesEventRuntime)
 	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
 	deploymentHistoryHandler := handlers.NewDeploymentHistoryHandler(deploymentHistoryService)
 	teamHandler := handlers.NewTeamHandler(teamService)
@@ -269,6 +293,14 @@ func run() error {
 		invitationHandler,
 		projectHandler,
 		applicationHandler,
+		podHandler,
+		kubernetesLogHandler,
+		kubernetesConfigMapHandler,
+		kubernetesSecretHandler,
+		kubernetesRuntimeDeploymentHandler,
+		kubernetesServiceHandler,
+		kubernetesIngressHandler,
+		kubernetesEventHandler,
 		deploymentHandler,
 		deploymentHistoryHandler,
 		teamHandler,

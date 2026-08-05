@@ -18,6 +18,14 @@ func RegisterRoutes(
 	invitationHandler *handlers.InvitationHandler,
 	projectHandler *handlers.ProjectHandler,
 	applicationHandler *handlers.ApplicationHandler,
+	podHandler *handlers.PodHandler,
+	kubernetesLogHandler *handlers.KubernetesLogHandler,
+	kubernetesConfigMapHandler *handlers.KubernetesConfigMapHandler,
+	kubernetesSecretHandler *handlers.KubernetesSecretHandler,
+	kubernetesRuntimeDeploymentHandler *handlers.KubernetesRuntimeDeploymentHandler,
+	kubernetesServiceHandler *handlers.KubernetesServiceHandler,
+	kubernetesIngressHandler *handlers.KubernetesIngressHandler,
+	kubernetesEventHandler *handlers.KubernetesEventHandler,
 	deploymentHandler *handlers.DeploymentHandler,
 	deploymentHistoryHandler *handlers.DeploymentHistoryHandler,
 	teamHandler *handlers.TeamHandler,
@@ -111,6 +119,87 @@ func RegisterRoutes(
 			applications.PUT("/:id", applicationHandler.Update)
 			applications.DELETE("/:id", applicationHandler.Delete)
 			applications.GET("/:id/deployments", deploymentHandler.ListByApplication)
+			if podHandler != nil {
+				applications.GET("/:id/pods", podHandler.ListByApplication)
+			}
+			if kubernetesServiceHandler != nil {
+				applications.GET("/:id/services", kubernetesServiceHandler.ListByApplication)
+			}
+			if kubernetesIngressHandler != nil {
+				applications.GET("/:id/ingresses", kubernetesIngressHandler.ListByApplication)
+			}
+			if kubernetesEventHandler != nil {
+				applications.GET("/:id/events", kubernetesEventHandler.ListByApplication)
+			}
+			if kubernetesConfigMapHandler != nil {
+				applications.GET("/:id/configmaps", kubernetesConfigMapHandler.ListByApplication)
+			}
+			if kubernetesSecretHandler != nil {
+				applications.GET("/:id/secrets", kubernetesSecretHandler.ListByApplication)
+			}
+			if kubernetesRuntimeDeploymentHandler != nil {
+				applications.GET("/:id/runtime/deployments", kubernetesRuntimeDeploymentHandler.ListByApplication)
+			}
+		}
+
+		pods := api.Group("/pods")
+		pods.Use(middleware.AuthMiddleware(cfg))
+		{
+			if podHandler != nil {
+				pods.GET("/:namespace/:name", podHandler.GetByNamespaceAndName)
+			}
+			if kubernetesLogHandler != nil {
+				pods.GET("/:namespace/:name/logs", kubernetesLogHandler.GetPodLogs)
+			}
+		}
+
+		services := api.Group("/services")
+		services.Use(middleware.AuthMiddleware(cfg))
+		{
+			if kubernetesServiceHandler != nil {
+				services.GET("/:namespace/:name", kubernetesServiceHandler.GetByNamespaceAndName)
+			}
+		}
+
+		ingresses := api.Group("/ingresses")
+		ingresses.Use(middleware.AuthMiddleware(cfg))
+		{
+			if kubernetesIngressHandler != nil {
+				ingresses.GET("/:namespace/:name", kubernetesIngressHandler.GetByNamespaceAndName)
+			}
+		}
+
+		events := api.Group("/events")
+		events.Use(middleware.AuthMiddleware(cfg))
+		{
+			if kubernetesEventHandler != nil {
+				events.GET("/:namespace/:name", kubernetesEventHandler.GetByNamespaceAndName)
+			}
+		}
+
+		configMaps := api.Group("/configmaps")
+		configMaps.Use(middleware.AuthMiddleware(cfg))
+		{
+			if kubernetesConfigMapHandler != nil {
+				configMaps.GET("/:namespace/:name", kubernetesConfigMapHandler.GetByNamespaceAndName)
+			}
+		}
+
+		secrets := api.Group("/secrets")
+		secrets.Use(middleware.AuthMiddleware(cfg))
+		{
+			if kubernetesSecretHandler != nil {
+				secrets.GET("/:namespace/:name", kubernetesSecretHandler.GetByNamespaceAndName)
+			}
+		}
+
+		runtime := api.Group("/runtime")
+		runtime.Use(middleware.AuthMiddleware(cfg))
+		{
+			runtimeDeployments := runtime.Group("/deployments")
+			if kubernetesRuntimeDeploymentHandler != nil {
+				runtimeDeployments.GET("/:namespace/:name", kubernetesRuntimeDeploymentHandler.GetByNamespaceAndName)
+			}
 		}
 
 		deployments := api.Group("/deployments")

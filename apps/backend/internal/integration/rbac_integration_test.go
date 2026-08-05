@@ -200,6 +200,8 @@ type rbacTestApp struct {
 	cfg                   *config.Config
 	userRepo              *repository.UserRepository
 	organizationRepo      *repository.OrganizationRepository
+	applicationRepo       *repository.ApplicationRepository
+	clusterRepo           *repository.ClusterRepository
 	metricService         *services.MetricService
 	deploymentRepo        *repository.DeploymentRepository
 	deploymentService     *services.DeploymentService
@@ -306,6 +308,14 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		invitationHandler,
 		projectHandler,
 		applicationHandler,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
 		deploymentHandler,
 		deploymentHistoryHandler,
 		teamHandler,
@@ -327,6 +337,8 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		cfg:                   cfg,
 		userRepo:              userRepo,
 		organizationRepo:      organizationRepo,
+		applicationRepo:       applicationRepo,
+		clusterRepo:           clusterRepo,
 		metricService:         metricService,
 		deploymentRepo:        deploymentRepo,
 		deploymentService:     deploymentService,

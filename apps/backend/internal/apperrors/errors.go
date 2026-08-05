@@ -106,6 +106,69 @@ var (
 	ErrInvalidResourceStatus = errors.New("invalid resource status")
 	ErrInvalidResourceHealth = errors.New("invalid resource health")
 
+	// Pod errors
+	ErrPodNotFound           = errors.New("pod not found")
+	ErrPodForbidden          = errors.New("forbidden")
+	ErrPodInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrPodClusterUnreachable = errors.New("cluster unreachable")
+
+	// Kubernetes service errors
+	ErrServiceNotFound           = errors.New("service not found")
+	ErrServiceNamespaceNotFound  = errors.New("namespace not found")
+	ErrServiceForbidden          = errors.New("forbidden")
+	ErrServiceInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrServiceClusterUnavailable = errors.New("cluster unavailable")
+	ErrServiceTimeout            = errors.New("kubernetes timeout")
+
+	// Kubernetes ingress errors
+	ErrIngressNotFound           = errors.New("ingress not found")
+	ErrIngressNamespaceNotFound  = errors.New("namespace not found")
+	ErrIngressForbidden          = errors.New("forbidden")
+	ErrIngressInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrIngressClusterUnavailable = errors.New("cluster unavailable")
+	ErrIngressTimeout            = errors.New("kubernetes timeout")
+
+	// Kubernetes event errors
+	ErrEventNotFound           = errors.New("event not found")
+	ErrEventNamespaceNotFound  = errors.New("namespace not found")
+	ErrEventForbidden          = errors.New("forbidden")
+	ErrEventInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrEventClusterUnavailable = errors.New("cluster unavailable")
+	ErrEventTimeout            = errors.New("kubernetes timeout")
+
+	// Kubernetes pod logs errors
+	ErrLogPodNotFound        = errors.New("pod not found")
+	ErrLogContainerNotFound  = errors.New("container not found")
+	ErrLogNamespaceNotFound  = errors.New("namespace not found")
+	ErrLogForbidden          = errors.New("forbidden")
+	ErrLogInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrLogClusterUnavailable = errors.New("cluster unavailable")
+	ErrLogTimeout            = errors.New("kubernetes timeout")
+
+	// Kubernetes configmap errors
+	ErrConfigMapNotFound           = errors.New("configmap not found")
+	ErrConfigMapNamespaceNotFound  = errors.New("namespace not found")
+	ErrConfigMapForbidden          = errors.New("forbidden")
+	ErrConfigMapInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrConfigMapClusterUnavailable = errors.New("cluster unavailable")
+	ErrConfigMapTimeout            = errors.New("kubernetes timeout")
+
+	// Kubernetes secret errors
+	ErrSecretNotFound           = errors.New("secret not found")
+	ErrSecretNamespaceNotFound  = errors.New("namespace not found")
+	ErrSecretForbidden          = errors.New("forbidden")
+	ErrSecretInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrSecretClusterUnavailable = errors.New("cluster unavailable")
+	ErrSecretTimeout            = errors.New("kubernetes timeout")
+
+	// Kubernetes runtime deployment errors
+	ErrRuntimeDeploymentNotFound           = errors.New("deployment not found")
+	ErrRuntimeDeploymentNamespaceNotFound  = errors.New("namespace not found")
+	ErrRuntimeDeploymentForbidden          = errors.New("forbidden")
+	ErrRuntimeDeploymentInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrRuntimeDeploymentClusterUnavailable = errors.New("cluster unavailable")
+	ErrRuntimeDeploymentTimeout            = errors.New("kubernetes timeout")
+
 	// Comment errors
 	ErrCommentNotFound       = errors.New("comment not found")
 	ErrCommentForbidden      = errors.New("forbidden")
