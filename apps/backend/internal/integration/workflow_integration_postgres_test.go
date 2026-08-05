@@ -64,6 +64,7 @@ func resetPostgresIntegrationSchema(t *testing.T, db *gorm.DB) {
 		&models.Cluster{},
 		&models.Alert{},
 		&models.Incident{},
+		&models.DeploymentHistory{},
 		&models.Deployment{},
 		&models.TeamMember{},
 		&models.Team{},

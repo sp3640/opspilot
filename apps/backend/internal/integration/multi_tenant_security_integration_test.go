@@ -278,6 +278,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	projectRepo := repository.NewProjectRepository(db)
 	applicationRepo := repository.NewApplicationRepository(db)
 	deploymentRepo := repository.NewDeploymentRepository(db)
+	deploymentHistoryRepo := repository.NewDeploymentHistoryRepository(db)
 	invitationRepo := repository.NewInvitationRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
 	projectTeamRepo := repository.NewProjectTeamRepository(db)
@@ -297,7 +298,8 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
-	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo)
+	deploymentHistoryService := services.NewDeploymentHistoryService(deploymentHistoryRepo, deploymentRepo)
+	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo, deploymentHistoryService)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
@@ -315,6 +317,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
+	deploymentHistoryHandler := handlers.NewDeploymentHistoryHandler(deploymentHistoryService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
@@ -355,6 +358,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 		projectHandler,
 		applicationHandler,
 		deploymentHandler,
+		deploymentHistoryHandler,
 		teamHandler,
 		projectTeamHandler,
 		incidentHandler,

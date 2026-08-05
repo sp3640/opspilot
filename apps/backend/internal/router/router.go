@@ -19,6 +19,7 @@ func RegisterRoutes(
 	projectHandler *handlers.ProjectHandler,
 	applicationHandler *handlers.ApplicationHandler,
 	deploymentHandler *handlers.DeploymentHandler,
+	deploymentHistoryHandler *handlers.DeploymentHistoryHandler,
 	teamHandler *handlers.TeamHandler,
 	projectTeamHandler *handlers.ProjectTeamHandler,
 	incidentHandler *handlers.IncidentHandler,
@@ -117,10 +118,13 @@ func RegisterRoutes(
 		{
 			deployments.POST("", deploymentHandler.Create)
 			deployments.GET("", deploymentHandler.List)
+			deployments.GET("/:id/history", deploymentHistoryHandler.ListByDeployment)
+			deployments.GET("/:id/history/:revision", deploymentHistoryHandler.GetRevision)
 			deployments.GET("/:id", deploymentHandler.GetByID)
 			deployments.PATCH("/:id", deploymentHandler.Update)
 			deployments.DELETE("/:id", deploymentHandler.Delete)
 			deployments.PATCH("/:id/cancel", deploymentHandler.Cancel)
+			deployments.POST("/:id/rollback", deploymentHandler.Rollback)
 		}
 
 		teams := api.Group("/teams")

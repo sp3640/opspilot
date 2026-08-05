@@ -21,6 +21,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/database"
 	"github.com/sp3640/opspilot/backend/internal/discovery"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
+	k8sexecutor "github.com/sp3640/opspilot/backend/internal/kubernetes/executor"
 	"github.com/sp3640/opspilot/backend/internal/logger"
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 	"github.com/sp3640/opspilot/backend/internal/middleware"
@@ -122,6 +123,7 @@ func run() error {
 	projectRepo := repository.NewProjectRepository(database.DB)
 	applicationRepo := repository.NewApplicationRepository(database.DB)
 	deploymentRepo := repository.NewDeploymentRepository(database.DB)
+	deploymentHistoryRepo := repository.NewDeploymentHistoryRepository(database.DB)
 	teamRepo := repository.NewTeamRepository(database.DB)
 	projectTeamRepo := repository.NewProjectTeamRepository(database.DB)
 	teamMemberRepo := repository.NewTeamMemberRepository(database.DB)
@@ -142,7 +144,8 @@ func run() error {
 		WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
-	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo)
+	deploymentHistoryService := services.NewDeploymentHistoryService(deploymentHistoryRepo, deploymentRepo)
+	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo, deploymentHistoryService)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
@@ -152,6 +155,19 @@ func run() error {
 		return fmt.Errorf("initialize cluster credential cipher: %w", err)
 	}
 	clusterService := services.NewClusterService(clusterRepo, auditService, clusterCredentialCipher)
+	deploymentStatusUpdater := k8sexecutor.NewDeploymentStatusUpdater(deploymentRepo, deploymentHistoryService, auditService)
+	deploymentManifestBuilder := k8sexecutor.NewDeploymentManifestBuilder()
+	deploymentExecutor := k8sexecutor.NewDeploymentExecutor(
+		deploymentRepo,
+		applicationRepo,
+		clusterRepo,
+		clusterCredentialCipher,
+		deploymentManifestBuilder,
+		deploymentStatusUpdater,
+		k8sexecutor.NewClientsetFactory(),
+		90*time.Second,
+	)
+	deploymentService.WithExecutor(deploymentExecutor)
 	resourceSyncEngine := resourcesync.NewSyncEngine(resourceRepo)
 	resourceService := services.NewResourceService(resourceRepo, resourceSyncEngine, auditService)
 	metricService := services.NewMetricService(metricRepo, auditService)
@@ -181,6 +197,7 @@ func run() error {
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
+	deploymentHistoryHandler := handlers.NewDeploymentHistoryHandler(deploymentHistoryService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
@@ -253,6 +270,7 @@ func run() error {
 		projectHandler,
 		applicationHandler,
 		deploymentHandler,
+		deploymentHistoryHandler,
 		teamHandler,
 		projectTeamHandler,
 		incidentHandler,

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -19,11 +20,17 @@ import (
 
 var namespaceRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
+type DeploymentExecutor interface {
+	ExecuteDeployment(ctx context.Context, deploymentID, organizationID uuid.UUID, userID uint) (*models.Deployment, error)
+}
+
 type DeploymentService struct {
 	repo            *repository.DeploymentRepository
 	applicationRepo *repository.ApplicationRepository
 	projectRepo     *repository.ProjectRepository
 	clusterRepo     *repository.ClusterRepository
+	historyService  *DeploymentHistoryService
+	executor        DeploymentExecutor
 }
 
 func NewDeploymentService(
@@ -31,13 +38,20 @@ func NewDeploymentService(
 	applicationRepo *repository.ApplicationRepository,
 	projectRepo *repository.ProjectRepository,
 	clusterRepo *repository.ClusterRepository,
+	historyService *DeploymentHistoryService,
 ) *DeploymentService {
 	return &DeploymentService{
 		repo:            repo,
 		applicationRepo: applicationRepo,
 		projectRepo:     projectRepo,
 		clusterRepo:     clusterRepo,
+		historyService:  historyService,
 	}
+}
+
+func (s *DeploymentService) WithExecutor(executor DeploymentExecutor) *DeploymentService {
+	s.executor = executor
+	return s
 }
 
 func (s *DeploymentService) CreateDeployment(ctx context.Context, organizationID uuid.UUID, userID uint, req dto.CreateDeploymentRequest) (*dto.DeploymentResponse, error) {
@@ -121,6 +135,17 @@ func (s *DeploymentService) CreateDeployment(ctx context.Context, organizationID
 	if err := s.repo.Create(deployment); err != nil {
 		return nil, err
 	}
+	if err := s.historyService.CreateHistoryFromDeployment(deployment, "Deployment created", userID); err != nil {
+		return nil, err
+	}
+
+	if s.executor != nil {
+		executedDeployment, err := s.executor.ExecuteDeployment(ctx, deployment.ID, organizationID, userID)
+		if err != nil {
+			return nil, err
+		}
+		deployment = executedDeployment
+	}
 
 	response := mapper.MapDeployment(*deployment)
 	return &response, nil
@@ -188,6 +213,9 @@ func (s *DeploymentService) UpdateDeployment(ctx context.Context, id, organizati
 	if err := s.repo.Update(deployment); err != nil {
 		return nil, err
 	}
+	if err := s.historyService.CreateHistoryFromDeployment(deployment, "Deployment updated", userID); err != nil {
+		return nil, err
+	}
 
 	response := mapper.MapDeployment(*deployment)
 	return &response, nil
@@ -208,6 +236,9 @@ func (s *DeploymentService) CancelDeployment(ctx context.Context, id, organizati
 	deployment.Status = constants.DeploymentStatusCancelled
 	deployment.CompletedAt = &completedAt
 	deployment.UpdatedBy = userID
+	if err := s.historyService.CreateHistoryFromDeployment(deployment, "Deployment cancelled", userID); err != nil {
+		return nil, err
+	}
 	response := mapper.MapDeployment(*deployment)
 	return &response, nil
 }
@@ -311,6 +342,15 @@ func (s *DeploymentService) UpdateDeploymentStatus(ctx context.Context, id, orga
 		deployment.CompletedAt = completedAt
 	}
 
+	if normalizedStatus == constants.DeploymentStatusSucceeded ||
+		normalizedStatus == constants.DeploymentStatusFailed ||
+		normalizedStatus == constants.DeploymentStatusRolledBack ||
+		normalizedStatus == constants.DeploymentStatusCancelled {
+		if err := s.historyService.CreateHistoryFromDeployment(deployment, "Deployment status changed to "+normalizedStatus, userID); err != nil {
+			return nil, err
+		}
+	}
+
 	response := mapper.MapDeployment(*deployment)
 	return &response, nil
 }
@@ -333,6 +373,83 @@ func (s *DeploymentService) GetLatestDeployment(applicationID, organizationID uu
 
 	response := mapper.MapDeployment(*deployment)
 	return &response, nil
+}
+
+func (s *DeploymentService) RollbackDeployment(ctx context.Context, id, organizationID uuid.UUID, userID uint, revision int) (*dto.RollbackDeploymentResponse, error) {
+	_ = ctx
+
+	deployment, sourceHistory, latestRevision, err := s.ValidateRollback(id, organizationID, revision)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.RollbackToRevision(deployment, sourceHistory, userID); err != nil {
+		return nil, err
+	}
+
+	response := mapper.MapDeployment(*deployment)
+	return &dto.RollbackDeploymentResponse{
+		Deployment:             response,
+		CurrentRevision:        latestRevision + 1,
+		RollbackSourceRevision: sourceHistory.Revision,
+	}, nil
+}
+
+func (s *DeploymentService) RollbackToRevision(deployment *models.Deployment, sourceHistory *models.DeploymentHistory, userID uint) error {
+	deployment.Image = sourceHistory.Image
+	deployment.ImageTag = sourceHistory.ImageTag
+	deployment.ReplicaCount = sourceHistory.ReplicaCount
+	deployment.Namespace = sourceHistory.Namespace
+	deployment.Environment = sourceHistory.Environment
+	deployment.DeploymentStrategy = sourceHistory.DeploymentStrategy
+	deployment.Status = constants.DeploymentStatusPending
+	deployment.StartedAt = nil
+	deployment.CompletedAt = nil
+	deployment.UpdatedBy = userID
+
+	if err := s.repo.ApplyRollback(deployment); err != nil {
+		return err
+	}
+
+	changeSummary := fmt.Sprintf("Deployment rolled back to revision %d", sourceHistory.Revision)
+	if err := s.historyService.CreateHistoryFromDeployment(deployment, changeSummary, userID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *DeploymentService) ValidateRollback(id, organizationID uuid.UUID, revision int) (*models.Deployment, *models.DeploymentHistory, int, error) {
+	if revision <= 0 {
+		return nil, nil, 0, apperrors.ErrInvalidDeploymentRevision
+	}
+
+	deployment, err := s.getOwnedDeployment(id, organizationID)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	sourceHistory, err := s.historyService.GetRevisionForDeployment(id, organizationID, revision)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	latestRevision, err := s.historyService.GetLatestRevisionForDeployment(id, organizationID)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	if revision == latestRevision {
+		return nil, nil, 0, apperrors.ErrDeploymentRollbackLatest
+	}
+
+	if sourceHistory.DeploymentID != deployment.ID {
+		return nil, nil, 0, apperrors.ErrDeploymentHistoryNotFound
+	}
+	if sourceHistory.OrganizationID != organizationID {
+		return nil, nil, 0, apperrors.ErrDeploymentForbidden
+	}
+
+	return deployment, sourceHistory, latestRevision, nil
 }
 
 func (s *DeploymentService) getOwnedDeployment(id, organizationID uuid.UUID) (*models.Deployment, error) {

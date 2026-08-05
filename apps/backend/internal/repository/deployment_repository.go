@@ -92,6 +92,24 @@ func (r *DeploymentRepository) UpdateStatus(id, organizationID uuid.UUID, status
 		Updates(updates).Error
 }
 
+func (r *DeploymentRepository) ApplyRollback(deployment *models.Deployment) error {
+	return r.db.Model(&models.Deployment{}).
+		Where("id = ? AND organization_id = ?", deployment.ID, deployment.OrganizationID).
+		Updates(map[string]any{
+			"image":               deployment.Image,
+			"image_tag":           deployment.ImageTag,
+			"environment":         deployment.Environment,
+			"namespace":           deployment.Namespace,
+			"replica_count":       deployment.ReplicaCount,
+			"deployment_strategy": deployment.DeploymentStrategy,
+			"status":              deployment.Status,
+			"started_at":          nil,
+			"completed_at":        nil,
+			"updated_by":          deployment.UpdatedBy,
+			"updated_at":          time.Now().UTC(),
+		}).Error
+}
+
 func (r *DeploymentRepository) list(query *gorm.DB, req *models.PaginationRequest) ([]models.Deployment, int64, error) {
 	if err := req.Validate("created_at", "updated_at", "started_at", "completed_at", "status"); err != nil {
 		return nil, 0, err

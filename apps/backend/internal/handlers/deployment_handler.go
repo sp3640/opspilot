@@ -201,6 +201,38 @@ func (h *DeploymentHandler) Delete(c *gin.Context) {
 	response.OK(c, "Deployment deleted successfully", nil)
 }
 
+func (h *DeploymentHandler) Rollback(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+	userID := c.MustGet("userID").(uint)
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid deployment id")
+		return
+	}
+
+	var req dto.RollbackDeploymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	result, err := h.service.RollbackDeployment(c.Request.Context(), id, organizationID, userID, req.Revision)
+	if err != nil {
+		handleDeploymentServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Deployment rolled back successfully", result)
+}
+
 func (h *DeploymentHandler) ListByApplication(c *gin.Context) {
 	if !authorization.RequireOrganizationMember(c) {
 		return
@@ -267,8 +299,14 @@ func handleDeploymentServiceError(c *gin.Context, err error) {
 		response.Error(c, http.StatusNotFound, err.Error())
 	case apperrors.ErrClusterNotFound:
 		response.Error(c, http.StatusBadRequest, err.Error())
-	case apperrors.ErrInvalidApplication, apperrors.ErrInvalidProject, apperrors.ErrInvalidDeploymentImage, apperrors.ErrInvalidDeploymentReplica, apperrors.ErrInvalidDeploymentStrategy, apperrors.ErrInvalidDeploymentEnvironment, apperrors.ErrInvalidDeploymentNamespace, apperrors.ErrInvalidDeploymentStatus:
+	case apperrors.ErrDeploymentInvalidKubeconfig, apperrors.ErrDeploymentNamespaceNotFound, apperrors.ErrDeploymentImageInvalid:
+		response.Error(c, http.StatusBadRequest, err.Error())
+	case apperrors.ErrDeploymentClusterUnreachable, apperrors.ErrDeploymentExecutionPermissionDenied, apperrors.ErrDeploymentExecutionTimeout, apperrors.ErrDeploymentExecutionFailed:
+		response.Error(c, http.StatusBadGateway, err.Error())
+	case apperrors.ErrInvalidApplication, apperrors.ErrInvalidProject, apperrors.ErrInvalidDeploymentImage, apperrors.ErrInvalidDeploymentReplica, apperrors.ErrInvalidDeploymentStrategy, apperrors.ErrInvalidDeploymentEnvironment, apperrors.ErrInvalidDeploymentNamespace, apperrors.ErrInvalidDeploymentStatus, apperrors.ErrInvalidDeploymentRevision, apperrors.ErrDeploymentRollbackLatest:
 		response.BadRequest(c, err.Error())
+	case apperrors.ErrDeploymentHistoryNotFound:
+		response.Error(c, http.StatusNotFound, err.Error())
 	default:
 		response.InternalServerError(c, err)
 	}

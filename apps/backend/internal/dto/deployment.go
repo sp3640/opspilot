@@ -24,6 +24,10 @@ type UpdateDeploymentRequest struct {
 	DeploymentStrategy *string `json:"deploymentStrategy" binding:"omitempty,max=64"`
 }
 
+type RollbackDeploymentRequest struct {
+	Revision int `json:"revision" binding:"required"`
+}
+
 type DeploymentResponse struct {
 	ID                 string     `json:"id"`
 	ApplicationID      string     `json:"applicationId"`
@@ -51,4 +55,10 @@ type DeploymentListResponse struct {
 	Limit      int                  `json:"limit"`
 	Total      int64                `json:"total"`
 	TotalPages int                  `json:"totalPages"`
+}
+
+type RollbackDeploymentResponse struct {
+	Deployment             DeploymentResponse `json:"deployment"`
+	CurrentRevision        int                `json:"currentRevision"`
+	RollbackSourceRevision int                `json:"rollbackSourceRevision"`
 }

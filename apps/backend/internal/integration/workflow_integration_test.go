@@ -413,6 +413,7 @@ func migrateIntegrationSchema(t *testing.T, db *gorm.DB) {
 		&models.Project{},
 		&models.Application{},
 		&models.Deployment{},
+		&models.DeploymentHistory{},
 		&models.Team{},
 		&models.ProjectTeam{},
 		&models.TeamMember{},

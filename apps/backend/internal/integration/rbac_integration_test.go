@@ -196,12 +196,14 @@ func TestRBACOrganizationLevelIntegration(t *testing.T) {
 }
 
 type rbacTestApp struct {
-	router           *gin.Engine
-	cfg              *config.Config
-	userRepo         *repository.UserRepository
-	organizationRepo *repository.OrganizationRepository
-	metricService    *services.MetricService
-	deploymentRepo   *repository.DeploymentRepository
+	router                *gin.Engine
+	cfg                   *config.Config
+	userRepo              *repository.UserRepository
+	organizationRepo      *repository.OrganizationRepository
+	metricService         *services.MetricService
+	deploymentRepo        *repository.DeploymentRepository
+	deploymentService     *services.DeploymentService
+	deploymentHistoryRepo *repository.DeploymentHistoryRepository
 }
 
 func setupRBACApp(t *testing.T) *rbacTestApp {
@@ -226,6 +228,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	projectRepo := repository.NewProjectRepository(db)
 	applicationRepo := repository.NewApplicationRepository(db)
 	deploymentRepo := repository.NewDeploymentRepository(db)
+	deploymentHistoryRepo := repository.NewDeploymentHistoryRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
 	projectTeamRepo := repository.NewProjectTeamRepository(db)
 	teamMemberRepo := repository.NewTeamMemberRepository(db)
@@ -244,7 +247,8 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
-	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo)
+	deploymentHistoryService := services.NewDeploymentHistoryService(deploymentHistoryRepo, deploymentRepo)
+	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo, deploymentHistoryService)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
@@ -262,6 +266,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
 	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
+	deploymentHistoryHandler := handlers.NewDeploymentHistoryHandler(deploymentHistoryService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
@@ -302,6 +307,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		projectHandler,
 		applicationHandler,
 		deploymentHandler,
+		deploymentHistoryHandler,
 		teamHandler,
 		projectTeamHandler,
 		incidentHandler,
@@ -317,12 +323,14 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	)
 
 	return &rbacTestApp{
-		router:           r,
-		cfg:              cfg,
-		userRepo:         userRepo,
-		organizationRepo: organizationRepo,
-		metricService:    metricService,
-		deploymentRepo:   deploymentRepo,
+		router:                r,
+		cfg:                   cfg,
+		userRepo:              userRepo,
+		organizationRepo:      organizationRepo,
+		metricService:         metricService,
+		deploymentRepo:        deploymentRepo,
+		deploymentService:     deploymentService,
+		deploymentHistoryRepo: deploymentHistoryRepo,
 	}
 }
 
