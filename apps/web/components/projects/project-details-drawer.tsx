@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ClipboardList, Rocket, Settings, Users, type LucideIcon, X } from "lucide-react";
+import { Activity, ClipboardList, Layers3, Rocket, Settings, Users, type LucideIcon, X } from "lucide-react";
 
+import { ApplicationWorkspace } from "@/components/applications/application-workspace";
 import { ErrorState } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { useProject } from "@/hooks/use-projects";
@@ -12,6 +13,7 @@ import { ProjectEnvironmentBadge, ProjectHealthBadge } from "./project-status";
 
 const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Overview", icon: Activity },
+  { label: "Applications", icon: Layers3 },
   { label: "Deployments", icon: Rocket },
   { label: "Members", icon: Users },
   { label: "Audit", icon: ClipboardList },
@@ -193,6 +195,8 @@ export function ProjectDetailsDrawer({ projectID, onClose }: { projectID: string
                 </p>
               </div>
             </div>
+          ) : activeTab === "Applications" ? (
+            <ApplicationWorkspace projectId={project.id} />
           ) : (
             <div
               className="flex min-h-56 items-center justify-center rounded-2xl border p-6 text-center text-sm"
