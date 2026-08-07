@@ -2,6 +2,27 @@ package dto
 
 import "time"
 
+type ReplicaSet struct {
+	Name              string    `json:"name"`
+	Namespace         string    `json:"namespace"`
+	DesiredReplicas   int32     `json:"desiredReplicas"`
+	CurrentReplicas   int32     `json:"currentReplicas"`
+	ReadyReplicas     int32     `json:"readyReplicas"`
+	AvailableReplicas int32     `json:"availableReplicas"`
+	Status            string    `json:"status"`
+	Age               string    `json:"age"`
+	CreatedAt         time.Time `json:"createdAt"`
+}
+
+type ReplicaSetListResponse struct {
+	Items []ReplicaSet `json:"items"`
+	Total int          `json:"total"`
+}
+
+type ReplicaSetResponse struct {
+	ReplicaSet ReplicaSet `json:"replicaSet"`
+}
+
 type ReplicaSetSummary struct {
 	ID                string            `json:"id"`
 	Name              string            `json:"name"`

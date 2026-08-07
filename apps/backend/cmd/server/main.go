@@ -28,6 +28,7 @@ import (
 	k8singresses "github.com/sp3640/opspilot/backend/internal/kubernetes/ingresses"
 	k8slogs "github.com/sp3640/opspilot/backend/internal/kubernetes/logs"
 	k8spods "github.com/sp3640/opspilot/backend/internal/kubernetes/pods"
+	k8sreplicasets "github.com/sp3640/opspilot/backend/internal/kubernetes/replicasets"
 	k8ssecrets "github.com/sp3640/opspilot/backend/internal/kubernetes/secrets"
 	k8sservices "github.com/sp3640/opspilot/backend/internal/kubernetes/services"
 	"github.com/sp3640/opspilot/backend/internal/logger"
@@ -166,6 +167,11 @@ func run() error {
 	kubernetesLogRuntime := k8slogs.NewLogService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesConfigMapRuntime := k8sconfigmaps.NewConfigMapService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesSecretRuntime := k8ssecrets.NewSecretService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesReplicaSetRuntime := k8sreplicasets.NewReplicaSetService(
+		applicationRepo,
+		clusterRepo,
+		clusterCredentialCipher,
+	)
 	kubernetesRuntimeDeploymentRuntime := k8sruntimedeployments.NewDeploymentRuntimeService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesServiceRuntime := k8sservices.NewServiceService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesIngressRuntime := k8singresses.NewIngressService(applicationRepo, clusterRepo, clusterCredentialCipher)
@@ -216,6 +222,9 @@ func run() error {
 	kubernetesLogHandler := handlers.NewKubernetesLogHandler(kubernetesLogRuntime)
 	kubernetesConfigMapHandler := handlers.NewKubernetesConfigMapHandler(kubernetesConfigMapRuntime)
 	kubernetesSecretHandler := handlers.NewKubernetesSecretHandler(kubernetesSecretRuntime)
+	kubernetesReplicaSetHandler := handlers.NewKubernetesReplicaSetHandler(
+		kubernetesReplicaSetRuntime,
+	)
 	kubernetesRuntimeDeploymentHandler := handlers.NewKubernetesRuntimeDeploymentHandler(kubernetesRuntimeDeploymentRuntime)
 	kubernetesServiceHandler := handlers.NewKubernetesServiceHandler(kubernetesServiceRuntime)
 	kubernetesIngressHandler := handlers.NewKubernetesIngressHandler(kubernetesIngressRuntime)
@@ -297,6 +306,7 @@ func run() error {
 		kubernetesLogHandler,
 		kubernetesConfigMapHandler,
 		kubernetesSecretHandler,
+		kubernetesReplicaSetHandler,
 		kubernetesRuntimeDeploymentHandler,
 		kubernetesServiceHandler,
 		kubernetesIngressHandler,
@@ -316,7 +326,6 @@ func run() error {
 		healthHandler,
 		collector,
 	)
-
 	healthHandler.SetInitialized(true)
 	if err := runtimeBootstrap.Startup(processContext); err != nil {
 		return fmt.Errorf("start runtime bootstrap: %w", err)

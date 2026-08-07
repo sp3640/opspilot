@@ -22,6 +22,7 @@ func RegisterRoutes(
 	kubernetesLogHandler *handlers.KubernetesLogHandler,
 	kubernetesConfigMapHandler *handlers.KubernetesConfigMapHandler,
 	kubernetesSecretHandler *handlers.KubernetesSecretHandler,
+	kubernetesReplicaSetHandler *handlers.KubernetesReplicaSetHandler,
 	kubernetesRuntimeDeploymentHandler *handlers.KubernetesRuntimeDeploymentHandler,
 	kubernetesServiceHandler *handlers.KubernetesServiceHandler,
 	kubernetesIngressHandler *handlers.KubernetesIngressHandler,
@@ -137,6 +138,9 @@ func RegisterRoutes(
 			if kubernetesSecretHandler != nil {
 				applications.GET("/:id/secrets", kubernetesSecretHandler.ListByApplication)
 			}
+			if kubernetesReplicaSetHandler != nil {
+				applications.GET("/:id/replicasets", kubernetesReplicaSetHandler.ListByApplication)
+			}
 			if kubernetesRuntimeDeploymentHandler != nil {
 				applications.GET("/:id/runtime/deployments", kubernetesRuntimeDeploymentHandler.ListByApplication)
 			}
@@ -190,6 +194,13 @@ func RegisterRoutes(
 		{
 			if kubernetesSecretHandler != nil {
 				secrets.GET("/:namespace/:name", kubernetesSecretHandler.GetByNamespaceAndName)
+			}
+		}
+		replicaSets := api.Group("/replicasets")
+		replicaSets.Use(middleware.AuthMiddleware(cfg))
+		{
+			if kubernetesReplicaSetHandler != nil {
+				replicaSets.GET("/:namespace/:name", kubernetesReplicaSetHandler.GetByNamespaceAndName)
 			}
 		}
 
