@@ -316,6 +316,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		nil,
 		nil,
 		nil,
+		nil,
 		deploymentHandler,
 		deploymentHistoryHandler,
 		teamHandler,
