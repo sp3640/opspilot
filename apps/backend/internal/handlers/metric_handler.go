@@ -167,6 +167,15 @@ func (h *MetricHandler) Aggregate(c *gin.Context) {
 		return
 	}
 
+	clusterID, ok := parseOptionalUUIDPointer(c, "clusterId")
+	if !ok {
+		return
+	}
+	resourceID, ok := parseOptionalUUIDPointer(c, "resourceId")
+	if !ok {
+		return
+	}
+
 	metricType := strings.TrimSpace(c.Query("metricType"))
 	metricName := strings.TrimSpace(c.Query("metricName"))
 	if metricType == "" {
@@ -188,7 +197,7 @@ func (h *MetricHandler) Aggregate(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Aggregate(organizationID, projectID, metricType, metricName, interval, startTime, endTime)
+	result, err := h.service.Aggregate(organizationID, projectID, clusterID, resourceID, metricType, metricName, interval, startTime, endTime)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatBytes, formatMillicores, formatPercent, metricSource, pickLatestMetric } from "./metric-view";
+import { formatBytes, formatChartTimestamp, formatMillicores, formatPercent, metricSource, pickLatestMetric } from "./metric-view";
 import type { MetricResponse } from "@/types/metric-api";
 
 function metric(overrides: Partial<MetricResponse> = {}): MetricResponse {
@@ -70,6 +70,26 @@ describe("formatBytes", () => {
 
   it("reports not available for null/undefined", () => {
     expect(formatBytes(null)).toBe("Not available");
+  });
+});
+
+describe("formatChartTimestamp", () => {
+  const iso = "2026-03-15T14:32:00.000Z";
+
+  it("uses a time-only label when the chart span fits within a day", () => {
+    const label = formatChartTimestamp(iso, 60 * 60 * 1000);
+    expect(label).not.toMatch(/2026|Mar/);
+  });
+
+  it("uses a date label once the span exceeds a day", () => {
+    const label = formatChartTimestamp(iso, 8 * 24 * 60 * 60 * 1000);
+    expect(label).toMatch(/Mar/);
+    expect(label).not.toMatch(/26|2026/);
+  });
+
+  it("includes the year for very wide spans", () => {
+    const label = formatChartTimestamp(iso, 400 * 24 * 60 * 60 * 1000);
+    expect(label).toMatch(/26/);
   });
 });
 

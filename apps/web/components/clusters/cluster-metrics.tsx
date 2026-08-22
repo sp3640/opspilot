@@ -4,9 +4,19 @@ import { useMemo } from "react";
 import { AlertTriangle, Gauge } from "lucide-react";
 
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/common";
+import type { MetricChartSpec } from "@/components/metrics/scoped-metrics-dashboard";
+import { ScopedMetricsDashboard } from "@/components/metrics/scoped-metrics-dashboard";
 import { useClusterMetrics, useClusterMetricsStatus } from "@/hooks/use-metrics";
 import { formatBytes, formatCount, formatMillicores, formatPercent, metricSource, pickLatestMetric } from "@/lib/metric-view";
 import type { MetricsStatusResponse } from "@/types/metric-api";
+
+const HISTORICAL_CHART_SPECS: MetricChartSpec[] = [
+  { key: "cpu", title: "CPU usage", metricType: "CPU", metricName: "cluster.cpu.usage.millicores", valueFormatter: formatMillicores },
+  { key: "memory", title: "Memory usage", metricType: "MEMORY", metricName: "cluster.memory.usage.bytes", valueFormatter: formatBytes },
+  { key: "node-health", title: "Node health (not ready)", metricType: "AVAILABILITY", metricName: "cluster.node.not_ready.count", valueFormatter: formatCount },
+  { key: "pod-count", title: "Pod count", metricType: "AVAILABILITY", metricName: "cluster.pod.count", valueFormatter: formatCount },
+  { key: "restarts", title: "Pod restarts", metricType: "RESTARTCOUNT", metricName: "cluster.pod.restarts.total", valueFormatter: formatCount },
+];
 
 const METRIC_LIMIT = 20;
 
@@ -118,6 +128,15 @@ export function ClusterMetrics({ clusterId, projectId }: { clusterId: string; pr
           </section>
         </>
       )}
+
+      <section>
+        <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
+          Historical trends
+        </h3>
+        <div className="mt-3">
+          <ScopedMetricsDashboard projectId={projectId} clusterId={clusterId} specs={HISTORICAL_CHART_SPECS} />
+        </div>
+      </section>
 
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>

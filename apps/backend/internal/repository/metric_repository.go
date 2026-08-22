@@ -161,13 +161,19 @@ func (r *MetricRepository) DeleteOlderThan(projectID uuid.UUID, cutoff time.Time
 	return result.RowsAffected, nil
 }
 
-func (r *MetricRepository) Aggregate(projectID uuid.UUID, metricType, metricName string, startTime, endTime time.Time, interval string, organizationID uuid.UUID) ([]models.MetricAggregatePoint, error) {
+func (r *MetricRepository) Aggregate(projectID uuid.UUID, clusterID, resourceID *uuid.UUID, metricType, metricName string, startTime, endTime time.Time, interval string, organizationID uuid.UUID) ([]models.MetricAggregatePoint, error) {
 	interval = normalizeInterval(interval)
 
 	query := r.baseOwnedQuery(organizationID).
 		Where("metrics.project_id = ?", projectID).
 		Where("metrics.timestamp >= ? AND metrics.timestamp <= ?", startTime, endTime)
 
+	if clusterID != nil {
+		query = query.Where("metrics.cluster_id = ?", *clusterID)
+	}
+	if resourceID != nil {
+		query = query.Where("metrics.resource_id = ?", *resourceID)
+	}
 	if metricType != "" {
 		query = query.Where("metrics.metric_type = ?", metricType)
 	}

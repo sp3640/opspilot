@@ -167,7 +167,7 @@ func (s *MetricService) GetHistory(organizationID uuid.UUID, projectID uuid.UUID
 	return mapper.MapMetrics(items), nil
 }
 
-func (s *MetricService) Aggregate(organizationID uuid.UUID, projectID uuid.UUID, metricType, metricName, interval string, startTime, endTime time.Time) (*dto.MetricAggregateResponse, error) {
+func (s *MetricService) Aggregate(organizationID uuid.UUID, projectID uuid.UUID, clusterID, resourceID *uuid.UUID, metricType, metricName, interval string, startTime, endTime time.Time) (*dto.MetricAggregateResponse, error) {
 	if err := s.validateProjectOwnership(projectID, organizationID); err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (s *MetricService) Aggregate(organizationID uuid.UUID, projectID uuid.UUID,
 	}
 
 	metricName = strings.TrimSpace(metricName)
-	points, err := s.repo.Aggregate(projectID, normalizedType, metricName, startTime, endTime, interval, organizationID)
+	points, err := s.repo.Aggregate(projectID, clusterID, resourceID, normalizedType, metricName, startTime, endTime, interval, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +214,7 @@ func (s *MetricService) Aggregate(organizationID uuid.UUID, projectID uuid.UUID,
 	}
 
 	unit := ""
-	latest, latestErr := s.repo.Latest(projectID, nil, nil, normalizedType, metricName, organizationID)
+	latest, latestErr := s.repo.Latest(projectID, clusterID, resourceID, normalizedType, metricName, organizationID)
 	if latestErr == nil {
 		unit = latest.Unit
 	}

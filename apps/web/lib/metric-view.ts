@@ -54,3 +54,22 @@ export function formatCount(value: number | null | undefined): string {
   if (value === null || value === undefined) return "Not available";
   return String(Math.round(value));
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Chart x-axis ticks need to stay short, but short-form time-only labels
+ * ("14:32") are ambiguous once a chart spans more than a couple of days -
+ * switches to a date (and date+time for very wide ranges) once the range
+ * being charted no longer fits in a single day.
+ */
+export function formatChartTimestamp(iso: string, spanMs: number): string {
+  const date = new Date(iso);
+  if (spanMs <= DAY_MS) {
+    return date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+  if (spanMs <= 30 * DAY_MS) {
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" });
+}

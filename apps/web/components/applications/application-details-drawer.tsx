@@ -6,6 +6,7 @@ import {
   Boxes,
   ClipboardList,
   Cpu,
+  Gauge,
   Globe,
   Layers3,
   Network,
@@ -30,6 +31,7 @@ import { ApplicationEvents } from "./application-events";
 import { ApplicationHealth } from "./application-health";
 import { ApplicationIngresses } from "./application-ingresses";
 import { ApplicationLogs } from "./application-logs";
+import { ApplicationMetricsDashboard } from "./application-metrics-dashboard";
 import { ApplicationPods } from "./application-pods";
 import { ApplicationReplicaSets } from "./application-replicasets";
 import { ApplicationRuntimeDeployments } from "./application-runtime-deployments";
@@ -44,6 +46,7 @@ const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Deployments", icon: Rocket },
   { label: "Pods", icon: Boxes },
   { label: "Logs", icon: ScrollText },
+  { label: "Metrics", icon: Gauge },
   { label: "Services", icon: Network },
   { label: "Ingresses", icon: Globe },
   { label: "ConfigMaps", icon: ClipboardList },
@@ -282,6 +285,8 @@ export function ApplicationDetailsDrawer({
             <ApplicationPods applicationId={application.id} />
           ) : activeTab === "Logs" ? (
             <ApplicationLogs applicationId={application.id} />
+          ) : activeTab === "Metrics" ? (
+            <ApplicationMetricsDashboard />
           ) : activeTab === "Services" ? (
             <ApplicationServices applicationId={application.id} />
           ) : activeTab === "Ingresses" ? (
