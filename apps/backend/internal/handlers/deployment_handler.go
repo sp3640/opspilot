@@ -234,6 +234,40 @@ func (h *DeploymentHandler) Rollback(c *gin.Context) {
 	response.OK(c, "Deployment rolled back successfully", result)
 }
 
+// GetAuditLogs returns the deployment's own audit trail - the real basis for
+// showing what remediation actions were taken and when. Read-only, so it is
+// gated the same as GetByID/List (org membership only), mirroring
+// AlertHandler.GetAuditLogs.
+func (h *DeploymentHandler) GetAuditLogs(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid deployment id")
+		return
+	}
+
+	req, ok := parsePagination(c, "created_at", "entity_type", "action")
+	if !ok {
+		return
+	}
+
+	result, err := h.service.ListAuditLogs(organizationID, id, req)
+	if err != nil {
+		handleDeploymentServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Deployment audit logs fetched successfully", result)
+}
+
 func (h *DeploymentHandler) ListByApplication(c *gin.Context) {
 	if !authorization.RequireOrganizationMember(c) {
 		return

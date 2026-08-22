@@ -1,10 +1,13 @@
 import { api } from "@/lib/api";
 import type {
+  CreateDeploymentRequest,
   DeploymentHistoryListResponse,
+  DeploymentHistoryResponse,
   DeploymentListResponse,
   DeploymentQueryParams,
   DeploymentResponse,
   RollbackDeploymentResponse,
+  UpdateDeploymentRequest,
 } from "@/types/deployment-api";
 
 type APIResponse<T> = {
@@ -14,6 +17,32 @@ type APIResponse<T> = {
 };
 
 export const deploymentService = {
+  async getDeployment(id: string): Promise<DeploymentResponse> {
+    const response = await api.get<APIResponse<DeploymentResponse>>(`/deployments/${id}`);
+    return response.data.data;
+  },
+
+  async createDeployment(payload: CreateDeploymentRequest): Promise<DeploymentResponse> {
+    const response = await api.post<APIResponse<DeploymentResponse>>("/deployments", payload);
+    return response.data.data;
+  },
+
+  async updateDeployment(id: string, payload: UpdateDeploymentRequest): Promise<DeploymentResponse> {
+    const response = await api.patch<APIResponse<DeploymentResponse>>(`/deployments/${id}`, payload);
+    return response.data.data;
+  },
+
+  async deleteDeployment(id: string): Promise<void> {
+    await api.delete<APIResponse<null>>(`/deployments/${id}`);
+  },
+
+  async getDeploymentHistoryRevision(deploymentId: string, revision: number): Promise<DeploymentHistoryResponse> {
+    const response = await api.get<APIResponse<DeploymentHistoryResponse>>(
+      `/deployments/${deploymentId}/history/${revision}`
+    );
+    return response.data.data;
+  },
+
   async listDeploymentsByApplication(
     applicationId: string,
     params: DeploymentQueryParams

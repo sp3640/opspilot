@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Ban } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2 } from "lucide-react";
 
 import { EmptyState, ErrorState } from "@/components/common";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ const CANCELLABLE_STATUSES = ["Pending", "Queued", "Running"];
 export function DeploymentCancel({ deployment }: { deployment: DeploymentResponse }) {
   const cancel = useCancelDeployment();
   const [confirmed, setConfirmed] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
 
   if (!CANCELLABLE_STATUSES.includes(deployment.status)) {
     return (
@@ -28,6 +29,7 @@ export function DeploymentCancel({ deployment }: { deployment: DeploymentRespons
     try {
       await cancel.mutateAsync(deployment.id);
       setConfirmed(false);
+      setCancelled(true);
     } catch {
       // Error is surfaced via the mutation's error toast and the inline ErrorState below.
     }
@@ -45,10 +47,20 @@ export function DeploymentCancel({ deployment }: { deployment: DeploymentRespons
       >
         <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
         <p className="leading-6">
-          Cancelling stops this in-progress deployment. The target environment may be left in a partially updated state,
-          and this action cannot be undone.
+          Cancelling marks this deployment as cancelled in OpsPilot&apos;s records. It does not stop or delete anything
+          already applied to the live cluster — there is no such capability yet, so this action is database-only.
         </p>
       </div>
+
+      {cancelled ? (
+        <div
+          className="flex items-start gap-3 rounded-2xl border p-4 text-sm"
+          style={{ backgroundColor: "color-mix(in srgb, var(--success) 12%, transparent)", borderColor: "var(--success)", color: "var(--success)" }}
+        >
+          <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="leading-6">Verified: this deployment&apos;s record now shows Cancelled.</p>
+        </div>
+      ) : null}
 
       <dl className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", backgroundColor: "color-mix(in srgb, var(--muted) 45%, transparent)" }}>
@@ -86,7 +98,7 @@ export function DeploymentCancel({ deployment }: { deployment: DeploymentRespons
           disabled={cancel.isPending}
           className="mt-0.5 h-4 w-4"
         />
-        <span>I understand this will cancel the deployment and cannot be undone.</span>
+        <span>I understand this will cancel the deployment record and cannot be undone.</span>
       </label>
 
       <div className="flex justify-end">

@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
+  ClipboardList,
+  Compass,
   Files,
   Gauge,
   History,
@@ -31,10 +34,12 @@ import {
 import { DeleteIncidentDialog } from "./delete-incident-dialog";
 import { EditIncidentModal } from "./edit-incident-modal";
 import { IncidentAlerts } from "./incident-alerts";
+import { IncidentCombinedTimeline } from "./incident-combined-timeline";
 import { IncidentComments } from "./incident-comments";
 import { IncidentContextChain } from "./incident-context-chain";
 import { IncidentLogsPanel } from "./incident-logs-panel";
 import { IncidentMetricsPanel } from "./incident-metrics-panel";
+import { IncidentSummary } from "./incident-summary";
 import { IncidentTimeline } from "./incident-timeline";
 
 const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
@@ -45,16 +50,14 @@ const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Logs", icon: Files },
   { label: "Timeline", icon: History },
   { label: "Comments", icon: MessageSquare },
+  { label: "Audit", icon: ClipboardList },
 ];
 
 /**
- * Incident details, restructured (Phase 16) so an engineer can investigate
- * without leaving this drawer: Overview keeps the original description/
- * project/created/updated display and Edit/Delete permission gating
- * completely unchanged (plus the new affected-application/owner-team/
- * resolved-time fields); the new tabs add the affected-resource chain,
- * attached alerts, relevant metrics/logs, and a real audit-log-backed
- * timeline - each only ever shown when a real identifier supports it.
+ * Incident details drawer, kept for quick preview from the incident grid.
+ * Timeline is the combined, meaningful story (Phase 17); Audit is the raw,
+ * unfiltered change log. The "Workspace" button opens the full incident
+ * investigation console (/incidents/[id]) for deeper cross-evidence work.
  */
 export function IncidentDetailsDrawer({
   incidentID,
@@ -65,6 +68,7 @@ export function IncidentDetailsDrawer({
   projectNameById: Map<string, string>;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("Overview");
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -160,6 +164,16 @@ export function IncidentDetailsDrawer({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => router.push(`/incidents/${incident.id}`)}
+                className="px-3"
+                aria-label="Open full investigation workspace"
+              >
+                <Compass aria-hidden="true" className="h-4 w-4" />
+                <span className="hidden sm:inline">Workspace</span>
+              </Button>
               {canManageIncidents ? (
                 <>
                   <Button
@@ -274,29 +288,18 @@ export function IncidentDetailsDrawer({
           ) : activeTab === "Logs" ? (
             <IncidentLogsPanel incident={incident} />
           ) : activeTab === "Timeline" ? (
-            <IncidentTimeline incident={incident} />
+            <IncidentCombinedTimeline incident={incident} />
           ) : activeTab === "Comments" ? (
             <IncidentComments incidentId={incident.id} />
+          ) : activeTab === "Audit" ? (
+            <IncidentTimeline incident={incident} />
           ) : (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-                  Description
-                </h3>
-                <p className="mt-2 text-sm leading-6">
-                  {incident.description || "No description provided"}
-                </p>
-              </div>
-
-              <dl className="grid gap-4 sm:grid-cols-2">
-                <DrawerStat label="Project" value={projectName} />
-                <DrawerStat label="Affected application" value={application?.name ?? "Not set"} />
-                <DrawerStat label="Owner team" value={ownerTeam?.name ?? "Not set"} />
-                <DrawerStat label="Created" value={formatDate(incident.createdAt)} />
-                <DrawerStat label="Updated" value={formatDate(incident.updatedAt)} />
-                <DrawerStat label="Resolved" value={incident.resolvedAt ? formatDate(incident.resolvedAt) : "Not resolved"} />
-              </dl>
-            </div>
+            <IncidentSummary
+              incident={incident}
+              projectName={projectName}
+              applicationName={application?.name ?? "Not set"}
+              ownerTeamName={ownerTeam?.name ?? "Not set"}
+            />
           )}
         </div>
       </aside>
@@ -345,23 +348,6 @@ function DrawerFrame({
   );
 }
 
-function DrawerStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      className="rounded-2xl border p-4"
-      style={{
-        borderColor: "var(--border)",
-        backgroundColor: "color-mix(in srgb, var(--muted) 45%, transparent)",
-      }}
-    >
-      <dt className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-        {label}
-      </dt>
-      <dd className="mt-1 break-all font-semibold">{value}</dd>
-    </div>
-  );
-}
-
 function getSeverityColor(severity: string): string {
   return INCIDENT_SEVERITY_COLORS[severity as IncidentSeverity] || "var(--muted-foreground)";
 }
@@ -372,8 +358,4 @@ function getStatusLabel(status: string): string {
 
 function getStatusVariant(status: string): "info" | "warning" | "success" {
   return INCIDENT_STATUS_VARIANTS[status as IncidentStatus] || "info";
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString();
 }

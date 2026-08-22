@@ -16,6 +16,8 @@ type DeploymentHistoryResponse struct {
 	ReplicaCount       int       `json:"replicaCount"`
 	DeploymentStrategy string    `json:"deploymentStrategy"`
 	Status             string    `json:"status"`
+	CommitSHA          *string   `json:"commitSha,omitempty"`
+	Author             *string   `json:"author,omitempty"`
 	ChangeSummary      string    `json:"changeSummary"`
 	TriggeredBy        uint      `json:"triggeredBy"`
 	CreatedAt          time.Time `json:"createdAt"`

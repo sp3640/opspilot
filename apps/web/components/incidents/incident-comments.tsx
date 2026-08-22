@@ -22,7 +22,7 @@ type CommentFormInput = z.infer<typeof commentFormSchema>;
 
 const COMMENT_QUERY_PARAMS = { page: 1, limit: 50, sort: "created_at" as const, order: "asc" as const };
 
-/** Incident comments thread, rendered only inside the Incident Details Drawer. */
+/** Incident comments thread, rendered in both the details drawer and the investigation console. */
 export function IncidentComments({ incidentId }: { incidentId: number }) {
   const canPostComments = useHasPermission("incident:comment");
   const { data, error, isError, isLoading, refetch } = useComments(incidentId, COMMENT_QUERY_PARAMS);

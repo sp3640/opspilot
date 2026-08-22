@@ -19,6 +19,8 @@ func MapDeployment(deployment models.Deployment) dto.DeploymentResponse {
 		Status:             deployment.Status,
 		DeploymentStrategy: deployment.DeploymentStrategy,
 		TargetClusterID:    deployment.TargetClusterID.String(),
+		CommitSHA:          deployment.CommitSHA,
+		Author:             deployment.Author,
 		CreatedBy:          deployment.CreatedBy,
 		UpdatedBy:          deployment.UpdatedBy,
 		StartedAt:          deployment.StartedAt,

@@ -56,6 +56,8 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 		"namespace":          "ops-api",
 		"replicaCount":       2,
 		"deploymentStrategy": constants.DeploymentStrategyRollingUpdate,
+		"commitSha":          "abc1234",
+		"author":             "Ada Lovelace",
 	})
 	assertStatus(t, createRec, http.StatusCreated)
 	created := decodeDataMap(t, createRec)
@@ -65,6 +67,33 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 	}
 	if created["status"].(string) != constants.DeploymentStatusPending {
 		t.Fatalf("expected deployment status pending, got %v", created["status"])
+	}
+	if created["commitSha"].(string) != "abc1234" {
+		t.Fatalf("expected commitSha to round-trip, got %v", created["commitSha"])
+	}
+	if created["author"].(string) != "Ada Lovelace" {
+		t.Fatalf("expected author to round-trip, got %v", created["author"])
+	}
+
+	// commitSha/author are optional - a deployment created without them
+	// reports them absent (nil), never a fabricated placeholder value.
+	noProvenanceRec := doJSONRequest(t, app.router, http.MethodPost, "/api/v1/deployments", adminToken, map[string]any{
+		"applicationId":      applicationID.String(),
+		"projectId":          projectID.String(),
+		"targetClusterId":    clusterID.String(),
+		"image":              "ghcr.io/opspilot/api",
+		"environment":        "development",
+		"namespace":          "ops-api",
+		"replicaCount":       1,
+		"deploymentStrategy": constants.DeploymentStrategyRollingUpdate,
+	})
+	assertStatus(t, noProvenanceRec, http.StatusCreated)
+	noProvenance := decodeDataMap(t, noProvenanceRec)
+	if noProvenance["commitSha"] != nil {
+		t.Fatalf("expected commitSha to be absent when not supplied, got %v", noProvenance["commitSha"])
+	}
+	if noProvenance["author"] != nil {
+		t.Fatalf("expected author to be absent when not supplied, got %v", noProvenance["author"])
 	}
 
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/deployments", memberToken, nil), http.StatusOK)
@@ -95,6 +124,8 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 		"imageTag":           "v1.0.2",
 		"replicaCount":       3,
 		"deploymentStrategy": constants.DeploymentStrategyRecreate,
+		"commitSha":          "def5678",
+		"author":             "Grace Hopper",
 	})
 	assertStatus(t, updateRec, http.StatusOK)
 	updated := decodeDataMap(t, updateRec)
@@ -104,6 +135,27 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 	if int(updated["replicaCount"].(float64)) != 3 {
 		t.Fatalf("expected updated replica count")
 	}
+	if updated["commitSha"].(string) != "def5678" {
+		t.Fatalf("expected updated commitSha, got %v", updated["commitSha"])
+	}
+	if updated["author"].(string) != "Grace Hopper" {
+		t.Fatalf("expected updated author, got %v", updated["author"])
+	}
+
+	// An explicit empty string clears previously-set provenance back to nil,
+	// rather than leaving the stale value in place.
+	clearRec := doJSONRequest(t, app.router, http.MethodPatch, "/api/v1/deployments/"+deploymentID.String(), adminToken, map[string]any{
+		"commitSha": "",
+		"author":    "",
+	})
+	assertStatus(t, clearRec, http.StatusOK)
+	cleared := decodeDataMap(t, clearRec)
+	if cleared["commitSha"] != nil {
+		t.Fatalf("expected commitSha to be cleared, got %v", cleared["commitSha"])
+	}
+	if cleared["author"] != nil {
+		t.Fatalf("expected author to be cleared, got %v", cleared["author"])
+	}
 
 	cancelRec := doJSONRequest(t, app.router, http.MethodPatch, "/api/v1/deployments/"+deploymentID.String()+"/cancel", adminToken, nil)
 	assertStatus(t, cancelRec, http.StatusOK)
@@ -111,6 +163,25 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 	if cancelled["status"].(string) != constants.DeploymentStatusCancelled {
 		t.Fatalf("expected cancelled status, got %v", cancelled["status"])
 	}
+
+	// Cancel never touches the live cluster, but it must still leave a real
+	// audit trail (Phase 20).
+	cancelAuditRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/deployments/"+deploymentID.String()+"/audit-logs", adminToken, nil)
+	assertStatus(t, cancelAuditRec, http.StatusOK)
+	cancelAuditItems := decodeHistoryItemsForRollback(t, cancelAuditRec)
+	foundCancelAudit := false
+	for _, item := range cancelAuditItems {
+		if item["field_name"] == "status" && item["new_value"] == constants.DeploymentStatusCancelled {
+			foundCancelAudit = true
+			break
+		}
+	}
+	if !foundCancelAudit {
+		t.Fatalf("expected a deployment audit log entry recording the cancel, got %v", cancelAuditItems)
+	}
+
+	memberAuditRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/deployments/"+deploymentID.String()+"/audit-logs", memberToken, nil)
+	assertStatus(t, memberAuditRec, http.StatusOK)
 
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/deployments", adminToken, map[string]any{
 		"applicationId":      uuid.New().String(),

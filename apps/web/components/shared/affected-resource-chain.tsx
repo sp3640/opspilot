@@ -4,8 +4,11 @@ import { useState } from "react";
 import axios from "axios";
 import { Boxes } from "lucide-react";
 
+import { ApplicationDetailsDrawer } from "@/components/applications/application-details-drawer";
+import { ClusterDetailsDrawer } from "@/components/clusters/cluster-details-drawer";
 import { ClusterStatusBadge } from "@/components/clusters/cluster-status";
 import { StatusBadge } from "@/components/common";
+import { DeploymentDetailsDrawer } from "@/components/deployments/deployment-details-drawer";
 import { PodDetailsDrawer } from "@/components/pods/pod-details-drawer";
 import { useApplication } from "@/hooks/use-applications";
 import { useCluster } from "@/hooks/use-clusters";
@@ -34,6 +37,9 @@ export function AffectedResourceChain({
   resourceId?: string;
 }) {
   const [podDrawerOpen, setPodDrawerOpen] = useState(false);
+  const [applicationDrawerOpen, setApplicationDrawerOpen] = useState(false);
+  const [deploymentDrawerOpen, setDeploymentDrawerOpen] = useState(false);
+  const [clusterDrawerOpen, setClusterDrawerOpen] = useState(false);
   const hasApplication = Boolean(applicationId);
 
   const { data: application, isLoading: isApplicationLoading } = useApplication(applicationId);
@@ -67,7 +73,7 @@ export function AffectedResourceChain({
         ) : isApplicationLoading ? (
           <Loading />
         ) : application ? (
-          <span className="font-semibold">{application.name}</span>
+          <NavButton onClick={() => setApplicationDrawerOpen(true)}>{application.name}</NavButton>
         ) : (
           <Unavailable reason="The referenced application could not be found." />
         )}
@@ -82,7 +88,9 @@ export function AffectedResourceChain({
           <Unavailable reason="This application has no deployment on record." />
         ) : deployment ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="break-all font-semibold">{deployment.imageTag ? `${deployment.image}:${deployment.imageTag}` : deployment.image}</span>
+            <NavButton onClick={() => setDeploymentDrawerOpen(true)}>
+              {deployment.imageTag ? `${deployment.image}:${deployment.imageTag}` : deployment.image}
+            </NavButton>
             <StatusBadge variant={deploymentStatusVariant(deployment.status)}>{deployment.status}</StatusBadge>
           </div>
         ) : (
@@ -97,7 +105,7 @@ export function AffectedResourceChain({
           <Loading />
         ) : cluster ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-semibold">{cluster.name}</span>
+            <NavButton onClick={() => setClusterDrawerOpen(true)}>{cluster.name}</NavButton>
             <ClusterStatusBadge status={cluster.status} />
           </div>
         ) : (
@@ -143,7 +151,36 @@ export function AffectedResourceChain({
           onClose={() => setPodDrawerOpen(false)}
         />
       ) : null}
+
+      <ApplicationDetailsDrawer
+        application={application ?? null}
+        open={applicationDrawerOpen}
+        onClose={() => setApplicationDrawerOpen(false)}
+      />
+      <DeploymentDetailsDrawer
+        deployment={deployment ?? null}
+        open={deploymentDrawerOpen}
+        onClose={() => setDeploymentDrawerOpen(false)}
+      />
+      <ClusterDetailsDrawer
+        clusterID={clusterDrawerOpen ? (clusterId ?? null) : null}
+        projectNameById={new Map()}
+        onClose={() => setClusterDrawerOpen(false)}
+      />
     </div>
+  );
+}
+
+function NavButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="break-all font-semibold underline-offset-2 hover:underline"
+      style={{ color: "var(--primary)" }}
+    >
+      {children}
+    </button>
   );
 }
 

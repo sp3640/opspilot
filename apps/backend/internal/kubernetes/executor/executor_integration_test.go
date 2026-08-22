@@ -124,6 +124,84 @@ func TestDeploymentExecutorIntegration_Success(t *testing.T) {
 	}
 }
 
+// TestDeploymentRollbackReExecutesAgainstCluster proves Phase 20's rollback
+// change actually works end-to-end: rolling back a deployment that has a
+// wired executor doesn't just reset the database row - it re-applies the
+// restored configuration to the (fake) live cluster, exactly like Create
+// does, via the same DeploymentService.WithExecutor(...) wiring.
+func TestDeploymentRollbackReExecutesAgainstCluster(t *testing.T) {
+	t.Parallel()
+
+	fixture := setupExecutorFixture(t)
+	clientset := fake.NewSimpleClientset(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: fixture.deployment.Namespace}})
+
+	exec := NewDeploymentExecutor(
+		fixture.deploymentRepo,
+		fixture.applicationRepo,
+		fixture.clusterRepo,
+		fixture.cipher,
+		NewDeploymentManifestBuilder(),
+		NewDeploymentStatusUpdater(fixture.deploymentRepo, fixture.historyService, fixture.auditService),
+		&staticClientsetFactory{clientset: clientset},
+		15*time.Second,
+	)
+
+	deploymentService := services.NewDeploymentService(
+		fixture.deploymentRepo,
+		fixture.applicationRepo,
+		repository.NewProjectRepository(fixture.db),
+		fixture.clusterRepo,
+		fixture.historyService,
+	).WithAuditService(fixture.auditService).WithExecutor(exec)
+
+	originalImage := fixture.deployment.Image
+
+	// Simulate an update to a new image (revision 2), the same way
+	// DeploymentService.UpdateDeployment would.
+	fixture.deployment.Image = "ghcr.io/opspilot/executor-broken"
+	if err := fixture.deploymentRepo.Update(fixture.deployment); err != nil {
+		t.Fatalf("update deployment: %v", err)
+	}
+	if err := fixture.historyService.CreateHistoryFromDeployment(fixture.deployment, "Deployment updated", fixture.userID); err != nil {
+		t.Fatalf("seed revision 2 history: %v", err)
+	}
+
+	result, err := deploymentService.RollbackDeployment(context.Background(), fixture.deployment.ID, fixture.organizationID, fixture.userID, 1)
+	if err != nil {
+		t.Fatalf("rollback deployment: %v", err)
+	}
+	if result.Deployment.Status != constants.DeploymentStatusSucceeded {
+		t.Fatalf("expected rollback to genuinely execute and succeed, got status %s", result.Deployment.Status)
+	}
+	if result.Deployment.Image != originalImage {
+		t.Fatalf("expected rollback to restore image %s, got %s", originalImage, result.Deployment.Image)
+	}
+
+	// The fake cluster must actually reflect the rolled-back image - this is
+	// the real, verifiable proof that rollback re-applied to the cluster,
+	// not just the database record.
+	list, err := clientset.AppsV1().Deployments(fixture.deployment.Namespace).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		t.Fatalf("list deployments from fake cluster: %v", err)
+	}
+	if len(list.Items) != 1 {
+		t.Fatalf("expected one kubernetes deployment, got %d", len(list.Items))
+	}
+	if list.Items[0].Spec.Template.Spec.Containers[0].Image != originalImage+":"+fixture.deployment.ImageTag {
+		t.Fatalf("expected live cluster image to be rolled back to %s, got %s", originalImage, list.Items[0].Spec.Template.Spec.Containers[0].Image)
+	}
+
+	var auditCount int64
+	if err := fixture.db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ?", "deployment", fixture.deployment.ID.String()).Count(&auditCount).Error; err != nil {
+		t.Fatalf("count deployment audit logs: %v", err)
+	}
+	// At least: the explicit rollback entry, plus the executor's
+	// running/succeeded status-transition entries.
+	if auditCount < 3 {
+		t.Fatalf("expected at least 3 audit log entries after a rollback that re-executes, got %d", auditCount)
+	}
+}
+
 func TestDeploymentExecutorIntegration_NamespaceMissing(t *testing.T) {
 	t.Parallel()
 

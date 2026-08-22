@@ -11,12 +11,40 @@ export type DeploymentResponse = {
   status: string;
   deploymentStrategy: string;
   targetClusterId: string;
+  commitSha?: string;
+  author?: string;
   createdBy: number;
   updatedBy: number;
   startedAt?: string;
   completedAt?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CreateDeploymentRequest = {
+  applicationId: string;
+  projectId: string;
+  targetClusterId: string;
+  image: string;
+  imageTag?: string;
+  environment: string;
+  namespace: string;
+  replicaCount: number;
+  deploymentStrategy: string;
+  commitSha?: string;
+  author?: string;
+};
+
+export type UpdateDeploymentRequest = {
+  targetClusterId?: string;
+  image?: string;
+  imageTag?: string;
+  environment?: string;
+  namespace?: string;
+  replicaCount?: number;
+  deploymentStrategy?: string;
+  commitSha?: string;
+  author?: string;
 };
 
 export type DeploymentListResponse = {
@@ -49,6 +77,8 @@ export type DeploymentHistoryResponse = {
   replicaCount: number;
   deploymentStrategy: string;
   status: string;
+  commitSha?: string;
+  author?: string;
   changeSummary: string;
   triggeredBy: number;
   createdAt: string;

@@ -22,7 +22,9 @@ export const auditService = {
         ? `/projects/${scopeID}/audit-logs`
         : scope === "incident"
           ? `/incidents/${scopeID}/audit-logs`
-          : `/alerts/${scopeID}/audit-logs`;
+          : scope === "alert"
+            ? `/alerts/${scopeID}/audit-logs`
+            : `/deployments/${scopeID}/audit-logs`;
 
     const response = await api.get<APIResponse<AuditLogListResponse>>(endpoint, {
       params,

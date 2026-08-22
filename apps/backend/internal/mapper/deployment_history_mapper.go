@@ -20,6 +20,8 @@ func MapDeploymentHistory(history models.DeploymentHistory) dto.DeploymentHistor
 		ReplicaCount:       history.ReplicaCount,
 		DeploymentStrategy: history.DeploymentStrategy,
 		Status:             history.Status,
+		CommitSHA:          history.CommitSHA,
+		Author:             history.Author,
 		ChangeSummary:      history.ChangeSummary,
 		TriggeredBy:        history.TriggeredBy,
 		CreatedAt:          history.CreatedAt,

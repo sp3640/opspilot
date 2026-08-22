@@ -21,6 +21,8 @@ type DeploymentHistory struct {
 	ReplicaCount       int         `json:"replica_count" gorm:"not null;check:chk_deployment_history_replica_count,replica_count > 0"`
 	DeploymentStrategy string      `json:"deployment_strategy" gorm:"size:64;not null"`
 	Status             string      `json:"status" gorm:"size:32;not null;index:idx_deployment_history_status"`
+	CommitSHA          *string     `json:"commit_sha,omitempty" gorm:"size:64"`
+	Author             *string     `json:"author,omitempty" gorm:"size:255"`
 	ChangeSummary      string      `json:"change_summary" gorm:"size:500;not null"`
 	TriggeredBy        uint        `json:"triggered_by" gorm:"not null;index:idx_deployment_history_triggered_by"`
 	CreatedAt          time.Time   `json:"created_at" gorm:"index:idx_deployment_history_created_at"`

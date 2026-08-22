@@ -49,6 +49,8 @@ func (s *DeploymentHistoryService) CreateHistoryFromDeployment(deployment *model
 		ReplicaCount:       deployment.ReplicaCount,
 		DeploymentStrategy: deployment.DeploymentStrategy,
 		Status:             deployment.Status,
+		CommitSHA:          deployment.CommitSHA,
+		Author:             deployment.Author,
 		ChangeSummary:      changeSummary,
 		TriggeredBy:        triggeredBy,
 	}

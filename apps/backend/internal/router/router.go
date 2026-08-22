@@ -240,6 +240,7 @@ func RegisterRoutes(
 			deployments.GET("", deploymentHandler.List)
 			deployments.GET("/:id/history", deploymentHistoryHandler.ListByDeployment)
 			deployments.GET("/:id/history/:revision", deploymentHistoryHandler.GetRevision)
+			deployments.GET("/:id/audit-logs", deploymentHandler.GetAuditLogs)
 			deployments.GET("/:id", deploymentHandler.GetByID)
 			deployments.PATCH("/:id", deploymentHandler.Update)
 			deployments.DELETE("/:id", deploymentHandler.Delete)

@@ -1,25 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, Ban, ClipboardList, RotateCcw, Rocket, type LucideIcon, X } from "lucide-react";
+import { Activity, ClipboardList, HeartPulse, Pencil, Rocket, ShieldCheck, Trash2, type LucideIcon, X } from "lucide-react";
 
 import { StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
+import { useCluster } from "@/hooks/use-clusters";
+import { useRuntimeDeploymentsByApplication } from "@/hooks/use-runtime-deployments";
+import { formatDuration } from "@/lib/alert-correlation";
+import { matchRuntimeDeployment } from "@/lib/deployment-replica-state";
 import { useHasPermission } from "@/store/auth-store";
 import type { DeploymentResponse } from "@/types/deployment-api";
 
-import { DeploymentCancel } from "./deployment-cancel";
+import { DeleteDeploymentDialog } from "./delete-deployment-dialog";
+import { DeploymentHealthCorrelation } from "./deployment-health-correlation";
 import { DeploymentHistory } from "./deployment-history";
-import { DeploymentRollback } from "./deployment-rollback";
+import { DeploymentRemediation } from "./deployment-remediation";
+import { EditDeploymentModal } from "./edit-deployment-modal";
 
 const allTabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Overview", icon: Activity },
+  { label: "Health Correlation", icon: HeartPulse },
   { label: "History", icon: ClipboardList },
-  { label: "Rollback", icon: RotateCcw },
-  { label: "Cancel", icon: Ban },
+  { label: "Remediation", icon: ShieldCheck },
 ];
 
-/** Right-side deployment context. Only Overview renders real content today. */
+/** Right-side deployment context: version/commit/author, environment, cluster, replica state, history, health correlation, and authorized remediation actions. */
 export function DeploymentDetailsDrawer({
   deployment,
   open,
@@ -30,20 +36,34 @@ export function DeploymentDetailsDrawer({
   onClose: () => void;
 }) {
   const canManageDeployments = useHasPermission("deployment:manage");
-  const tabs = canManageDeployments ? allTabs : allTabs.filter((tab) => tab.label !== "Rollback" && tab.label !== "Cancel");
+  const tabs = allTabs;
   const [activeTab, setActiveTab] = useState("Overview");
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const { data: cluster } = useCluster(deployment?.targetClusterId ?? null);
+  const { data: runtimeData } = useRuntimeDeploymentsByApplication(
+    deployment?.applicationId ?? null,
+    { namespace: deployment?.namespace ?? "" },
+    Boolean(deployment?.applicationId && deployment?.namespace)
+  );
+  const runtimeMatch = deployment ? matchRuntimeDeployment(deployment, runtimeData?.items ?? []) : null;
 
   useEffect(() => {
     setActiveTab("Overview");
+    setEditModalOpen(false);
+    setDeleteDialogOpen(false);
   }, [deployment?.id]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (editModalOpen || deleteDialogOpen) return;
+      onClose();
     };
     if (open) window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [open, onClose]);
+  }, [open, onClose, editModalOpen, deleteDialogOpen]);
 
   if (!open || !deployment) return null;
 
@@ -55,21 +75,25 @@ export function DeploymentDetailsDrawer({
   const overviewStats = [
     { label: "Image", value: deployment.image },
     { label: "Image tag", value: deployment.imageTag || "-" },
+    { label: "Commit", value: deployment.commitSha || "Not available" },
+    { label: "Author", value: deployment.author || "Not available" },
     { label: "Status", value: deployment.status },
     { label: "Environment", value: deployment.environment || "-" },
-    { label: "Target cluster", value: deployment.targetClusterId },
+    { label: "Cluster", value: cluster?.name ?? deployment.targetClusterId },
+    { label: "Namespace", value: deployment.namespace || "-" },
     { label: "Started", value: formatDateTime(deployment.startedAt) },
     { label: "Completed", value: formatDateTime(deployment.completedAt) },
-    { label: "Created", value: formatDate(deployment.createdAt) },
-    { label: "Updated", value: formatDate(deployment.updatedAt) },
+    {
+      label: "Duration",
+      value: deployment.startedAt ? formatDuration(deployment.startedAt, deployment.completedAt) : "-",
+    },
+    {
+      label: "Replica state",
+      value: runtimeMatch
+        ? `${runtimeMatch.readyReplicas}/${runtimeMatch.replicas} ready, ${runtimeMatch.availableReplicas} available`
+        : "Not available",
+    },
   ];
-
-  const placeholderMessage =
-    activeTab === "History"
-      ? "Deployment history will be implemented next."
-      : activeTab === "Rollback"
-        ? "Rollback functionality will be implemented next."
-        : "Deployment cancellation will be implemented next.";
 
   return (
     <div
@@ -104,15 +128,41 @@ export function DeploymentDetailsDrawer({
                 </p>
               </div>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-              className="h-9 w-9 rounded-xl p-0"
-              aria-label="Close deployment details"
-            >
-              <X aria-hidden="true" className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {canManageDeployments ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setEditModalOpen(true)}
+                    className="px-3"
+                    aria-label="Edit deployment"
+                  >
+                    <Pencil aria-hidden="true" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="px-3 text-[var(--danger)]"
+                    aria-label="Delete deployment"
+                  >
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </Button>
+                </>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onClose}
+                className="h-9 w-9 rounded-xl p-0"
+                aria-label="Close deployment details"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="mt-5 flex gap-2">
             <StatusBadge variant={getStatusVariant(deployment.status)}>{deployment.status}</StatusBadge>
@@ -200,22 +250,23 @@ export function DeploymentDetailsDrawer({
                 </div>
               ))}
             </dl>
+          ) : activeTab === "Health Correlation" ? (
+            <DeploymentHealthCorrelation deployment={deployment} />
           ) : activeTab === "History" ? (
             <DeploymentHistory deploymentId={deployment.id} />
-          ) : activeTab === "Rollback" ? (
-            <DeploymentRollback deployment={deployment} />
-          ) : activeTab === "Cancel" ? (
-            <DeploymentCancel deployment={deployment} />
           ) : (
-            <div
-              className="flex min-h-56 items-center justify-center rounded-2xl border p-6 text-center text-sm"
-              style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
-            >
-              {placeholderMessage}
-            </div>
+            <DeploymentRemediation deployment={deployment} />
           )}
         </div>
       </aside>
+
+      <EditDeploymentModal open={editModalOpen} deployment={deployment} onClose={() => setEditModalOpen(false)} />
+      <DeleteDeploymentDialog
+        open={deleteDialogOpen}
+        deployment={deployment}
+        onClose={() => setDeleteDialogOpen(false)}
+        onSuccess={onClose}
+      />
     </div>
   );
 }
@@ -239,10 +290,6 @@ function getStatusVariant(status: string): "success" | "warning" | "critical" | 
     default:
       return "info";
   }
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString();
 }
 
 function formatDateTime(value?: string) {

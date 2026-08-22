@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/logger"
 	"github.com/sp3640/opspilot/backend/internal/mapper"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
@@ -31,6 +34,7 @@ type DeploymentService struct {
 	clusterRepo     *repository.ClusterRepository
 	historyService  *DeploymentHistoryService
 	executor        DeploymentExecutor
+	auditService    *AuditService
 }
 
 func NewDeploymentService(
@@ -51,6 +55,11 @@ func NewDeploymentService(
 
 func (s *DeploymentService) WithExecutor(executor DeploymentExecutor) *DeploymentService {
 	s.executor = executor
+	return s
+}
+
+func (s *DeploymentService) WithAuditService(auditService *AuditService) *DeploymentService {
+	s.auditService = auditService
 	return s
 }
 
@@ -128,6 +137,8 @@ func (s *DeploymentService) CreateDeployment(ctx context.Context, organizationID
 		Status:             constants.DeploymentStatusPending,
 		DeploymentStrategy: strategy,
 		TargetClusterID:    clusterID,
+		CommitSHA:          normalizeOptionalString(req.CommitSHA),
+		Author:             normalizeOptionalString(req.Author),
 		CreatedBy:          userID,
 		UpdatedBy:          userID,
 	}
@@ -208,6 +219,12 @@ func (s *DeploymentService) UpdateDeployment(ctx context.Context, id, organizati
 		}
 		deployment.TargetClusterID = clusterID
 	}
+	if req.CommitSHA != nil {
+		deployment.CommitSHA = normalizeOptionalString(req.CommitSHA)
+	}
+	if req.Author != nil {
+		deployment.Author = normalizeOptionalString(req.Author)
+	}
 
 	deployment.UpdatedBy = userID
 	if err := s.repo.Update(deployment); err != nil {
@@ -222,11 +239,11 @@ func (s *DeploymentService) UpdateDeployment(ctx context.Context, id, organizati
 }
 
 func (s *DeploymentService) CancelDeployment(ctx context.Context, id, organizationID uuid.UUID, userID uint) (*dto.DeploymentResponse, error) {
-	_ = ctx
 	deployment, err := s.getOwnedDeployment(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
+	previousStatus := deployment.Status
 
 	completedAt := time.Now().UTC()
 	if err := s.repo.UpdateStatus(deployment.ID, organizationID, constants.DeploymentStatusCancelled, nil, &completedAt, userID); err != nil {
@@ -239,6 +256,11 @@ func (s *DeploymentService) CancelDeployment(ctx context.Context, id, organizati
 	if err := s.historyService.CreateHistoryFromDeployment(deployment, "Deployment cancelled", userID); err != nil {
 		return nil, err
 	}
+	// Cancel never touches the live cluster (there is no "stop a running
+	// apply" primitive to reuse) - this audit entry records the DB-level
+	// action taken, same as the executor's own status-change entries do.
+	s.logAuditBestEffort(ctx, deployment, userID, "status", previousStatus, constants.DeploymentStatusCancelled)
+
 	response := mapper.MapDeployment(*deployment)
 	return &response, nil
 }
@@ -376,8 +398,6 @@ func (s *DeploymentService) GetLatestDeployment(applicationID, organizationID uu
 }
 
 func (s *DeploymentService) RollbackDeployment(ctx context.Context, id, organizationID uuid.UUID, userID uint, revision int) (*dto.RollbackDeploymentResponse, error) {
-	_ = ctx
-
 	deployment, sourceHistory, latestRevision, err := s.ValidateRollback(id, organizationID, revision)
 	if err != nil {
 		return nil, err
@@ -385,6 +405,18 @@ func (s *DeploymentService) RollbackDeployment(ctx context.Context, id, organiza
 
 	if err := s.RollbackToRevision(deployment, sourceHistory, userID); err != nil {
 		return nil, err
+	}
+	s.logAuditBestEffort(ctx, deployment, userID, "revision", strconv.Itoa(latestRevision), fmt.Sprintf("rolled back to revision %d", sourceHistory.Revision))
+
+	// Reuse the same executor Create already uses, so a rollback genuinely
+	// re-applies the restored configuration to the live cluster rather than
+	// only resetting the database record.
+	if s.executor != nil {
+		executedDeployment, err := s.executor.ExecuteDeployment(ctx, deployment.ID, organizationID, userID)
+		if err != nil {
+			return nil, err
+		}
+		deployment = executedDeployment
 	}
 
 	response := mapper.MapDeployment(*deployment)
@@ -402,6 +434,8 @@ func (s *DeploymentService) RollbackToRevision(deployment *models.Deployment, so
 	deployment.Namespace = sourceHistory.Namespace
 	deployment.Environment = sourceHistory.Environment
 	deployment.DeploymentStrategy = sourceHistory.DeploymentStrategy
+	deployment.CommitSHA = sourceHistory.CommitSHA
+	deployment.Author = sourceHistory.Author
 	deployment.Status = constants.DeploymentStatusPending
 	deployment.StartedAt = nil
 	deployment.CompletedAt = nil
@@ -471,6 +505,54 @@ func (s *DeploymentService) getOwnedDeployment(id, organizationID uuid.UUID) (*m
 	return nil, err
 }
 
+// ListAuditLogs returns the deployment's generic audit trail (the same
+// AuditLog infrastructure Incidents/Alerts/Projects already use), covering
+// every remediation action recorded against it: status changes made by the
+// executor (create/rollback execution) and the explicit entries Cancel/
+// Rollback write directly. Read-only, so no additional permission beyond
+// organization membership + deployment ownership is required.
+func (s *DeploymentService) ListAuditLogs(organizationID, id uuid.UUID, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	if _, err := s.getOwnedDeployment(id, organizationID); err != nil {
+		return nil, err
+	}
+	if s.auditService == nil {
+		return &models.PaginationResponse{Page: req.Page, Limit: req.Limit, Items: []models.AuditLog{}}, nil
+	}
+
+	return s.auditService.ListEntityAuditLogs(organizationID, "deployment", id.String(), req)
+}
+
+// logAuditBestEffort records a remediation action in the generic audit log.
+// Best-effort: a logging failure is recorded but never fails the
+// remediation action itself, matching the executor's own
+// logStatusAuditBestEffort convention.
+func (s *DeploymentService) logAuditBestEffort(ctx context.Context, deployment *models.Deployment, userID uint, fieldName, oldValue, newValue string) {
+	if s.auditService == nil {
+		return
+	}
+
+	if err := s.auditService.LogUpdate(
+		userID,
+		deployment.OrganizationID,
+		"deployment",
+		deployment.ID.String(),
+		&deployment.ProjectID,
+		nil,
+		fieldName,
+		oldValue,
+		newValue,
+	); err != nil {
+		logger.Error(
+			ctx,
+			"audit logging failed",
+			slog.String("operation", "update"),
+			slog.String("entity_type", "deployment"),
+			slog.String("entity_id", deployment.ID.String()),
+			slog.Any("error", err),
+		)
+	}
+}
+
 func toDeploymentListResponse(items []models.Deployment, total int64, req *models.PaginationRequest) *dto.DeploymentListResponse {
 	totalPages := int((total + int64(req.Limit) - 1) / int64(req.Limit))
 	return &dto.DeploymentListResponse{
@@ -480,6 +562,22 @@ func toDeploymentListResponse(items []models.Deployment, total int64, req *model
 		Total:      total,
 		TotalPages: totalPages,
 	}
+}
+
+// normalizeOptionalString trims value and returns nil for an absent or
+// blank input, so "not available" is represented uniformly as nil rather
+// than as an empty string in the database.
+func normalizeOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+
+	return &trimmed
 }
 
 func isValidNamespace(namespace string) bool {

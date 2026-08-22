@@ -280,7 +280,7 @@ export function ApplicationDetailsDrawer({
           ) : activeTab === "Teams" ? (
             <ApplicationTeams applicationId={application.id} />
           ) : activeTab === "Deployments" ? (
-            <ApplicationDeployments applicationId={application.id} />
+            <ApplicationDeployments applicationId={application.id} projectId={application.projectId} />
           ) : activeTab === "Pods" ? (
             <ApplicationPods applicationId={application.id} />
           ) : activeTab === "Logs" ? (

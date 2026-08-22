@@ -191,6 +191,23 @@ func TestDeploymentRollbackIntegration(t *testing.T) {
 		t.Fatalf("expected rollback revision config copied from source revision")
 	}
 
+	// Rollback must leave a real audit trail (Phase 20: every remediation
+	// action creates an audit event), independent of whether an executor is
+	// wired to actually re-apply the change to a cluster.
+	auditRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/deployments/"+deploymentID.String()+"/audit-logs", adminToken, nil)
+	assertStatus(t, auditRec, http.StatusOK)
+	auditItems := decodeHistoryItemsForRollback(t, auditRec)
+	foundRollbackAudit := false
+	for _, item := range auditItems {
+		if item["entity_type"] == "deployment" && item["field_name"] == "revision" {
+			foundRollbackAudit = true
+			break
+		}
+	}
+	if !foundRollbackAudit {
+		t.Fatalf("expected a deployment audit log entry recording the rollback, got %v", auditItems)
+	}
+
 	deleteRec := doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/deployments/"+deploymentID.String(), adminToken, nil)
 	assertStatus(t, deleteRec, http.StatusOK)
 	deletedRollbackRec := doJSONRequest(t, app.router, http.MethodPost, "/api/v1/deployments/"+deploymentID.String()+"/rollback", adminToken, map[string]any{"revision": 1})

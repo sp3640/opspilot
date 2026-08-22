@@ -22,7 +22,7 @@ func (r *DeploymentRepository) Create(deployment *models.Deployment) error {
 
 func (r *DeploymentRepository) Update(deployment *models.Deployment) error {
 	return r.db.Model(deployment).
-		Select("Image", "ImageTag", "Environment", "Namespace", "ReplicaCount", "DeploymentStrategy", "TargetClusterID", "UpdatedBy", "UpdatedAt").
+		Select("Image", "ImageTag", "Environment", "Namespace", "ReplicaCount", "DeploymentStrategy", "TargetClusterID", "CommitSHA", "Author", "UpdatedBy", "UpdatedAt").
 		Updates(deployment).Error
 }
 
@@ -103,6 +103,8 @@ func (r *DeploymentRepository) ApplyRollback(deployment *models.Deployment) erro
 			"replica_count":       deployment.ReplicaCount,
 			"deployment_strategy": deployment.DeploymentStrategy,
 			"status":              deployment.Status,
+			"commit_sha":          deployment.CommitSHA,
+			"author":              deployment.Author,
 			"started_at":          nil,
 			"completed_at":        nil,
 			"updated_by":          deployment.UpdatedBy,

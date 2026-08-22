@@ -58,6 +58,8 @@ func TestDeploymentHistoryIntegration(t *testing.T) {
 		"namespace":          "history-app",
 		"replicaCount":       2,
 		"deploymentStrategy": constants.DeploymentStrategyRollingUpdate,
+		"commitSha":          "aaa1111",
+		"author":             "Original Author",
 	})
 	assertStatus(t, createRec, http.StatusCreated)
 	deploymentID, err := uuid.Parse(decodeDataMap(t, createRec)["id"].(string))
@@ -77,10 +79,15 @@ func TestDeploymentHistoryIntegration(t *testing.T) {
 	if initialHistory[0]["changeSummary"].(string) != "Deployment created" {
 		t.Fatalf("expected creation summary")
 	}
+	if initialHistory[0]["commitSha"].(string) != "aaa1111" {
+		t.Fatalf("expected revision 1 to snapshot the deployment's commitSha, got %v", initialHistory[0]["commitSha"])
+	}
 
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodPatch, "/api/v1/deployments/"+deploymentID.String(), adminToken, map[string]any{
 		"imageTag":     "v1.0.1",
 		"replicaCount": 4,
+		"commitSha":    "bbb2222",
+		"author":       "Updated Author",
 	}), http.StatusOK)
 
 	if _, err := app.deploymentService.UpdateDeploymentStatus(context.Background(), deploymentID, organizationID, admin.ID, constants.DeploymentStatusSucceeded); err != nil {
@@ -134,6 +141,12 @@ func TestDeploymentHistoryIntegration(t *testing.T) {
 	}
 	if revisionTwo["changeSummary"].(string) != "Deployment updated" {
 		t.Fatalf("expected revision 2 summary to reflect update")
+	}
+	if revisionTwo["commitSha"].(string) != "bbb2222" {
+		t.Fatalf("expected revision 2 to snapshot the updated commitSha, got %v", revisionTwo["commitSha"])
+	}
+	if revisionTwo["author"].(string) != "Updated Author" {
+		t.Fatalf("expected revision 2 to snapshot the updated author, got %v", revisionTwo["author"])
 	}
 
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/deployments/"+deploymentID.String()+"/history/999", adminToken, nil), http.StatusNotFound)

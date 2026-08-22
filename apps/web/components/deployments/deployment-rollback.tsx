@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RotateCcw, XCircle } from "lucide-react";
 
 import { EmptyState, ErrorState, ListSkeleton } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { useDeploymentHistory, useRollbackDeployment } from "@/hooks/use-deployments";
-import type { DeploymentResponse } from "@/types/deployment-api";
+import type { DeploymentResponse, RollbackDeploymentResponse } from "@/types/deployment-api";
 
 export function DeploymentRollback({ deployment }: { deployment: DeploymentResponse }) {
   const { data, error, isError, isLoading, refetch } = useDeploymentHistory(deployment.id);
@@ -14,8 +14,13 @@ export function DeploymentRollback({ deployment }: { deployment: DeploymentRespo
 
   const [confirmed, setConfirmed] = useState(false);
   const [revision, setRevision] = useState<number | null>(null);
+  const [result, setResult] = useState<RollbackDeploymentResponse | null>(null);
 
   const revisions = data?.items ?? [];
+
+  useEffect(() => {
+    setResult(null);
+  }, [deployment.id]);
 
   useEffect(() => {
     const first = revisions[0];
@@ -52,8 +57,12 @@ export function DeploymentRollback({ deployment }: { deployment: DeploymentRespo
   const handleRollback = async () => {
     if (revision === null) return;
     try {
-      await rollback.mutateAsync({ id: deployment.id, revision });
+      const response = await rollback.mutateAsync({ id: deployment.id, revision });
       setConfirmed(false);
+      // Verify the result: the executor (when configured for the target
+      // cluster) runs synchronously within this same request, so the
+      // response already reflects the real outcome - no extra fetch needed.
+      setResult(response);
     } catch {
       // Error is surfaced via the mutation's error toast.
     }
@@ -78,6 +87,29 @@ export function DeploymentRollback({ deployment }: { deployment: DeploymentRespo
           running environment and cannot be undone automatically.
         </p>
       </div>
+
+      {result ? (
+        <div
+          className="flex items-start gap-3 rounded-2xl border p-4 text-sm"
+          style={
+            result.deployment.status === "Succeeded"
+              ? { backgroundColor: "color-mix(in srgb, var(--success) 12%, transparent)", borderColor: "var(--success)", color: "var(--success)" }
+              : result.deployment.status === "Failed"
+                ? { backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)", borderColor: "var(--danger)", color: "var(--danger)" }
+                : { backgroundColor: "color-mix(in srgb, var(--muted) 45%, transparent)", borderColor: "var(--border)", color: "var(--foreground)" }
+          }
+        >
+          {result.deployment.status === "Succeeded" ? (
+            <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          ) : result.deployment.status === "Failed" ? (
+            <XCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
+          ) : null}
+          <p className="leading-6">
+            Verified: rolled back to revision {result.rollbackSourceRevision} (new revision {result.currentRevision}) —
+            deployment status is now <strong>{result.deployment.status}</strong>.
+          </p>
+        </div>
+      ) : null}
 
       <dl className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", backgroundColor: "color-mix(in srgb, var(--muted) 45%, transparent)" }}>

@@ -12,7 +12,9 @@ import { useCluster } from "@/hooks/use-clusters";
 import { useLatestDeployment } from "@/hooks/use-deployments";
 import { useIncidents } from "@/hooks/use-incidents";
 import { usePodsByApplication } from "@/hooks/use-pods";
+import { useRuntimeDeploymentsByApplication } from "@/hooks/use-runtime-deployments";
 import { PAGINATION_MAX_PAGE_SIZE } from "@/lib/constants/pagination";
+import { matchRuntimeDeployment } from "@/lib/deployment-replica-state";
 import type { PodResponse } from "@/types/pod-api";
 
 const ACTIVE_INCIDENT_STATUSES = ["OPEN", "INVESTIGATING"];
@@ -36,7 +38,10 @@ const HEALTH_METRIC_FIELDS: ReadonlyArray<{ key: "availability" | "errorRate" | 
  * requires touching this component.
  *
  * Below the health summary, "Runtime" connects the chain this data comes
- * from: Application -> Deployment -> Cluster -> Namespace -> Pods.
+ * from: Application -> Deployment -> Cluster -> Namespace -> Pods, plus
+ * real replica state (ready/available) matched from the live k8s Deployment
+ * object via matchRuntimeDeployment - "Not available" when no confident
+ * match exists, never a guess.
  */
 export function ApplicationHealth({
   applicationId,
@@ -87,6 +92,13 @@ export function ApplicationHealth({
   ).length;
 
   const { data: healthMetrics } = useApplicationHealthMetrics(applicationId);
+
+  const { data: runtimeData } = useRuntimeDeploymentsByApplication(
+    applicationId,
+    { namespace: deployment?.namespace ?? "" },
+    Boolean(deployment?.namespace)
+  );
+  const runtimeMatch = deployment ? matchRuntimeDeployment(deployment, runtimeData?.items ?? []) : null;
 
   return (
     <div className="space-y-6">
@@ -250,6 +262,15 @@ export function ApplicationHealth({
                     <span className="font-semibold">{pods.length} pod{pods.length === 1 ? "" : "s"}</span>
                     <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{podHealth.breakdown}</span>
                   </div>
+                )}
+              </HealthStat>
+              <HealthStat label="Replica state">
+                {runtimeMatch ? (
+                  <span className="font-semibold">
+                    {runtimeMatch.readyReplicas}/{runtimeMatch.replicas} ready, {runtimeMatch.availableReplicas} available
+                  </span>
+                ) : (
+                  <NotAvailable label="Not available" />
                 )}
               </HealthStat>
             </dl>

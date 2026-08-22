@@ -3,15 +3,17 @@ package dto
 import "time"
 
 type CreateDeploymentRequest struct {
-	ApplicationID      string `json:"applicationId" binding:"required,uuid"`
-	ProjectID          string `json:"projectId" binding:"required,uuid"`
-	TargetClusterID    string `json:"targetClusterId" binding:"required,uuid"`
-	Image              string `json:"image" binding:"required,max=500"`
-	ImageTag           string `json:"imageTag" binding:"omitempty,max=128"`
-	Environment        string `json:"environment" binding:"required,max=32"`
-	Namespace          string `json:"namespace" binding:"required,max=63"`
-	ReplicaCount       int    `json:"replicaCount" binding:"required"`
-	DeploymentStrategy string `json:"deploymentStrategy" binding:"required,max=64"`
+	ApplicationID      string  `json:"applicationId" binding:"required,uuid"`
+	ProjectID          string  `json:"projectId" binding:"required,uuid"`
+	TargetClusterID    string  `json:"targetClusterId" binding:"required,uuid"`
+	Image              string  `json:"image" binding:"required,max=500"`
+	ImageTag           string  `json:"imageTag" binding:"omitempty,max=128"`
+	Environment        string  `json:"environment" binding:"required,max=32"`
+	Namespace          string  `json:"namespace" binding:"required,max=63"`
+	ReplicaCount       int     `json:"replicaCount" binding:"required"`
+	DeploymentStrategy string  `json:"deploymentStrategy" binding:"required,max=64"`
+	CommitSHA          *string `json:"commitSha" binding:"omitempty,max=64"`
+	Author             *string `json:"author" binding:"omitempty,max=255"`
 }
 
 type UpdateDeploymentRequest struct {
@@ -22,6 +24,8 @@ type UpdateDeploymentRequest struct {
 	Namespace          *string `json:"namespace" binding:"omitempty,max=63"`
 	ReplicaCount       *int    `json:"replicaCount" binding:"omitempty"`
 	DeploymentStrategy *string `json:"deploymentStrategy" binding:"omitempty,max=64"`
+	CommitSHA          *string `json:"commitSha" binding:"omitempty,max=64"`
+	Author             *string `json:"author" binding:"omitempty,max=255"`
 }
 
 type RollbackDeploymentRequest struct {
@@ -41,6 +45,8 @@ type DeploymentResponse struct {
 	Status             string     `json:"status"`
 	DeploymentStrategy string     `json:"deploymentStrategy"`
 	TargetClusterID    string     `json:"targetClusterId"`
+	CommitSHA          *string    `json:"commitSha,omitempty"`
+	Author             *string    `json:"author,omitempty"`
 	CreatedBy          uint       `json:"createdBy"`
 	UpdatedBy          uint       `json:"updatedBy"`
 	StartedAt          *time.Time `json:"startedAt,omitempty"`
