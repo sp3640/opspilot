@@ -105,9 +105,13 @@ func (r *IncidentRepository) ListByOrganizationID(req *models.PaginationRequest,
 	return incidents, total, nil
 }
 
-// Update writes the incident's non-zero fields and updates its UpdatedAt timestamp.
+// Update writes every field of incident, including zero values - callers
+// pass a fully-loaded-then-mutated incident (a full replace), and fields
+// like ApplicationID/OwnerTeamID/ResolvedAt must be clearable to nil, which
+// GORM's default Updates(struct) skips (it treats a nil pointer as "no
+// change" unless every field is explicitly selected).
 func (r *IncidentRepository) Update(incident *models.Incident) error {
-	return r.db.Model(incident).Updates(incident).Error
+	return r.db.Model(incident).Select("*").Updates(incident).Error
 }
 
 func (r *IncidentRepository) Delete(id uint, organizationID uuid.UUID) error {

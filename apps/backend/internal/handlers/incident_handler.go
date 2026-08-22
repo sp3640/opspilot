@@ -46,20 +46,13 @@ func (h *IncidentHandler) Create(c *gin.Context) {
 		req.Severity,
 		req.Status,
 		req.ProjectID,
+		req.ApplicationID,
+		req.OwnerTeamID,
 		userID,
 		organizationID,
 	)
 	if err != nil {
-		switch err {
-		case apperrors.ErrInvalidSeverity:
-			response.Error(c, http.StatusBadRequest, err.Error())
-		case apperrors.ErrInvalidStatus:
-			response.Error(c, http.StatusBadRequest, err.Error())
-		case apperrors.ErrInvalidProject:
-			response.Error(c, http.StatusForbidden, err.Error())
-		default:
-			response.InternalServerError(c, err)
-		}
+		h.handleServiceError(c, err)
 		return
 	}
 
@@ -113,14 +106,7 @@ func (h *IncidentHandler) GetByID(c *gin.Context) {
 
 	incident, err := h.service.GetIncidentByID(uint(incidentID), organizationID)
 	if err != nil {
-		switch err {
-		case apperrors.ErrIncidentNotFound:
-			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
-		case apperrors.ErrProjectForbidden:
-			response.Error(c, http.StatusForbidden, err.Error())
-		default:
-			response.InternalServerError(c, err)
-		}
+		h.handleServiceError(c, err)
 		return
 	}
 
@@ -160,22 +146,11 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 		req.Severity,
 		req.Status,
 		req.ProjectID,
+		req.ApplicationID,
+		req.OwnerTeamID,
 	)
 	if err != nil {
-		switch err {
-		case apperrors.ErrIncidentNotFound:
-			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
-		case apperrors.ErrProjectForbidden:
-			response.Error(c, http.StatusForbidden, err.Error())
-		case apperrors.ErrInvalidSeverity:
-			response.Error(c, http.StatusBadRequest, err.Error())
-		case apperrors.ErrInvalidStatus:
-			response.Error(c, http.StatusBadRequest, err.Error())
-		case apperrors.ErrInvalidProject:
-			response.Error(c, http.StatusForbidden, err.Error())
-		default:
-			response.InternalServerError(c, err)
-		}
+		h.handleServiceError(c, err)
 		return
 	}
 
@@ -201,16 +176,26 @@ func (h *IncidentHandler) Delete(c *gin.Context) {
 
 	err = h.service.DeleteIncident(c.Request.Context(), uint(incidentID), userID, organizationID)
 	if err != nil {
-		switch err {
-		case apperrors.ErrIncidentNotFound:
-			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
-		case apperrors.ErrProjectForbidden:
-			response.Error(c, http.StatusForbidden, err.Error())
-		default:
-			response.InternalServerError(c, err)
-		}
+		h.handleServiceError(c, err)
 		return
 	}
 
 	response.OK(c, "Incident deleted successfully", nil)
+}
+
+func (h *IncidentHandler) handleServiceError(c *gin.Context, err error) {
+	switch err {
+	case apperrors.ErrIncidentNotFound:
+		response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
+	case apperrors.ErrProjectForbidden, apperrors.ErrInvalidProject:
+		response.Error(c, http.StatusForbidden, err.Error())
+	case apperrors.ErrInvalidSeverity, apperrors.ErrInvalidStatus:
+		response.Error(c, http.StatusBadRequest, err.Error())
+	case apperrors.ErrIncidentApplicationNotFound, apperrors.ErrIncidentOwnerTeamNotFound:
+		response.Error(c, http.StatusBadRequest, err.Error())
+	case apperrors.ErrIncidentApplicationMismatch:
+		response.Error(c, http.StatusBadRequest, err.Error())
+	default:
+		response.InternalServerError(c, err)
+	}
 }

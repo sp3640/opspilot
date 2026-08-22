@@ -22,7 +22,7 @@ export type AuditLogListResponse = {
   totalPages: number;
 };
 
-export type AuditScope = "project" | "incident";
+export type AuditScope = "project" | "incident" | "alert";
 
 export type AuditQueryParams = {
   page?: number;

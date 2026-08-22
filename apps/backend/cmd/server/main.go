@@ -161,7 +161,9 @@ func run() error {
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo)
-	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
+	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService).
+		WithApplicationRepo(applicationRepo).
+		WithTeamRepo(teamRepo)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterCredentialCipher, err := security.NewClusterCredentialCipher(cfg.ClusterCredentialEncryptionKey)
 	if err != nil {
@@ -210,7 +212,7 @@ func run() error {
 		auditService,
 	)
 	discoveryBootstrap := bootstrap.NewDiscoveryBootstrap(0, 1, discoveryWorker, kubernetesProviderFactory)
-	metricsBootstrap := bootstrap.NewMetricsBootstrap(nil, metricService, 0)
+	metricsBootstrap := bootstrap.NewMetricsBootstrap(nil, metricService, 0).WithAlertReconciler(alertService)
 	runtimeBootstrap := bootstrap.NewRuntime(bootstrap.RuntimeDependencies{
 		Catalog:            runtimeClusterCatalog,
 		DiscoveryBootstrap: discoveryBootstrap,

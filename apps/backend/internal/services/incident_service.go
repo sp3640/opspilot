@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -16,10 +17,12 @@ import (
 )
 
 type IncidentService struct {
-	repo         *repository.IncidentRepository
-	commentRepo  *repository.CommentRepository
-	auditStorage *repository.AuditRepository
-	auditRepo    *AuditService
+	repo            *repository.IncidentRepository
+	commentRepo     *repository.CommentRepository
+	auditStorage    *repository.AuditRepository
+	auditRepo       *AuditService
+	applicationRepo *repository.ApplicationRepository
+	teamRepo        *repository.TeamRepository
 }
 
 func NewIncidentService(
@@ -36,8 +39,72 @@ func NewIncidentService(
 	}
 }
 
+// WithApplicationRepo enables validating/resolving Incident.ApplicationID
+// (the affected application). Optional: without it, an incident simply
+// cannot be linked to an application.
+func (s *IncidentService) WithApplicationRepo(applicationRepo *repository.ApplicationRepository) *IncidentService {
+	s.applicationRepo = applicationRepo
+	return s
+}
+
+// WithTeamRepo enables validating/resolving Incident.OwnerTeamID.
+func (s *IncidentService) WithTeamRepo(teamRepo *repository.TeamRepository) *IncidentService {
+	s.teamRepo = teamRepo
+	return s
+}
+
+// resolveApplication validates that applicationID (if provided) exists,
+// belongs to organizationID, and belongs to the same project the incident
+// is (or will be) scoped to - an incident cannot claim to affect an
+// application from a different project.
+func (s *IncidentService) resolveApplication(applicationID *uuid.UUID, projectID, organizationID uuid.UUID) error {
+	if applicationID == nil {
+		return nil
+	}
+	if s.applicationRepo == nil {
+		return apperrors.ErrIncidentApplicationNotFound
+	}
+
+	application, err := s.applicationRepo.GetApplication(*applicationID, organizationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrIncidentApplicationNotFound
+		}
+		return err
+	}
+	if application.ProjectID != projectID {
+		return apperrors.ErrIncidentApplicationMismatch
+	}
+
+	return nil
+}
+
+// resolveOwnerTeam validates that ownerTeamID (if provided) exists and
+// belongs to organizationID.
+func (s *IncidentService) resolveOwnerTeam(ownerTeamID *uuid.UUID, organizationID uuid.UUID) error {
+	if ownerTeamID == nil {
+		return nil
+	}
+	if s.teamRepo == nil {
+		return apperrors.ErrIncidentOwnerTeamNotFound
+	}
+
+	team, err := s.teamRepo.GetByID(*ownerTeamID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrIncidentOwnerTeamNotFound
+		}
+		return err
+	}
+	if team.OrganizationID != organizationID {
+		return apperrors.ErrIncidentOwnerTeamNotFound
+	}
+
+	return nil
+}
+
 // CreateIncident persists a new incident and returns its DTO representation.
-func (s *IncidentService) CreateIncident(ctx context.Context, title, description, severity, status string, projectID uuid.UUID, userID uint, organizationID uuid.UUID) (*dto.IncidentResponse, error) {
+func (s *IncidentService) CreateIncident(ctx context.Context, title, description, severity, status string, projectID uuid.UUID, applicationID, ownerTeamID *uuid.UUID, userID uint, organizationID uuid.UUID) (*dto.IncidentResponse, error) {
 	if !isValidSeverity(severity) {
 		return nil, apperrors.ErrInvalidSeverity
 	}
@@ -53,6 +120,19 @@ func (s *IncidentService) CreateIncident(ctx context.Context, title, description
 		return nil, apperrors.ErrInvalidProject
 	}
 
+	if err := s.resolveApplication(applicationID, projectID, organizationID); err != nil {
+		return nil, err
+	}
+	if err := s.resolveOwnerTeam(ownerTeamID, organizationID); err != nil {
+		return nil, err
+	}
+
+	var resolvedAt *time.Time
+	if status == constants.StatusResolved {
+		now := time.Now()
+		resolvedAt = &now
+	}
+
 	incident := &models.Incident{
 		OrganizationID: organizationID,
 		Title:          title,
@@ -60,7 +140,10 @@ func (s *IncidentService) CreateIncident(ctx context.Context, title, description
 		Severity:       severity,
 		Status:         status,
 		ProjectID:      projectID,
+		ApplicationID:  applicationID,
+		OwnerTeamID:    ownerTeamID,
 		UserID:         userID,
+		ResolvedAt:     resolvedAt,
 	}
 
 	if err := s.repo.Create(incident); err != nil {
@@ -113,7 +196,7 @@ func (s *IncidentService) GetIncidentByID(id uint, organizationID uuid.UUID) (*d
 }
 
 // UpdateIncident applies changes and returns the updated DTO.
-func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, organizationID uuid.UUID, title, description, severity, status string, projectID uuid.UUID) (*dto.IncidentResponse, error) {
+func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, organizationID uuid.UUID, title, description, severity, status string, projectID uuid.UUID, applicationID, ownerTeamID *uuid.UUID) (*dto.IncidentResponse, error) {
 	incident, err := s.repo.GetByIDAndOrganizationID(id, organizationID)
 	if err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {
@@ -140,17 +223,37 @@ func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, o
 		return nil, apperrors.ErrInvalidProject
 	}
 
+	if err := s.resolveApplication(applicationID, projectID, organizationID); err != nil {
+		return nil, err
+	}
+	if err := s.resolveOwnerTeam(ownerTeamID, organizationID); err != nil {
+		return nil, err
+	}
+
 	previousTitle := incident.Title
 	previousDescription := incident.Description
 	previousSeverity := incident.Severity
 	previousStatus := incident.Status
 	previousProjectID := incident.ProjectID
+	previousApplicationID := incident.ApplicationID
+	previousOwnerTeamID := incident.OwnerTeamID
 
 	incident.Title = title
 	incident.Description = description
 	incident.Severity = severity
 	incident.Status = status
 	incident.ProjectID = projectID
+	incident.ApplicationID = applicationID
+	incident.OwnerTeamID = ownerTeamID
+
+	// ResolvedAt tracks the current status: set the moment it becomes
+	// RESOLVED, cleared the moment it moves to anything else (reopened).
+	if status == constants.StatusResolved && previousStatus != constants.StatusResolved {
+		now := time.Now()
+		incident.ResolvedAt = &now
+	} else if status != constants.StatusResolved {
+		incident.ResolvedAt = nil
+	}
 
 	if err := s.repo.Update(incident); err != nil {
 		return nil, err
@@ -180,6 +283,16 @@ func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, o
 		}
 		if previousProjectID != projectID {
 			if err := s.auditRepo.LogUpdate(userID, organizationID, "incident", entityIDStr, &projectID, nil, "project_id", previousProjectID.String(), projectID.String()); err != nil {
+				logAuditFailure(ctx, "update", "incident", incident.ID, err)
+			}
+		}
+		if !uuidPointerStringsEqual(previousApplicationID, applicationID) {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "incident", entityIDStr, &projectID, nil, "application_id", uuidPointerString(previousApplicationID), uuidPointerString(applicationID)); err != nil {
+				logAuditFailure(ctx, "update", "incident", incident.ID, err)
+			}
+		}
+		if !uuidPointerStringsEqual(previousOwnerTeamID, ownerTeamID) {
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "incident", entityIDStr, &projectID, nil, "owner_team_id", uuidPointerString(previousOwnerTeamID), uuidPointerString(ownerTeamID)); err != nil {
 				logAuditFailure(ctx, "update", "incident", incident.ID, err)
 			}
 		}
@@ -238,10 +351,5 @@ func isValidSeverity(severity string) bool {
 }
 
 func isValidStatus(status string) bool {
-	switch status {
-	case constants.StatusOpen, constants.StatusInvestigating, constants.StatusResolved:
-		return true
-	default:
-		return false
-	}
+	return constants.IsValidStatus(status)
 }

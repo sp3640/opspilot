@@ -3,15 +3,18 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/sp3640/opspilot/backend/internal/alerting"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	kubeintegration "github.com/sp3640/opspilot/backend/internal/integrations/kubernetes"
+	"github.com/sp3640/opspilot/backend/internal/logger"
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 )
 
@@ -21,11 +24,20 @@ type SnapshotStore interface {
 	StoreSnapshot(ctx context.Context, projectID uuid.UUID, userID uint, requests []dto.CreateMetricRequest) ([]dto.MetricResponse, error)
 }
 
+// AlertReconciler turns a batch of currently-firing conditions into Alert
+// rows (create/update/resolve/reopen as appropriate). Satisfied by
+// *services.AlertService's ReconcileConditions - kept as an interface here
+// so this package never needs to import internal/services.
+type AlertReconciler interface {
+	ReconcileConditions(ctx context.Context, projectID uuid.UUID, userID uint, source string, conditions []alerting.EvaluatedCondition) error
+}
+
 type MetricsBootstrap struct {
 	mu sync.RWMutex
 
 	registry *metrics.Registry
 	store    SnapshotStore
+	alerts   AlertReconciler
 
 	interval time.Duration
 
@@ -59,6 +71,14 @@ func NewMetricsBootstrap(registry *metrics.Registry, store SnapshotStore, interv
 		queue:      make(chan metricSnapshot, defaultSchedulerBufferSize),
 		collectors: make(map[string]RuntimeCluster),
 	}
+}
+
+func (m *MetricsBootstrap) WithAlertReconciler(reconciler AlertReconciler) *MetricsBootstrap {
+	if m != nil {
+		m.alerts = reconciler
+	}
+
+	return m
 }
 
 func (m *MetricsBootstrap) Registry() *metrics.Registry {
@@ -197,6 +217,17 @@ func (m *MetricsBootstrap) collectAndQueue(ctx context.Context) {
 		cluster, ok := m.clusterForCollector(snapshot.CollectorName)
 		if !ok {
 			continue
+		}
+
+		if m.alerts != nil {
+			conditions := alerting.Evaluate(alerting.EvaluateInput{
+				ClusterID:   cluster.ID.String(),
+				ClusterName: cluster.Name,
+				Snapshot:    snapshot,
+			})
+			if err := m.alerts.ReconcileConditions(ctx, cluster.ProjectID, cluster.CreatedBy, constants.AlertSourceKubernetes, conditions); err != nil {
+				logger.Error(ctx, "alert reconciliation failed", slog.String("cluster_id", cluster.ID.String()), slog.Any("error", err))
+			}
 		}
 
 		requests := mapClusterSnapshotToRequests(cluster, snapshot)

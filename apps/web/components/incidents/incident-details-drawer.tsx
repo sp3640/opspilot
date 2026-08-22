@@ -1,11 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, Pencil, Trash2, X } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Files,
+  Gauge,
+  History,
+  ListTree,
+  MessageSquare,
+  Pencil,
+  Trash2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 
 import { ErrorState, StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
+import { useApplication } from "@/hooks/use-applications";
 import { useIncident } from "@/hooks/use-incidents";
+import { useTeam } from "@/hooks/use-teams";
 import { useHasPermission } from "@/store/auth-store";
 import {
   INCIDENT_SEVERITY_COLORS,
@@ -16,9 +30,32 @@ import {
 } from "@/lib/constants";
 import { DeleteIncidentDialog } from "./delete-incident-dialog";
 import { EditIncidentModal } from "./edit-incident-modal";
+import { IncidentAlerts } from "./incident-alerts";
 import { IncidentComments } from "./incident-comments";
+import { IncidentContextChain } from "./incident-context-chain";
+import { IncidentLogsPanel } from "./incident-logs-panel";
+import { IncidentMetricsPanel } from "./incident-metrics-panel";
+import { IncidentTimeline } from "./incident-timeline";
 
-/** Read-only incident context loaded from the Incident detail API. */
+const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
+  { label: "Overview", icon: AlertCircle },
+  { label: "Context", icon: ListTree },
+  { label: "Alerts", icon: AlertTriangle },
+  { label: "Metrics", icon: Gauge },
+  { label: "Logs", icon: Files },
+  { label: "Timeline", icon: History },
+  { label: "Comments", icon: MessageSquare },
+];
+
+/**
+ * Incident details, restructured (Phase 16) so an engineer can investigate
+ * without leaving this drawer: Overview keeps the original description/
+ * project/created/updated display and Edit/Delete permission gating
+ * completely unchanged (plus the new affected-application/owner-team/
+ * resolved-time fields); the new tabs add the affected-resource chain,
+ * attached alerts, relevant metrics/logs, and a real audit-log-backed
+ * timeline - each only ever shown when a real identifier supports it.
+ */
 export function IncidentDetailsDrawer({
   incidentID,
   projectNameById,
@@ -28,12 +65,17 @@ export function IncidentDetailsDrawer({
   projectNameById: Map<string, string>;
   onClose: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState("Overview");
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const canManageIncidents = useHasPermission("incident:manage");
   const { data: incident, error, isError, isLoading, refetch } = useIncident(incidentID);
 
+  const { data: application } = useApplication(incident?.applicationId ?? null);
+  const { data: ownerTeam } = useTeam(incident?.ownerTeamId ?? null);
+
   useEffect(() => {
+    setActiveTab("Overview");
     setEditModalOpen(false);
     setDeleteDialogOpen(false);
   }, [incidentID]);
@@ -79,6 +121,10 @@ export function IncidentDetailsDrawer({
   const statusLabel = getStatusLabel(incident.status);
   const statusVariant = getStatusVariant(incident.status);
   const projectName = projectNameById.get(incident.projectId) ?? "Unknown Project";
+
+  const tabListId = "incident-details-tablist";
+  const activeTabKey = activeTab.toLowerCase().replace(/\s+/g, "-");
+  const activePanelId = `incident-details-panel-${activeTabKey}`;
 
   return (
     <div
@@ -163,35 +209,95 @@ export function IncidentDetailsDrawer({
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-5">
-          <div className="space-y-6">
-            {/* Description */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-                Description
-              </h3>
-              <p className="mt-2 text-sm leading-6">
-                {incident.description || "No description provided"}
-              </p>
-            </div>
+        <div className="overflow-x-auto border-b px-3" style={{ borderColor: "var(--border)" }}>
+          <div className="flex gap-1" role="tablist" id={tabListId} aria-label="Incident details sections">
+            {tabs.map(({ label, icon: TabIcon }, index) => {
+              const isActive = activeTab === label;
+              const tabSlug = label.toLowerCase().replace(/\s+/g, "-");
+              const tabId = `incident-details-tab-${tabSlug}`;
+              const panelId = `incident-details-panel-${tabSlug}`;
 
-            {/* Metadata Grid */}
-            <dl className="grid gap-4">
-              <DrawerStat label="Project" value={projectName} />
-              <DrawerStat label="Created" value={formatDate(incident.createdAt)} />
-              <DrawerStat label="Updated" value={formatDate(incident.updatedAt)} />
-            </dl>
+              return (
+                <button
+                  key={label}
+                  id={tabId}
+                  type="button"
+                  role="tab"
+                  tabIndex={isActive ? 0 : -1}
+                  aria-selected={isActive}
+                  aria-controls={panelId}
+                  onClick={() => setActiveTab(label)}
+                  onKeyDown={(event) => {
+                    if (!"ArrowLeft ArrowRight Home End".includes(event.key)) return;
+                    event.preventDefault();
 
-            {/* Comments */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-                Comments
-              </h3>
-              <div className="mt-2">
-                <IncidentComments incidentId={incident.id} />
-              </div>
-            </div>
+                    const maxIndex = tabs.length - 1;
+                    let nextIndex = index;
+                    if (event.key === "ArrowRight") nextIndex = index === maxIndex ? 0 : index + 1;
+                    if (event.key === "ArrowLeft") nextIndex = index === 0 ? maxIndex : index - 1;
+                    if (event.key === "Home") nextIndex = 0;
+                    if (event.key === "End") nextIndex = maxIndex;
+
+                    const nextTab = tabs[nextIndex];
+                    if (!nextTab) return;
+                    setActiveTab(nextTab.label);
+                    const nextTabButton = document.getElementById(`incident-details-tab-${nextTab.label.toLowerCase().replace(/\s+/g, "-")}`);
+                    nextTabButton?.focus();
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-medium transition-colors"
+                  style={{
+                    color: isActive ? "var(--primary)" : "var(--muted-foreground)",
+                    borderColor: isActive ? "var(--primary)" : "transparent",
+                  }}
+                >
+                  <TabIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              );
+            })}
           </div>
+        </div>
+
+        <div
+          id={activePanelId}
+          role="tabpanel"
+          aria-labelledby={`incident-details-tab-${activeTabKey}`}
+          aria-describedby={tabListId}
+          className="flex-1 overflow-y-auto p-5"
+        >
+          {activeTab === "Context" ? (
+            <IncidentContextChain incident={incident} />
+          ) : activeTab === "Alerts" ? (
+            <IncidentAlerts incident={incident} />
+          ) : activeTab === "Metrics" ? (
+            <IncidentMetricsPanel incident={incident} />
+          ) : activeTab === "Logs" ? (
+            <IncidentLogsPanel incident={incident} />
+          ) : activeTab === "Timeline" ? (
+            <IncidentTimeline incident={incident} />
+          ) : activeTab === "Comments" ? (
+            <IncidentComments incidentId={incident.id} />
+          ) : (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
+                  Description
+                </h3>
+                <p className="mt-2 text-sm leading-6">
+                  {incident.description || "No description provided"}
+                </p>
+              </div>
+
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <DrawerStat label="Project" value={projectName} />
+                <DrawerStat label="Affected application" value={application?.name ?? "Not set"} />
+                <DrawerStat label="Owner team" value={ownerTeam?.name ?? "Not set"} />
+                <DrawerStat label="Created" value={formatDate(incident.createdAt)} />
+                <DrawerStat label="Updated" value={formatDate(incident.updatedAt)} />
+                <DrawerStat label="Resolved" value={incident.resolvedAt ? formatDate(incident.resolvedAt) : "Not resolved"} />
+              </dl>
+            </div>
+          )}
         </div>
       </aside>
 

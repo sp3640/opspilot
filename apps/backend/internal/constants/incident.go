@@ -13,6 +13,7 @@ const (
 const (
 	StatusOpen          = "OPEN"
 	StatusInvestigating = "INVESTIGATING"
+	StatusMitigating    = "MITIGATING"
 	StatusResolved      = "RESOLVED"
 )
 
@@ -29,5 +30,19 @@ var ValidSeverities = []string{
 var ValidStatuses = []string{
 	StatusOpen,
 	StatusInvestigating,
+	StatusMitigating,
 	StatusResolved,
+}
+
+// IsValidStatus reports whether status is one of the incident lifecycle
+// states. The single source of truth for incident status validity -
+// callers should not re-list these values themselves.
+func IsValidStatus(status string) bool {
+	for _, valid := range ValidStatuses {
+		if status == valid {
+			return true
+		}
+	}
+
+	return false
 }

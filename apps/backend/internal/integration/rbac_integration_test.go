@@ -209,6 +209,8 @@ type rbacTestApp struct {
 	clusterRepo           *repository.ClusterRepository
 	metricRepo            *repository.MetricRepository
 	metricService         *services.MetricService
+	alertRepo             *repository.AlertRepository
+	alertService          *services.AlertService
 	deploymentRepo        *repository.DeploymentRepository
 	deploymentService     *services.DeploymentService
 	deploymentHistoryRepo *repository.DeploymentHistoryRepository
@@ -261,7 +263,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
 	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo)
-	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
+	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService).WithApplicationRepo(applicationRepo).WithTeamRepo(teamRepo)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterService := services.NewClusterService(clusterRepo, auditService, testClusterCredentialCipher(t))
 	resourceService := services.NewResourceService(resourceRepo, resourcesync.NewSyncEngine(resourceRepo), auditService)
@@ -355,6 +357,8 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		applicationRepo:       applicationRepo,
 		clusterRepo:           clusterRepo,
 		metricService:         metricService,
+		alertRepo:             alertRepo,
+		alertService:          alertService,
 		deploymentRepo:        deploymentRepo,
 		deploymentService:     deploymentService,
 		deploymentHistoryRepo: deploymentHistoryRepo,

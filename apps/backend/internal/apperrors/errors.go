@@ -47,10 +47,13 @@ var (
 	ErrInvalidInvitationToken  = errors.New("invalid invitation token")
 
 	// Incident errors
-	ErrIncidentNotFound = errors.New("incident not found")
-	ErrInvalidSeverity  = errors.New("invalid severity")
-	ErrInvalidStatus    = errors.New("invalid status")
-	ErrInvalidProject   = errors.New("invalid project")
+	ErrIncidentNotFound            = errors.New("incident not found")
+	ErrInvalidSeverity             = errors.New("invalid severity")
+	ErrInvalidStatus               = errors.New("invalid status")
+	ErrInvalidProject              = errors.New("invalid project")
+	ErrIncidentApplicationNotFound = errors.New("application not found")
+	ErrIncidentApplicationMismatch = errors.New("application does not belong to this project")
+	ErrIncidentOwnerTeamNotFound   = errors.New("owner team not found")
 
 	// Alert errors
 	ErrAlertNotFound            = errors.New("alert not found")

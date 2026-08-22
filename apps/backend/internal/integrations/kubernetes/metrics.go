@@ -16,6 +16,12 @@ import (
 const (
 	usageSourceMetricsServer     = "metrics-server"
 	usageSourceRequestedEstimate = "requested-capacity"
+
+	// applicationIDLabel is the same label OpsPilot stamps on every resource
+	// it deploys (see internal/kubernetes/pods/service.go's ownership
+	// check) - reused here to correlate a pod/deployment metric back to its
+	// owning application.
+	applicationIDLabel = "opspilot/application-id"
 )
 
 // MetricsClientsetFactory builds a metrics.k8s.io client from a REST config.
@@ -178,15 +184,17 @@ func (c *MetricsCollector) Collect(ctx context.Context) (*metrics.CollectedMetri
 		}
 
 		podMetrics = append(podMetrics, metrics.PodMetrics{
-			Name:          pod.Name,
-			Namespace:     pod.Namespace,
-			Phase:         string(pod.Status.Phase),
-			Ready:         isPodReady(pod),
-			Restarts:      sumPodRestarts(pod),
-			CPUMilliCores: podCPU,
-			MemoryBytes:   podMemory,
-			Age:           now.Sub(pod.CreationTimestamp.Time),
-			Node:          pod.Spec.NodeName,
+			Name:           pod.Name,
+			Namespace:      pod.Namespace,
+			Phase:          string(pod.Status.Phase),
+			Ready:          isPodReady(pod),
+			Restarts:       sumPodRestarts(pod),
+			ContainerState: aggregateContainerState(pod),
+			ApplicationID:  pod.Labels[applicationIDLabel],
+			CPUMilliCores:  podCPU,
+			MemoryBytes:    podMemory,
+			Age:            now.Sub(pod.CreationTimestamp.Time),
+			Node:           pod.Spec.NodeName,
 		})
 
 		for index := range pod.Spec.Containers {
@@ -256,6 +264,7 @@ func (c *MetricsCollector) Collect(ctx context.Context) (*metrics.CollectedMetri
 		deploymentMetrics = append(deploymentMetrics, metrics.DeploymentMetrics{
 			Name:                deployment.Name,
 			Namespace:           deployment.Namespace,
+			ApplicationID:       deployment.Labels[applicationIDLabel],
 			DesiredReplicas:     desired,
 			AvailableReplicas:   deployment.Status.AvailableReplicas,
 			UnavailableReplicas: deployment.Status.UnavailableReplicas,
@@ -431,6 +440,48 @@ func nodeInternalIP(node corev1.Node) string {
 	}
 
 	return ""
+}
+
+// aggregateContainerState/resolveContainerState intentionally duplicate the
+// small, stable classification in internal/kubernetes/pods/status_helper.go
+// rather than importing that package - internal/kubernetes/pods already
+// imports this package for its own client factory, so importing it back
+// here would create a cycle.
+func aggregateContainerState(pod corev1.Pod) string {
+	if len(pod.Status.ContainerStatuses) == 0 {
+		return "Unknown"
+	}
+
+	state := "Running"
+	for _, status := range pod.Status.ContainerStatuses {
+		resolved := resolveContainerState(status)
+		if resolved != "Running" {
+			state = resolved
+			break
+		}
+	}
+
+	return state
+}
+
+func resolveContainerState(status corev1.ContainerStatus) string {
+	if status.State.Running != nil {
+		return "Running"
+	}
+	if status.State.Waiting != nil {
+		if status.State.Waiting.Reason != "" {
+			return status.State.Waiting.Reason
+		}
+		return "Waiting"
+	}
+	if status.State.Terminated != nil {
+		if status.State.Terminated.Reason != "" {
+			return status.State.Terminated.Reason
+		}
+		return "Terminated"
+	}
+
+	return "Unknown"
 }
 
 func containerStatus(pod corev1.Pod, containerName string) (ready bool, restarts int32) {

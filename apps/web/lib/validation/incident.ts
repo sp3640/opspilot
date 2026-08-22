@@ -19,6 +19,8 @@ const incidentBaseSchema = {
     message: "Please select a valid severity level.",
   }),
   project_id: z.string().trim().min(1, "Please select a project."),
+  application_id: z.string().trim().optional(),
+  owner_team_id: z.string().trim().optional(),
 };
 
 export const createIncidentSchema = z.object({

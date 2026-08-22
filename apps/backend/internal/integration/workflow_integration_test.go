@@ -292,6 +292,8 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 		constants.SeverityP1,
 		constants.StatusOpen,
 		projectID,
+		nil,
+		nil,
 		owner.ID,
 		organizationID,
 	)

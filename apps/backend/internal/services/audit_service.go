@@ -100,6 +100,27 @@ func (s *AuditService) ListIncidentAuditLogs(userID uint, organizationID uuid.UU
 	}, nil
 }
 
+// ListEntityAuditLogs returns the audit trail for any entity by its generic
+// (entityType, entityID) identity. Unlike ListIncidentAuditLogs/
+// ListProjectAuditLogs, ownership of the entity itself is the caller's
+// responsibility (e.g. AlertService.ListAuditLogs verifies alert ownership
+// before delegating here) since AuditService has no repo for every entity
+// kind that might call this.
+func (s *AuditService) ListEntityAuditLogs(organizationID uuid.UUID, entityType, entityID string, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	items, total, err := s.repo.ListByEntity(req, entityType, entityID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PaginationResponse{
+		Page:       req.Page,
+		Limit:      req.Limit,
+		Total:      total,
+		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
+		Items:      items,
+	}, nil
+}
+
 func (s *AuditService) ListProjectAuditLogs(userID uint, organizationID uuid.UUID, projectID uuid.UUID, req *models.PaginationRequest) (*models.PaginationResponse, error) {
 	if _, err := s.projectRepo.GetByIDAndOrganizationID(projectID, organizationID); err != nil {
 		if errors.Is(err, apperrors.ErrProjectForbidden) {

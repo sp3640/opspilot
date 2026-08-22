@@ -19,6 +19,8 @@ import {
 } from "@/lib/constants";
 import { editIncidentSchema } from "@/lib/validation/incident";
 import type { IncidentResponse, UpdateIncidentRequest } from "@/types/incident-api";
+import { ApplicationSelect } from "./application-select";
+import { OwnerTeamSelect } from "./owner-team-select";
 import { ProjectSelect } from "./project-select";
 
 type EditIncidentFormData = z.infer<typeof editIncidentSchema>;
@@ -37,6 +39,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<EditIncidentFormData>({
     resolver: zodResolver(editIncidentSchema),
@@ -46,6 +49,8 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
       severity: (incident?.severity as IncidentSeverity) ?? INCIDENT_DEFAULT_SEVERITY,
       project_id: incident?.projectId ?? "",
       status: (incident?.status as IncidentStatus) ?? INCIDENT_DEFAULT_STATUS,
+      application_id: incident?.applicationId ?? "",
+      owner_team_id: incident?.ownerTeamId ?? "",
     },
     values: {
       title: incident?.title ?? "",
@@ -53,8 +58,12 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
       severity: (incident?.severity as IncidentSeverity) ?? INCIDENT_DEFAULT_SEVERITY,
       project_id: incident?.projectId ?? "",
       status: (incident?.status as IncidentStatus) ?? INCIDENT_DEFAULT_STATUS,
+      application_id: incident?.applicationId ?? "",
+      owner_team_id: incident?.ownerTeamId ?? "",
     },
   });
+
+  const selectedProjectId = watch("project_id");
 
   useEffect(() => {
     if (open && !dialogRef.current?.open) dialogRef.current?.showModal();
@@ -75,6 +84,8 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
         id: incident.id,
         payload: {
           ...input,
+          application_id: input.application_id || undefined,
+          owner_team_id: input.owner_team_id || undefined,
         } as UpdateIncidentRequest,
       });
       onClose();
@@ -261,6 +272,35 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
                 {errors.status.message}
               </p>
             )}
+          </div>
+
+          <div>
+            <label htmlFor="edit-incident-application" className="text-sm font-medium">
+              Affected application
+            </label>
+            <ApplicationSelect
+              id="edit-incident-application"
+              projectId={selectedProjectId}
+              queryEnabled={open}
+              {...register("application_id")}
+              className={inputClass}
+              style={{ borderColor: "var(--border)" }}
+              disabled={updateIncident.isPending}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="edit-incident-owner-team" className="text-sm font-medium">
+              Owner team
+            </label>
+            <OwnerTeamSelect
+              id="edit-incident-owner-team"
+              queryEnabled={open}
+              {...register("owner_team_id")}
+              className={inputClass}
+              style={{ borderColor: "var(--border)" }}
+              disabled={updateIncident.isPending}
+            />
           </div>
         </div>
 

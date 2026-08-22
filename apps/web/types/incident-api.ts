@@ -5,6 +5,9 @@ export type IncidentResponse = {
   severity: string;
   status: string;
   projectId: string;
+  applicationId?: string;
+  ownerTeamId?: string;
+  resolvedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -23,6 +26,8 @@ export type CreateIncidentRequest = {
   severity: string;
   status: string;
   project_id: string;
+  application_id?: string;
+  owner_team_id?: string;
 };
 
 export type UpdateIncidentRequest = {
@@ -31,6 +36,8 @@ export type UpdateIncidentRequest = {
   severity: string;
   status: string;
   project_id: string;
+  application_id?: string;
+  owner_team_id?: string;
 };
 
 export type IncidentQueryParams = {

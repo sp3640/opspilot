@@ -8,15 +8,30 @@ import (
 // MapIncident converts an Incident model to an IncidentResponse DTO.
 // This is the single authoritative mapping function for incident responses.
 func MapIncident(i models.Incident) dto.IncidentResponse {
+	var applicationID *string
+	if i.ApplicationID != nil {
+		value := i.ApplicationID.String()
+		applicationID = &value
+	}
+
+	var ownerTeamID *string
+	if i.OwnerTeamID != nil {
+		value := i.OwnerTeamID.String()
+		ownerTeamID = &value
+	}
+
 	return dto.IncidentResponse{
-		ID:          i.ID,
-		Title:       i.Title,
-		Description: i.Description,
-		Severity:    i.Severity,
-		Status:      i.Status,
-		ProjectID:   i.ProjectID.String(),
-		CreatedAt:   i.CreatedAt,
-		UpdatedAt:   i.UpdatedAt,
+		ID:            i.ID,
+		Title:         i.Title,
+		Description:   i.Description,
+		Severity:      i.Severity,
+		Status:        i.Status,
+		ProjectID:     i.ProjectID.String(),
+		ApplicationID: applicationID,
+		OwnerTeamID:   ownerTeamID,
+		ResolvedAt:    i.ResolvedAt,
+		CreatedAt:     i.CreatedAt,
+		UpdatedAt:     i.UpdatedAt,
 	}
 }
 

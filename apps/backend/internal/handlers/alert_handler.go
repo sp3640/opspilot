@@ -90,6 +90,16 @@ func (h *AlertHandler) List(c *gin.Context) {
 		return
 	}
 	req.ProjectID = projectID
+
+	if incidentIDValue := strings.TrimSpace(c.Query("incidentId")); incidentIDValue != "" {
+		incidentID, err := strconv.ParseUint(incidentIDValue, 10, 64)
+		if err != nil {
+			response.BadRequest(c, "invalid incidentId")
+			return
+		}
+		req.IncidentID = uint(incidentID)
+	}
+
 	req.Status = strings.TrimSpace(strings.ToUpper(c.Query("status")))
 	req.Severity = strings.TrimSpace(strings.ToUpper(c.Query("severity")))
 	req.Source = strings.TrimSpace(strings.ToUpper(c.Query("source")))
@@ -327,6 +337,40 @@ func (h *AlertHandler) AttachIncident(c *gin.Context) {
 	}
 
 	response.OK(c, "Incident attached to alert successfully", alert)
+}
+
+// GetAuditLogs returns the alert's own audit trail - the real basis for an
+// alert timeline (every acknowledge/resolve/reopen/escalation already
+// recorded). Read-only, so it is gated the same as GetByID/List (org
+// membership only) rather than requiring PermissionAlertManage.
+func (h *AlertHandler) GetAuditLogs(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	alertID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid alert id")
+		return
+	}
+
+	req, ok := parsePagination(c, "created_at", "entity_type", "action")
+	if !ok {
+		return
+	}
+
+	result, err := h.service.ListAuditLogs(organizationID, uint(alertID), req)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Alert audit logs fetched successfully", result)
 }
 
 func (h *AlertHandler) handleServiceError(c *gin.Context, err error) {

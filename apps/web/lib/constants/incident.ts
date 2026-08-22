@@ -1,5 +1,5 @@
 export const INCIDENT_SEVERITY_VALUES = ["P0", "P1", "P2", "P3", "P4"] as const;
-export const INCIDENT_STATUS_VALUES = ["OPEN", "INVESTIGATING", "RESOLVED"] as const;
+export const INCIDENT_STATUS_VALUES = ["OPEN", "INVESTIGATING", "MITIGATING", "RESOLVED"] as const;
 
 export type IncidentSeverity = (typeof INCIDENT_SEVERITY_VALUES)[number];
 export type IncidentStatus = (typeof INCIDENT_STATUS_VALUES)[number];
@@ -24,6 +24,7 @@ export const INCIDENT_STATUS_OPTIONS: ReadonlyArray<{
 }> = [
   { value: "OPEN", label: "Open" },
   { value: "INVESTIGATING", label: "Investigating" },
+  { value: "MITIGATING", label: "Mitigating" },
   { value: "RESOLVED", label: "Resolved" },
 ];
 
@@ -38,6 +39,7 @@ export const INCIDENT_SEVERITY_COLORS: Record<IncidentSeverity, string> = {
 export const INCIDENT_STATUS_LABELS: Record<IncidentStatus, string> = {
   OPEN: "Open",
   INVESTIGATING: "Investigating",
+  MITIGATING: "Mitigating",
   RESOLVED: "Resolved",
 };
 
@@ -47,5 +49,6 @@ export const INCIDENT_STATUS_VARIANTS: Record<
 > = {
   OPEN: "info",
   INVESTIGATING: "warning",
+  MITIGATING: "warning",
   RESOLVED: "success",
 };

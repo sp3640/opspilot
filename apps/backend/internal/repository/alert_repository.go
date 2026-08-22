@@ -79,6 +79,10 @@ func (r *AlertRepository) List(req *models.PaginationRequest, organizationID uui
 		query = query.Where("alerts.project_id = ?", req.ProjectID)
 	}
 
+	if req.IncidentID != 0 {
+		query = query.Where("alerts.incident_id = ?", req.IncidentID)
+	}
+
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -163,6 +167,37 @@ func (r *AlertRepository) Reopen(id uint, lastSeenAt time.Time) error {
 // RefreshLastSeen is reserved for background deduplication/heartbeat jobs that touch alert freshness.
 func (r *AlertRepository) RefreshLastSeen(id uint, lastSeenAt time.Time) error {
 	return r.db.Model(&models.Alert{}).Where("id = ?", id).Update("last_seen_at", lastSeenAt).Error
+}
+
+// ListBySource returns every alert (any status) for a project+source, used
+// by the alert-evaluation engine to correlate currently-firing conditions
+// against alerts it previously created - including RESOLVED ones, since a
+// recurring condition must reopen the alert it previously resolved rather
+// than create a duplicate, even if the condition's severity has since
+// changed (severity is part of Alert's fingerprint, so a plain
+// fingerprint-based lookup would miss this case).
+func (r *AlertRepository) ListBySource(projectID, organizationID uuid.UUID, source string) ([]models.Alert, error) {
+	var alerts []models.Alert
+	err := r.db.
+		Where("project_id = ? AND organization_id = ? AND source = ?", projectID, organizationID, source).
+		Find(&alerts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return alerts, nil
+}
+
+// GetProjectOrganizationID resolves the organization a project belongs to,
+// used by engine-driven flows that only know a projectID (mirroring
+// MetricRepository's method of the same name).
+func (r *AlertRepository) GetProjectOrganizationID(projectID uuid.UUID) (uuid.UUID, error) {
+	var project models.Project
+	if err := r.db.Select("organization_id").Where("id = ?", projectID).First(&project).Error; err != nil {
+		return uuid.Nil, err
+	}
+
+	return project.OrganizationID, nil
 }
 
 func (r *AlertRepository) ProjectBelongsToOrganization(projectID, organizationID uuid.UUID) (bool, error) {

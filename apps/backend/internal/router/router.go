@@ -290,6 +290,7 @@ func RegisterRoutes(
 			alerts.POST("/:id/resolve", alertHandler.Resolve)
 			alerts.POST("/:id/reopen", alertHandler.Reopen)
 			alerts.POST("/:id/incident", alertHandler.AttachIncident)
+			alerts.GET("/:id/audit-logs", alertHandler.GetAuditLogs)
 		}
 
 		metricsRoutes := api.Group("/metrics")

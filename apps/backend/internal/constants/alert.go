@@ -40,6 +40,9 @@ const (
 	AlertResourceTypeVM          = "VM"
 	AlertResourceTypeApplication = "APPLICATION"
 	AlertResourceTypeNamespace   = "NAMESPACE"
+	// AlertResourceTypeCluster identifies cluster-wide conditions (e.g. CPU/memory
+	// threshold breaches) that aren't scoped to any single Kubernetes object.
+	AlertResourceTypeCluster = "CLUSTER"
 )
 
 // ValidAlertSeverities is the slice of all valid alert severity values.
@@ -82,6 +85,7 @@ var ValidAlertResourceTypes = []string{
 	AlertResourceTypeVM,
 	AlertResourceTypeApplication,
 	AlertResourceTypeNamespace,
+	AlertResourceTypeCluster,
 }
 
 func IsValidAlertSeverity(severity string) bool {
@@ -113,7 +117,7 @@ func IsValidAlertSource(source string) bool {
 
 func IsValidAlertResourceType(resourceType string) bool {
 	switch resourceType {
-	case AlertResourceTypePod, AlertResourceTypeDeployment, AlertResourceTypeNode, AlertResourceTypeService, AlertResourceTypeContainer, AlertResourceTypeDatabase, AlertResourceTypeVM, AlertResourceTypeApplication, AlertResourceTypeNamespace:
+	case AlertResourceTypePod, AlertResourceTypeDeployment, AlertResourceTypeNode, AlertResourceTypeService, AlertResourceTypeContainer, AlertResourceTypeDatabase, AlertResourceTypeVM, AlertResourceTypeApplication, AlertResourceTypeNamespace, AlertResourceTypeCluster:
 		return true
 	default:
 		return false

@@ -10,7 +10,7 @@ import { useClusterMetrics, useClusterMetricsStatus } from "@/hooks/use-metrics"
 import { formatBytes, formatCount, formatMillicores, formatPercent, metricSource, pickLatestMetric } from "@/lib/metric-view";
 import type { MetricsStatusResponse } from "@/types/metric-api";
 
-const HISTORICAL_CHART_SPECS: MetricChartSpec[] = [
+export const CLUSTER_HISTORICAL_CHART_SPECS: MetricChartSpec[] = [
   { key: "cpu", title: "CPU usage", metricType: "CPU", metricName: "cluster.cpu.usage.millicores", valueFormatter: formatMillicores },
   { key: "memory", title: "Memory usage", metricType: "MEMORY", metricName: "cluster.memory.usage.bytes", valueFormatter: formatBytes },
   { key: "node-health", title: "Node health (not ready)", metricType: "AVAILABILITY", metricName: "cluster.node.not_ready.count", valueFormatter: formatCount },
@@ -134,7 +134,7 @@ export function ClusterMetrics({ clusterId, projectId }: { clusterId: string; pr
           Historical trends
         </h3>
         <div className="mt-3">
-          <ScopedMetricsDashboard projectId={projectId} clusterId={clusterId} specs={HISTORICAL_CHART_SPECS} />
+          <ScopedMetricsDashboard projectId={projectId} clusterId={clusterId} specs={CLUSTER_HISTORICAL_CHART_SPECS} />
         </div>
       </section>
 

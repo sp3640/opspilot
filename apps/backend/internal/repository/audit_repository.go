@@ -128,6 +128,46 @@ func (r *AuditRepository) ListByIncidentID(req *models.PaginationRequest, incide
 	return logs, total, nil
 }
 
+// ListByEntity returns the audit trail for any single entity (e.g. an
+// alert), generalizing GetByIncidentID/GetByProjectID to the EntityType +
+// EntityID columns every audit log row already carries.
+func (r *AuditRepository) ListByEntity(req *models.PaginationRequest, entityType, entityID string, organizationID uuid.UUID) ([]models.AuditLog, int64, error) {
+	if err := req.Validate("created_at", "entity_type", "action"); err != nil {
+		return nil, 0, err
+	}
+	query := r.db.Model(&models.AuditLog{}).Where("entity_type = ? AND entity_id = ? AND organization_id = ?", entityType, entityID, organizationID)
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	sortField := "created_at"
+	if req.Sort != "" {
+		switch req.Sort {
+		case "created_at":
+			sortField = "created_at"
+		case "entity_type":
+			sortField = "entity_type"
+		case "action":
+			sortField = "action"
+		}
+	}
+
+	order := "DESC"
+	if req.Order == "asc" {
+		order = "ASC"
+	}
+
+	var logs []models.AuditLog
+	err := query.Order(sortField + " " + order).Limit(req.Limit).Offset((req.Page - 1) * req.Limit).Find(&logs).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return logs, total, nil
+}
+
 func (r *AuditRepository) ClearIncidentReference(incidentID uint, organizationID uuid.UUID) error {
 	return r.db.Model(&models.AuditLog{}).
 		Where("incident_id = ? AND organization_id = ?", incidentID, organizationID).

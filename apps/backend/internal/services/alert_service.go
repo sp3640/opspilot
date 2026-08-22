@@ -6,14 +6,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sp3640/opspilot/backend/internal/alerting"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/logger"
 	"github.com/sp3640/opspilot/backend/internal/mapper"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
@@ -489,6 +492,149 @@ func (s *AlertService) ReopenAlert(ctx context.Context, id, userID uint, organiz
 
 	response := mapper.MapAlert(*alert)
 	return &response, nil
+}
+
+// conditionKey identifies "the same underlying problem" across evaluation
+// passes and severity changes, so the reconciler can update an existing
+// alert in place instead of creating a parallel duplicate whenever severity
+// shifts (which, because severity is part of Alert's fingerprint, would
+// otherwise produce a different fingerprint and a brand-new row).
+type conditionKey struct {
+	resourceType string
+	resourceID   string
+	condition    string
+}
+
+// ReconcileConditions is the alert-evaluation engine's only entry point: it
+// turns a snapshot of currently-firing conditions into Alert rows, per
+// organization/project/source, using rules keyed on (resourceType,
+// resourceID, condition) rather than Alert's fingerprint - fingerprints
+// include severity, so a plain fingerprint lookup would miss a recurring
+// condition whose severity differs from when it was last open, and create a
+// duplicate instead of reopening the existing alert. Rules:
+//  1. No existing alert for this resource+condition -> create one (OPEN).
+//  2. An existing active (non-RESOLVED) alert, same severity -> occurrence
+//     count bumped, nothing else changes.
+//  3. An existing active alert, different severity -> updated in place
+//     (title/description/severity/metadata), never duplicated.
+//  4. An existing RESOLVED alert for the same resource+condition recurs ->
+//     updated in place and reopened, never duplicated.
+//  5. An alert this engine previously opened for a condition that is no
+//     longer firing is auto-resolved: an alert that no longer reflects
+//     reality is noise, not signal.
+//
+// organizationID is resolved from projectID (mirroring MetricService's
+// StoreSnapshot), since the caller - a background evaluation loop - only
+// knows the project a cluster belongs to.
+func (s *AlertService) ReconcileConditions(ctx context.Context, projectID uuid.UUID, userID uint, source string, conditions []alerting.EvaluatedCondition) error {
+	organizationID, err := s.repo.GetProjectOrganizationID(projectID)
+	if err != nil {
+		return err
+	}
+
+	all, err := s.repo.ListBySource(projectID, organizationID, source)
+	if err != nil {
+		return err
+	}
+
+	byKey := make(map[conditionKey]*models.Alert, len(all))
+	for i := range all {
+		alert := &all[i]
+		var meta alerting.ConditionMetadata
+		if unmarshalErr := json.Unmarshal(alert.Metadata, &meta); unmarshalErr != nil || meta.Condition == "" {
+			continue // not an engine-managed alert (or predates this metadata shape) - leave it untouched
+		}
+		byKey[conditionKey{alert.ResourceType, alert.ResourceID, meta.Condition}] = alert
+	}
+
+	seen := make(map[conditionKey]bool, len(conditions))
+	for _, condition := range conditions {
+		key := conditionKey{condition.ResourceType, condition.ResourceID, condition.ConditionKey}
+		seen[key] = true
+
+		metadata, err := json.Marshal(alerting.ConditionMetadata{
+			Condition:     condition.ConditionKey,
+			CurrentValue:  condition.CurrentValue,
+			Threshold:     condition.Threshold,
+			Unit:          condition.Unit,
+			ClusterID:     condition.ClusterID,
+			ClusterName:   condition.ClusterName,
+			ApplicationID: condition.ApplicationID,
+		})
+		if err != nil {
+			logger.Error(ctx, "alert reconciliation: failed to marshal condition metadata", slog.Any("error", err))
+			continue
+		}
+
+		existing, found := byKey[key]
+		switch {
+		case found && existing.Status != constants.AlertStatusResolved && existing.Severity == condition.Severity:
+			if incErr := s.repo.IncrementOccurrence(existing.ID, time.Now().UTC(), metadata); incErr != nil {
+				logger.Error(ctx, "alert reconciliation: failed to refresh alert", slog.Uint64("alert_id", uint64(existing.ID)), slog.Any("error", incErr))
+			}
+
+		case found && existing.Status != constants.AlertStatusResolved:
+			now := time.Now().UTC()
+			if _, updateErr := s.UpdateAlert(
+				ctx, existing.ID, userID, organizationID, existing.ProjectID, existing.IncidentID,
+				condition.Title, condition.Description, condition.Severity, existing.Status, source,
+				condition.ResourceType, condition.ResourceID, existing.Labels, metadata,
+				&existing.FirstSeenAt, &now, existing.AcknowledgedAt, existing.ResolvedAt,
+			); updateErr != nil {
+				logger.Error(ctx, "alert reconciliation: failed to escalate/update alert", slog.Uint64("alert_id", uint64(existing.ID)), slog.Any("error", updateErr))
+			}
+
+		case found: // previously RESOLVED, condition has recurred
+			now := time.Now().UTC()
+			if _, updateErr := s.UpdateAlert(
+				ctx, existing.ID, userID, organizationID, existing.ProjectID, existing.IncidentID,
+				condition.Title, condition.Description, condition.Severity, existing.Status, source,
+				condition.ResourceType, condition.ResourceID, existing.Labels, metadata,
+				&existing.FirstSeenAt, &now, existing.AcknowledgedAt, nil,
+			); updateErr != nil {
+				logger.Error(ctx, "alert reconciliation: failed to update recurring alert", slog.Uint64("alert_id", uint64(existing.ID)), slog.Any("error", updateErr))
+				continue
+			}
+			if _, reopenErr := s.ReopenAlert(ctx, existing.ID, userID, organizationID); reopenErr != nil {
+				logger.Error(ctx, "alert reconciliation: failed to reopen recurring alert", slog.Uint64("alert_id", uint64(existing.ID)), slog.Any("error", reopenErr))
+			}
+
+		default:
+			if _, createErr := s.CreateAlert(
+				ctx, projectID, nil, condition.Title, condition.Description, condition.Severity,
+				constants.AlertStatusOpen, source, condition.ResourceType, condition.ResourceID,
+				json.RawMessage(`{}`), metadata, nil, nil, userID, organizationID,
+			); createErr != nil {
+				logger.Error(ctx, "alert reconciliation: failed to create alert", slog.String("condition", condition.ConditionKey), slog.Any("error", createErr))
+			}
+		}
+	}
+
+	for key, alert := range byKey {
+		if seen[key] || alert.Status == constants.AlertStatusResolved {
+			continue
+		}
+		if _, resolveErr := s.ResolveAlert(ctx, alert.ID, userID, organizationID); resolveErr != nil {
+			logger.Error(ctx, "alert reconciliation: failed to auto-resolve cleared condition", slog.Uint64("alert_id", uint64(alert.ID)), slog.Any("error", resolveErr))
+		}
+	}
+
+	return nil
+}
+
+// ListAuditLogs returns the alert's own audit trail (every acknowledge/
+// resolve/reopen/escalation/occurrence-count change already recorded by
+// this service) - the real, timestamped basis for an alert timeline, rather
+// than reconstructing one from guesses.
+func (s *AlertService) ListAuditLogs(organizationID uuid.UUID, id uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	if _, err := s.getOwnedAlert(id, organizationID); err != nil {
+		return nil, err
+	}
+	if s.auditRepo == nil {
+		return &models.PaginationResponse{Page: req.Page, Limit: req.Limit, Items: []models.AuditLog{}}, nil
+	}
+
+	return s.auditRepo.ListEntityAuditLogs(organizationID, "alert", strconv.FormatUint(uint64(id), 10), req)
 }
 
 func (s *AlertService) getOwnedAlert(id uint, organizationID uuid.UUID) (*models.Alert, error) {
