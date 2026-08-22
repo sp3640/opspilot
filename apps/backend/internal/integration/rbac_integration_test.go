@@ -207,6 +207,7 @@ type rbacTestApp struct {
 	invitationRepo        *repository.InvitationRepository
 	applicationRepo       *repository.ApplicationRepository
 	clusterRepo           *repository.ClusterRepository
+	metricRepo            *repository.MetricRepository
 	metricService         *services.MetricService
 	deploymentRepo        *repository.DeploymentRepository
 	deploymentService     *services.DeploymentService
@@ -264,7 +265,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterService := services.NewClusterService(clusterRepo, auditService, testClusterCredentialCipher(t))
 	resourceService := services.NewResourceService(resourceRepo, resourcesync.NewSyncEngine(resourceRepo), auditService)
-	metricService := services.NewMetricService(metricRepo, auditService)
+	metricService := services.NewMetricService(metricRepo, auditService).WithResourceRepo(resourceRepo)
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
@@ -281,7 +282,8 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	applicationTeamHandler := handlers.NewApplicationTeamHandler(applicationTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
 	alertHandler := handlers.NewAlertHandler(alertService)
-	metricHandler := handlers.NewMetricHandler(metricService)
+	metricsStatusService := services.NewMetricsStatusService(clusterRepo, metricRepo, testClusterCredentialCipher(t))
+	metricHandler := handlers.NewMetricHandler(metricService, metricsStatusService)
 	clusterHandler := handlers.NewClusterHandler(clusterService)
 	resourceHandler := handlers.NewResourceHandler(resourceService, clusterService, nil)
 	commentHandler := handlers.NewCommentHandler(commentService)

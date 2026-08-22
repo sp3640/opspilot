@@ -18,11 +18,12 @@ import (
 )
 
 type MetricHandler struct {
-	service *services.MetricService
+	service       *services.MetricService
+	statusService *services.MetricsStatusService
 }
 
-func NewMetricHandler(service *services.MetricService) *MetricHandler {
-	return &MetricHandler{service: service}
+func NewMetricHandler(service *services.MetricService, statusService *services.MetricsStatusService) *MetricHandler {
+	return &MetricHandler{service: service, statusService: statusService}
 }
 
 func (h *MetricHandler) List(c *gin.Context) {
@@ -302,6 +303,38 @@ func (h *MetricHandler) GetClusterMetrics(c *gin.Context) {
 	response.OK(c, "Cluster metrics fetched successfully", result)
 }
 
+// GetClusterMetricsStatus reports whether this cluster's metrics provider is
+// actually reachable right now, so the frontend can render "metrics
+// unavailable: <reason>" instead of an ambiguous empty history.
+func (h *MetricHandler) GetClusterMetricsStatus(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+	if h.statusService == nil {
+		response.InternalServerError(c)
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	clusterIDValue, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid cluster id")
+		return
+	}
+
+	result, err := h.statusService.GetClusterMetricsStatus(c.Request.Context(), organizationID, clusterIDValue)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Cluster metrics status fetched successfully", result)
+}
+
 func (h *MetricHandler) handleServiceError(c *gin.Context, err error) {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		response.Error(c, http.StatusNotFound, "metric not found")
@@ -313,6 +346,8 @@ func (h *MetricHandler) handleServiceError(c *gin.Context, err error) {
 		response.Error(c, http.StatusForbidden, err.Error())
 	case apperrors.ErrInvalidMetricType, apperrors.ErrInvalidTimeRange:
 		response.Error(c, http.StatusBadRequest, err.Error())
+	case apperrors.ErrClusterNotFound:
+		response.Error(c, http.StatusNotFound, err.Error())
 	default:
 		response.InternalServerError(c, err)
 	}

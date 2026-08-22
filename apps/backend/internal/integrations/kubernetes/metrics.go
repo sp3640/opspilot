@@ -7,20 +7,71 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
+	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 )
 
+const (
+	usageSourceMetricsServer     = "metrics-server"
+	usageSourceRequestedEstimate = "requested-capacity"
+)
+
+// MetricsClientsetFactory builds a metrics.k8s.io client from a REST config.
+// Kept swappable (mirroring ClientsetFactory elsewhere) so tests can inject a
+// fake metrics clientset without a real metrics-server, and so production
+// code can gracefully treat "metrics-server not installed" as a fallback
+// rather than a hard failure.
+type MetricsClientsetFactory func(cfg *rest.Config) (metricsclientset.Interface, error)
+
 type MetricsCollector struct {
-	name   string
-	client Client
+	name                 string
+	client               Client
+	metricsClientFactory MetricsClientsetFactory
 }
 
-func NewMetricsCollector(name string, client Client) metrics.MetricsCollector {
+func NewMetricsCollector(name string, client Client) *MetricsCollector {
 	return &MetricsCollector{
-		name:   name,
-		client: client,
+		name:                 name,
+		client:               client,
+		metricsClientFactory: defaultMetricsClientsetFactory,
 	}
+}
+
+func (c *MetricsCollector) WithMetricsClientsetFactory(factory MetricsClientsetFactory) *MetricsCollector {
+	if factory != nil {
+		c.metricsClientFactory = factory
+	}
+
+	return c
+}
+
+func defaultMetricsClientsetFactory(cfg *rest.Config) (metricsclientset.Interface, error) {
+	return metricsclientset.NewForConfig(cfg)
+}
+
+// MetricsServerReachable performs a live, side-effect-free check for whether
+// metrics-server is installed and responding on the target cluster. Used by
+// the provider-status endpoint to distinguish "no data yet" from "the
+// provider metrics/CPU/memory is showing is only an estimate."
+func MetricsServerReachable(ctx context.Context, client Client) bool {
+	if client == nil {
+		return false
+	}
+
+	cfg, err := client.RESTConfig()
+	if err != nil {
+		return false
+	}
+
+	metricsClient, err := defaultMetricsClientsetFactory(cfg)
+	if err != nil {
+		return false
+	}
+
+	_, err = metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{Limit: 1})
+	return err == nil
 }
 
 func (c *MetricsCollector) Name() string {
@@ -94,11 +145,28 @@ func (c *MetricsCollector) Collect(ctx context.Context) (*metrics.CollectedMetri
 	var totalMemoryUsage int64
 	var totalStorageUsage int64
 
+	liveNodeCPU, liveNodeMemory, livePodCPU, livePodMemory, liveUsageAvailable := c.collectLiveUsage(ctx)
+	usageSource := usageSourceRequestedEstimate
+	if liveUsageAvailable {
+		usageSource = usageSourceMetricsServer
+	}
+
 	containerMetrics := make([]metrics.ContainerMetrics, 0)
 	podMetrics := make([]metrics.PodMetrics, 0, len(podList.Items))
 
 	for _, pod := range podList.Items {
-		podCPU, podMemory, podStorage := podRequestedResources(pod)
+		requestedCPU, requestedMemory, podStorage := podRequestedResources(pod)
+		podCPU, podMemory := requestedCPU, requestedMemory
+		if liveUsageAvailable {
+			key := pod.Namespace + "/" + pod.Name
+			if usage, ok := livePodCPU[key]; ok {
+				podCPU = usage
+			}
+			if usage, ok := livePodMemory[key]; ok {
+				podMemory = usage
+			}
+		}
+
 		totalCPUUsage += podCPU
 		totalMemoryUsage += podMemory
 		totalStorageUsage += podStorage
@@ -155,6 +223,16 @@ func (c *MetricsCollector) Collect(ctx context.Context) (*metrics.CollectedMetri
 		nodeCPUUsage := usageByNodeCPU[node.Name]
 		nodeMemoryUsage := usageByNodeMemory[node.Name]
 		nodeDiskUsage := usageByNodeDisk[node.Name]
+		if liveUsageAvailable {
+			// Real per-node usage from metrics-server is more accurate than
+			// summing per-pod usage (which misses system/daemon overhead).
+			if usage, ok := liveNodeCPU[node.Name]; ok {
+				nodeCPUUsage = usage
+			}
+			if usage, ok := liveNodeMemory[node.Name]; ok {
+				nodeMemoryUsage = usage
+			}
+		}
 
 		nodeMetrics = append(nodeMetrics, metrics.NodeMetrics{
 			Name:          node.Name,
@@ -207,6 +285,7 @@ func (c *MetricsCollector) Collect(ctx context.Context) (*metrics.CollectedMetri
 		MemoryUsageBytes:      totalMemoryUsage,
 		StorageCapacityBytes:  totalStorageCapacity,
 		StorageUsageBytes:     totalStorageUsage,
+		UsageSource:           usageSource,
 	}
 
 	return &metrics.CollectedMetrics{
@@ -219,6 +298,60 @@ func (c *MetricsCollector) Collect(ctx context.Context) (*metrics.CollectedMetri
 		Namespaces:    namespaceMetrics,
 		Containers:    containerMetrics,
 	}, nil
+}
+
+// collectLiveUsage attempts to fetch real CPU/memory usage from the
+// metrics.k8s.io API (metrics-server). Any failure - metrics-server not
+// installed, unreachable, or not yet reporting for a given node/pod - is
+// treated as "not available" (ok=false, or missing map entries), never as an
+// error: callers must fall back to the requested-capacity estimate rather
+// than fabricate usage numbers.
+func (c *MetricsCollector) collectLiveUsage(ctx context.Context) (nodeCPU, nodeMemory, podCPU, podMemory map[string]int64, ok bool) {
+	cfg, err := c.client.RESTConfig()
+	if err != nil {
+		return nil, nil, nil, nil, false
+	}
+
+	factory := c.metricsClientFactory
+	if factory == nil {
+		factory = defaultMetricsClientsetFactory
+	}
+
+	metricsClient, err := factory(cfg)
+	if err != nil {
+		return nil, nil, nil, nil, false
+	}
+
+	nodeMetricsList, err := metricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, nil, nil, nil, false
+	}
+	podMetricsList, err := metricsClient.MetricsV1beta1().PodMetricses(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, nil, nil, nil, false
+	}
+
+	nodeCPU = make(map[string]int64, len(nodeMetricsList.Items))
+	nodeMemory = make(map[string]int64, len(nodeMetricsList.Items))
+	for _, item := range nodeMetricsList.Items {
+		nodeCPU[item.Name] = quantityMilli(item.Usage[corev1.ResourceCPU])
+		nodeMemory[item.Name] = quantityValue(item.Usage[corev1.ResourceMemory])
+	}
+
+	podCPU = make(map[string]int64, len(podMetricsList.Items))
+	podMemory = make(map[string]int64, len(podMetricsList.Items))
+	for _, item := range podMetricsList.Items {
+		key := item.Namespace + "/" + item.Name
+		var cpu, mem int64
+		for _, container := range item.Containers {
+			cpu += quantityMilli(container.Usage[corev1.ResourceCPU])
+			mem += quantityValue(container.Usage[corev1.ResourceMemory])
+		}
+		podCPU[key] = cpu
+		podMemory[key] = mem
+	}
+
+	return nodeCPU, nodeMemory, podCPU, podMemory, true
 }
 
 func usagePercent(usage, capacity int64) float64 {

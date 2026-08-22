@@ -10,6 +10,7 @@ import {
   Layers3,
   Network,
   Rocket,
+  ScrollText,
   Server,
   ShieldCheck,
   Users,
@@ -28,6 +29,7 @@ import { ApplicationDeployments } from "./application-deployments";
 import { ApplicationEvents } from "./application-events";
 import { ApplicationHealth } from "./application-health";
 import { ApplicationIngresses } from "./application-ingresses";
+import { ApplicationLogs } from "./application-logs";
 import { ApplicationPods } from "./application-pods";
 import { ApplicationReplicaSets } from "./application-replicasets";
 import { ApplicationRuntimeDeployments } from "./application-runtime-deployments";
@@ -41,6 +43,7 @@ const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Overview", icon: Activity },
   { label: "Deployments", icon: Rocket },
   { label: "Pods", icon: Boxes },
+  { label: "Logs", icon: ScrollText },
   { label: "Services", icon: Network },
   { label: "Ingresses", icon: Globe },
   { label: "ConfigMaps", icon: ClipboardList },
@@ -277,6 +280,8 @@ export function ApplicationDetailsDrawer({
             <ApplicationDeployments applicationId={application.id} />
           ) : activeTab === "Pods" ? (
             <ApplicationPods applicationId={application.id} />
+          ) : activeTab === "Logs" ? (
+            <ApplicationLogs applicationId={application.id} />
           ) : activeTab === "Services" ? (
             <ApplicationServices applicationId={application.id} />
           ) : activeTab === "Ingresses" ? (

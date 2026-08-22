@@ -147,6 +147,76 @@ func TestKubernetesLogsAPIIntegration(t *testing.T) {
 	assertStatus(t, organizationIsolationRec, http.StatusForbidden)
 }
 
+// TestKubernetesLogsAPI_TailLinesDefaultAndClamp verifies Phase 11's
+// production hardening: an omitted tailLines defaults to a bounded value
+// instead of fetching unbounded log data, and an oversized request is
+// clamped rather than honored as-is.
+func TestKubernetesLogsAPI_TailLinesDefaultAndClamp(t *testing.T) {
+	t.Parallel()
+
+	app := setupRBACApp(t)
+	clientset := fake.NewSimpleClientset()
+	attachKubernetesLogsRoutes(t, app, func(_ []byte) (kubernetes.Interface, error) {
+		return clientset, nil
+	})
+
+	adminToken := registerAndLogin(t, app.router, "Log Bounds Admin", "log-bounds-admin@opspilot.dev", "password123")
+	adminUser := mustGetUserByEmail(t, app.userRepo, "log-bounds-admin@opspilot.dev")
+	organizationID := *adminUser.OrganizationID
+	projectID := createProject(t, app.router, adminToken, "Log Bounds Project")
+	createCluster(t, app.router, adminToken, projectID, "log-bounds-cluster")
+	applicationID := createApplicationForLogs(t, app.router, adminToken, projectID, "Log Bounds App")
+
+	seedLogPod(t, clientset, applicationID, organizationID, "default", "pod-bounds")
+
+	var observedTailLines *int64
+	var observedPrevious bool
+	clientset.PrependReactor("get", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
+		if action.GetSubresource() != "log" {
+			return false, nil, nil
+		}
+		genericAction, ok := action.(ktesting.GenericAction)
+		if !ok {
+			t.Fatalf("expected generic action for pod logs")
+		}
+		opts, ok := genericAction.GetValue().(*corev1.PodLogOptions)
+		if !ok {
+			t.Fatalf("expected pod log options in action value")
+		}
+		observedTailLines = opts.TailLines
+		observedPrevious = opts.Previous
+		return false, nil, nil
+	})
+
+	// No tailLines supplied -> defaulted, not unbounded.
+	defaultRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/pods/default/pod-bounds/logs?applicationId="+applicationID.String(), adminToken, nil)
+	assertStatus(t, defaultRec, http.StatusOK)
+	if observedTailLines == nil || *observedTailLines != 1000 {
+		t.Fatalf("expected default tailLines=1000, got %v", observedTailLines)
+	}
+
+	// An oversized request is clamped rather than honored as-is.
+	clampedRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/pods/default/pod-bounds/logs?applicationId="+applicationID.String()+"&tailLines=1000000", adminToken, nil)
+	assertStatus(t, clampedRec, http.StatusOK)
+	if observedTailLines == nil || *observedTailLines != 5000 {
+		t.Fatalf("expected clamped tailLines=5000, got %v", observedTailLines)
+	}
+
+	// previous=true is threaded through to the Kubernetes API call and echoed back.
+	previousRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/pods/default/pod-bounds/logs?applicationId="+applicationID.String()+"&previous=true", adminToken, nil)
+	assertStatus(t, previousRec, http.StatusOK)
+	if !observedPrevious {
+		t.Fatalf("expected previous=true to reach PodLogOptions")
+	}
+	previousData := decodeDataMap(t, previousRec)
+	if previousData["previous"] != true {
+		t.Fatalf("expected response to echo previous=true, got %v", previousData["previous"])
+	}
+
+	invalidPreviousRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/pods/default/pod-bounds/logs?applicationId="+applicationID.String()+"&previous=not-a-bool", adminToken, nil)
+	assertStatus(t, invalidPreviousRec, http.StatusBadRequest)
+}
+
 func TestKubernetesLogsAPI_InvalidKubeconfig(t *testing.T) {
 	t.Parallel()
 

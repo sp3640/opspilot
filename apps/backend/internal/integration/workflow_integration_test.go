@@ -85,7 +85,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterService := services.NewClusterService(clusterRepo, auditService, testClusterCredentialCipher(t))
 	resourceService := services.NewResourceService(resourceRepo, resourcesync.NewSyncEngine(resourceRepo), auditService)
-	metricService := services.NewMetricService(metricRepo, auditService)
+	metricService := services.NewMetricService(metricRepo, auditService).WithResourceRepo(resourceRepo)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
 	// 1) User authentication

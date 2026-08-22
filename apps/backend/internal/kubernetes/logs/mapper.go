@@ -14,7 +14,7 @@ func NewLogMapper() *LogMapper {
 	return &LogMapper{now: time.Now}
 }
 
-func (m *LogMapper) MapPodLogs(pod string, container string, namespace string, logOutput string) *dto.PodLogResponse {
+func (m *LogMapper) MapPodLogs(pod string, container string, namespace string, logOutput string, previous bool) *dto.PodLogResponse {
 	if m == nil {
 		m = NewLogMapper()
 	}
@@ -24,6 +24,7 @@ func (m *LogMapper) MapPodLogs(pod string, container string, namespace string, l
 		Container:   container,
 		Namespace:   namespace,
 		Log:         logOutput,
+		Previous:    previous,
 		RetrievedAt: m.now().UTC(),
 	}
 }

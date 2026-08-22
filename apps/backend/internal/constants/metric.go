@@ -10,6 +10,14 @@ const (
 	MetricTypeReplicaCount = "REPLICACOUNT"
 	MetricTypeAvailability = "AVAILABILITY"
 	MetricTypeCustom       = "CUSTOM"
+
+	// Application-category metric types. No provider (e.g. Prometheus/APM)
+	// is connected yet, so nothing populates these today - they exist so the
+	// type system has a defined, honest place to report "unavailable"
+	// rather than a caller inventing an ad hoc CUSTOM metric name for them.
+	MetricTypeLatency     = "LATENCY"
+	MetricTypeErrorRate   = "ERRORRATE"
+	MetricTypeRequestRate = "REQUESTRATE"
 )
 
 // ValidMetricTypes is the slice of all valid metric type values.
@@ -22,6 +30,9 @@ var ValidMetricTypes = []string{
 	MetricTypeReplicaCount,
 	MetricTypeAvailability,
 	MetricTypeCustom,
+	MetricTypeLatency,
+	MetricTypeErrorRate,
+	MetricTypeRequestRate,
 }
 
 func IsValidMetricType(metricType string) bool {
@@ -33,7 +44,10 @@ func IsValidMetricType(metricType string) bool {
 		MetricTypeRestartCount,
 		MetricTypeReplicaCount,
 		MetricTypeAvailability,
-		MetricTypeCustom:
+		MetricTypeCustom,
+		MetricTypeLatency,
+		MetricTypeErrorRate,
+		MetricTypeRequestRate:
 		return true
 	default:
 		return false

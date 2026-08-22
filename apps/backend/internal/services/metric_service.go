@@ -19,8 +19,9 @@ import (
 )
 
 type MetricService struct {
-	repo      *repository.MetricRepository
-	auditRepo *AuditService
+	repo         *repository.MetricRepository
+	auditRepo    *AuditService
+	resourceRepo *repository.ResourceRepository
 }
 
 func NewMetricService(repo *repository.MetricRepository, auditService *AuditService) *MetricService {
@@ -28,6 +29,16 @@ func NewMetricService(repo *repository.MetricRepository, auditService *AuditServ
 		repo:      repo,
 		auditRepo: auditService,
 	}
+}
+
+// WithResourceRepo enables auto-provisioning a minimal Resource catalog row
+// for cluster-scoped metrics (see ensureClusterResources) whose ResourceID
+// is the cluster's own ID rather than a discovered catalog entry. Optional:
+// without it, cluster-kind metric ingestion still works as long as a
+// matching Resource row already exists by some other means.
+func (s *MetricService) WithResourceRepo(resourceRepo *repository.ResourceRepository) *MetricService {
+	s.resourceRepo = resourceRepo
+	return s
 }
 
 func (s *MetricService) StoreMetrics(ctx context.Context, projectID uuid.UUID, userID uint, requests []dto.CreateMetricRequest) ([]dto.MetricResponse, error) {
@@ -41,6 +52,10 @@ func (s *MetricService) StoreMetrics(ctx context.Context, projectID uuid.UUID, u
 
 	if len(requests) == 0 {
 		return []dto.MetricResponse{}, nil
+	}
+
+	if err := s.ensureClusterResources(organizationID, projectID, userID, requests); err != nil {
+		return nil, err
 	}
 
 	now := time.Now().UTC()
@@ -221,6 +236,64 @@ func (s *MetricService) Aggregate(organizationID uuid.UUID, projectID uuid.UUID,
 	}, nil
 }
 
+// ensureClusterResources auto-provisions a minimal Resource catalog row for
+// any cluster-scoped metric whose ResourceID is the cluster's own ID.
+// Metric.ResourceID has a foreign key into the resources table, but nothing
+// creates a catalog entry representing "the cluster itself" when a cluster
+// is created - without this, every cluster-wide metric insert (CPU, memory,
+// node health, ...) fails its FK constraint and is silently dropped by the
+// bootstrap job. Idempotent: a no-op once the row exists.
+func (s *MetricService) ensureClusterResources(organizationID, projectID uuid.UUID, userID uint, requests []dto.CreateMetricRequest) error {
+	if s.resourceRepo == nil {
+		return nil
+	}
+
+	seen := make(map[uuid.UUID]bool)
+	for _, request := range requests {
+		if !strings.EqualFold(strings.TrimSpace(request.ResourceKind), constants.ResourceKindCluster) {
+			continue
+		}
+		if request.ResourceID == uuid.Nil || seen[request.ResourceID] {
+			continue
+		}
+		seen[request.ResourceID] = true
+
+		if _, err := s.resourceRepo.FindByID(request.ResourceID, organizationID); err == nil {
+			continue
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		resource := &models.Resource{
+			ID:             request.ResourceID,
+			OrganizationID: organizationID,
+			ProjectID:      projectID,
+			Kind:           constants.ResourceKindCluster,
+			Name:           "cluster-" + request.ResourceID.String(),
+			ExternalID:     request.ResourceID.String(),
+			Status:         constants.ResourceStatusActive,
+			Health:         constants.ResourceHealthUnknown,
+			// Explicitly set (rather than leaving the Go zero value) so GORM
+			// does not need to re-select these DB-defaulted jsonb columns
+			// after insert - SQLite's driver hands that back as a string,
+			// which json.RawMessage cannot Scan.
+			Labels:      json.RawMessage(`{}`),
+			Annotations: json.RawMessage(`{}`),
+			Metadata:    json.RawMessage(`{}`),
+			CreatedBy:   userID,
+		}
+		if err := s.resourceRepo.Create(resource); err != nil {
+			// Tolerate a concurrent creator winning the race.
+			if _, findErr := s.resourceRepo.FindByID(request.ResourceID, organizationID); findErr == nil {
+				continue
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (s *MetricService) buildMetricModel(projectID, organizationID uuid.UUID, request dto.CreateMetricRequest, now time.Time) (models.Metric, error) {
 	if request.ProjectID != uuid.Nil && request.ProjectID != projectID {
 		return models.Metric{}, apperrors.ErrInvalidProject
@@ -274,8 +347,8 @@ func (s *MetricService) buildMetricModel(projectID, organizationID uuid.UUID, re
 		Value:          request.Value,
 		Unit:           strings.TrimSpace(request.Unit),
 		Timestamp:      timestamp,
-		Labels:         labels,
-		Metadata:       metadata,
+		Labels:         models.MetricJSON(labels),
+		Metadata:       models.MetricJSON(metadata),
 	}, nil
 }
 

@@ -198,7 +198,8 @@ func run() error {
 	deploymentService.WithExecutor(deploymentExecutor)
 	resourceSyncEngine := resourcesync.NewSyncEngine(resourceRepo)
 	resourceService := services.NewResourceService(resourceRepo, resourceSyncEngine, auditService)
-	metricService := services.NewMetricService(metricRepo, auditService)
+	metricService := services.NewMetricService(metricRepo, auditService).WithResourceRepo(resourceRepo)
+	metricsStatusService := services.NewMetricsStatusService(clusterRepo, metricRepo, clusterCredentialCipher)
 	kubernetesProviderFactory := bootstrap.NewKubernetesDiscoveryProviderFactory()
 	runtimeClusterCatalog := &discoveryClusterLoader{db: database.DB, repo: clusterRepo}
 	discoveryWorker := discovery.NewDiscoveryWorker(
@@ -244,7 +245,7 @@ func run() error {
 	applicationTeamHandler := handlers.NewApplicationTeamHandler(applicationTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
 	alertHandler := handlers.NewAlertHandler(alertService)
-	metricHandler := handlers.NewMetricHandler(metricService)
+	metricHandler := handlers.NewMetricHandler(metricService, metricsStatusService)
 	clusterHandler := handlers.NewClusterHandler(clusterService)
 	resourceHandler := handlers.NewResourceHandler(resourceService, clusterService, discoveryWorker)
 	commentHandler := handlers.NewCommentHandler(commentService)

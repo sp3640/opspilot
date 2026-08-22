@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Cpu,
+  Gauge,
   Globe,
   Layers3,
   Network,
@@ -27,6 +28,7 @@ import type { ClusterValidationResponse } from "@/types/cluster-api";
 import { ClusterConfigMaps } from "./cluster-configmaps";
 import { ClusterDeployments } from "./cluster-deployments";
 import { ClusterIngresses } from "./cluster-ingresses";
+import { ClusterMetrics } from "./cluster-metrics";
 import { ClusterNamespaces } from "./cluster-namespaces";
 import { ClusterNodes } from "./cluster-nodes";
 import { ClusterPods } from "./cluster-pods";
@@ -39,6 +41,7 @@ import { EditClusterModal } from "./edit-cluster-modal";
 
 const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Overview", icon: CheckCircle2 },
+  { label: "Metrics", icon: Gauge },
   { label: "Nodes", icon: Cpu },
   { label: "Namespaces", icon: Boxes },
   { label: "Pods", icon: Boxes },
@@ -298,7 +301,9 @@ export function ClusterDetailsDrawer({
           aria-describedby={tabListId}
           className="flex-1 overflow-y-auto p-5"
         >
-          {activeTab === "Nodes" ? (
+          {activeTab === "Metrics" ? (
+            <ClusterMetrics clusterId={cluster.id} projectId={cluster.projectId} />
+          ) : activeTab === "Nodes" ? (
             <ClusterNodes clusterId={cluster.id} />
           ) : activeTab === "Namespaces" ? (
             <ClusterNamespaces clusterId={cluster.id} />

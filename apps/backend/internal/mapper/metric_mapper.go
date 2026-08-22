@@ -1,6 +1,8 @@
 package mapper
 
 import (
+	"encoding/json"
+
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/models"
 )
@@ -18,8 +20,8 @@ func MapMetric(metric models.Metric) dto.MetricResponse {
 		Value:        metric.Value,
 		Unit:         metric.Unit,
 		Timestamp:    metric.Timestamp,
-		Labels:       metric.Labels,
-		Metadata:     metric.Metadata,
+		Labels:       json.RawMessage(metric.Labels),
+		Metadata:     json.RawMessage(metric.Metadata),
 		CreatedAt:    metric.CreatedAt,
 	}
 }

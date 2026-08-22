@@ -21,6 +21,14 @@ import (
 
 type ClientsetFactory func(kubeconfig []byte) (kubernetes.Interface, error)
 
+// defaultTailLines/maxTailLines bound an unbounded caller from requesting
+// (or accidentally omitting) a line count and pulling an unbounded amount of
+// log data into memory via io.ReadAll on every request.
+const (
+	defaultTailLines int64 = 1000
+	maxTailLines     int64 = 5000
+)
+
 type LogService struct {
 	applicationRepo  *repository.ApplicationRepository
 	clusterRepo      *repository.ClusterRepository
@@ -49,7 +57,7 @@ func (s *LogService) WithClientsetFactory(factory ClientsetFactory) *LogService 
 	return s
 }
 
-func (s *LogService) GetPodLogs(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string, podName string, container string, tailLines *int64, sinceSeconds *int64, timestamps bool) (*dto.PodLogResponse, error) {
+func (s *LogService) GetPodLogs(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string, podName string, container string, tailLines *int64, sinceSeconds *int64, timestamps bool, previous bool) (*dto.PodLogResponse, error) {
 	namespace = strings.TrimSpace(namespace)
 	podName = strings.TrimSpace(podName)
 	container = strings.TrimSpace(container)
@@ -83,7 +91,13 @@ func (s *LogService) GetPodLogs(ctx context.Context, applicationID uuid.UUID, or
 		container = defaultContainerName(pod)
 	}
 
-	logOptions := &corev1.PodLogOptions{Container: container, TailLines: tailLines, SinceSeconds: sinceSeconds, Timestamps: timestamps}
+	logOptions := &corev1.PodLogOptions{
+		Container:    container,
+		TailLines:    boundTailLines(tailLines),
+		SinceSeconds: sinceSeconds,
+		Timestamps:   timestamps,
+		Previous:     previous,
+	}
 	stream, err := clientset.CoreV1().Pods(namespace).GetLogs(podName, logOptions).Stream(ctx)
 	if err != nil {
 		return nil, mapLogError(err)
@@ -95,7 +109,23 @@ func (s *LogService) GetPodLogs(ctx context.Context, applicationID uuid.UUID, or
 		return nil, mapLogError(err)
 	}
 
-	return s.mapper.MapPodLogs(podName, container, namespace, string(logBytes)), nil
+	return s.mapper.MapPodLogs(podName, container, namespace, string(logBytes), previous), nil
+}
+
+// boundTailLines applies a sane default when the caller omits a line count,
+// and clamps an oversized request so a single log fetch cannot pull an
+// unbounded amount of data into memory.
+func boundTailLines(tailLines *int64) *int64 {
+	if tailLines == nil {
+		bounded := defaultTailLines
+		return &bounded
+	}
+	if *tailLines > maxTailLines {
+		bounded := maxTailLines
+		return &bounded
+	}
+
+	return tailLines
 }
 
 func (s *LogService) ValidatePodOwnership(ctx context.Context, clientset kubernetes.Interface, applicationID uuid.UUID, organizationID uuid.UUID, namespace string, podName string) (*corev1.Pod, error) {

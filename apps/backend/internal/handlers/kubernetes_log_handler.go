@@ -15,7 +15,7 @@ import (
 )
 
 type kubernetesLogReader interface {
-	GetPodLogs(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string, podName string, container string, tailLines *int64, sinceSeconds *int64, timestamps bool) (*dto.PodLogResponse, error)
+	GetPodLogs(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string, podName string, container string, tailLines *int64, sinceSeconds *int64, timestamps bool, previous bool) (*dto.PodLogResponse, error)
 }
 
 type KubernetesLogHandler struct {
@@ -64,6 +64,10 @@ func (h *KubernetesLogHandler) GetPodLogs(c *gin.Context) {
 	if !ok {
 		return
 	}
+	previous, ok := parseOptionalBoolQuery(c, "previous")
+	if !ok {
+		return
+	}
 
 	namespace := strings.TrimSpace(c.Param("namespace"))
 	podName := strings.TrimSpace(c.Param("pod"))
@@ -71,7 +75,7 @@ func (h *KubernetesLogHandler) GetPodLogs(c *gin.Context) {
 		podName = strings.TrimSpace(c.Param("name"))
 	}
 	container := strings.TrimSpace(c.Query("container"))
-	result, err := h.service.GetPodLogs(c.Request.Context(), applicationID, organizationID, namespace, podName, container, tailLines, sinceSeconds, timestamps)
+	result, err := h.service.GetPodLogs(c.Request.Context(), applicationID, organizationID, namespace, podName, container, tailLines, sinceSeconds, timestamps, previous)
 	if err != nil {
 		handleKubernetesLogError(c, err)
 		return
@@ -112,7 +116,7 @@ func parseOptionalBoolQuery(c *gin.Context, key string) (bool, bool) {
 
 func handleKubernetesLogError(c *gin.Context, err error) {
 	switch err {
-	case apperrors.ErrApplicationNotFound, apperrors.ErrLogPodNotFound, apperrors.ErrLogContainerNotFound, apperrors.ErrLogNamespaceNotFound:
+	case apperrors.ErrApplicationNotFound, apperrors.ErrLogPodNotFound, apperrors.ErrLogContainerNotFound, apperrors.ErrLogNamespaceNotFound, apperrors.ErrLogPreviousNotFound:
 		response.Error(c, http.StatusNotFound, err.Error())
 	case apperrors.ErrApplicationForbidden, apperrors.ErrProjectForbidden, apperrors.ErrLogForbidden:
 		response.Error(c, http.StatusForbidden, err.Error())

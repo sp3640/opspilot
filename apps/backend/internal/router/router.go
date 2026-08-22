@@ -307,6 +307,7 @@ func RegisterRoutes(
 			clusters.POST("", clusterHandler.Create)
 			clusters.GET("", clusterHandler.List)
 			clusters.GET("/:id/metrics", metricHandler.GetClusterMetrics)
+			clusters.GET("/:id/metrics/status", metricHandler.GetClusterMetricsStatus)
 			clusters.GET("/:id", clusterHandler.GetByID)
 			clusters.PUT("/:id", clusterHandler.Update)
 			clusters.DELETE("/:id", clusterHandler.Delete)

@@ -70,6 +70,28 @@ type MetricAggregatePointResponse struct {
 	Count  int64     `json:"count"`
 }
 
+// ApplicationMetricsStatusResponse honestly reports that no application
+// observability provider (e.g. Prometheus/APM) is connected yet, rather than
+// silently returning an empty metric history that could be mistaken for
+// "no traffic recorded."
+type ApplicationMetricsStatusResponse struct {
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// MetricsStatusResponse is the provider-status contract for a single
+// cluster: whether the cluster itself is reachable, whether metrics-server
+// is installed (so CPU/memory usage reflects real usage vs. an estimate
+// derived from declared resource requests), when metrics were last
+// collected, and whether application-level metrics exist at all.
+type MetricsStatusResponse struct {
+	ClusterID              string                           `json:"clusterId"`
+	KubernetesReachable    bool                             `json:"kubernetesReachable"`
+	MetricsServerAvailable bool                             `json:"metricsServerAvailable"`
+	LastCollectedAt        *time.Time                       `json:"lastCollectedAt,omitempty"`
+	ApplicationMetrics     ApplicationMetricsStatusResponse `json:"applicationMetrics"`
+}
+
 // MetricAggregateResponse contains aggregate values and a bucketed time series.
 type MetricAggregateResponse struct {
 	ProjectID  string                         `json:"projectId"`

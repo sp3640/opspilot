@@ -52,5 +52,12 @@ func mapLogError(err error) error {
 		}
 	}
 
+	// The kubelet reports a `previous=true` request for a container with no
+	// prior terminated instance as a plain (non-structured) error rather than
+	// a Kubernetes API NotFound status, so it must be matched on message text.
+	if strings.Contains(strings.ToLower(err.Error()), "previous terminated container") {
+		return apperrors.ErrLogPreviousNotFound
+	}
+
 	return err
 }

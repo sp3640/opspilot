@@ -27,6 +27,12 @@ type ClusterMetrics struct {
 
 	StorageCapacityBytes int64
 	StorageUsageBytes    int64
+
+	// UsageSource records whether CPUUsageMilliCores/MemoryUsageBytes are
+	// real live usage ("metrics-server") or an estimate derived from
+	// declared container resource requests ("requested-capacity") when
+	// metrics-server is not installed on the target cluster.
+	UsageSource string
 }
 
 type NodeMetrics struct {

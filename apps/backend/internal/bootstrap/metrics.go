@@ -238,8 +238,39 @@ func mapClusterSnapshotToRequests(cluster RuntimeCluster, snapshot metrics.Colle
 		now = time.Now().UTC()
 	}
 
-	labels := json.RawMessage(`{"source":"runtime-bootstrap"}`)
+	source := "requested-capacity"
+	if snapshot.Cluster.UsageSource != "" {
+		source = snapshot.Cluster.UsageSource
+	}
+	labels := json.RawMessage(`{"source":"` + source + `"}`)
 	metadata := json.RawMessage(`{}`)
+	// Kubernetes-category rows (restarts/readiness/replica availability) are
+	// never estimates - they come straight from the Kubernetes API objects
+	// already collected above, so they always carry this fixed source label
+	// regardless of whether CPU/memory used the live-usage or requests path.
+	k8sLabels := json.RawMessage(`{"source":"kubernetes-api"}`)
+
+	notReadyNodes := 0
+	for _, node := range snapshot.Nodes {
+		if !node.Ready {
+			notReadyNodes++
+		}
+	}
+
+	var podRestarts int64
+	notReadyPods := 0
+	for _, pod := range snapshot.Pods {
+		podRestarts += int64(pod.Restarts)
+		if !pod.Ready {
+			notReadyPods++
+		}
+	}
+
+	var availableReplicas, unavailableReplicas int64
+	for _, deployment := range snapshot.Deployments {
+		availableReplicas += int64(deployment.AvailableReplicas)
+		unavailableReplicas += int64(deployment.UnavailableReplicas)
+	}
 
 	requests := []dto.CreateMetricRequest{
 		{
@@ -370,6 +401,73 @@ func mapClusterSnapshotToRequests(cluster RuntimeCluster, snapshot metrics.Colle
 			Unit:         "count",
 			Timestamp:    now,
 			Labels:       labels,
+			Metadata:     metadata,
+		},
+		// Kubernetes-category health, derived from data already collected
+		// above (no additional API calls) - real, not estimated.
+		{
+			ProjectID:    cluster.ProjectID,
+			ClusterID:    cluster.ID,
+			ResourceID:   cluster.ID,
+			ResourceKind: constants.ResourceKindCluster,
+			MetricType:   constants.MetricTypeAvailability,
+			MetricName:   "cluster.node.not_ready.count",
+			Value:        float64(notReadyNodes),
+			Unit:         "count",
+			Timestamp:    now,
+			Labels:       k8sLabels,
+			Metadata:     metadata,
+		},
+		{
+			ProjectID:    cluster.ProjectID,
+			ClusterID:    cluster.ID,
+			ResourceID:   cluster.ID,
+			ResourceKind: constants.ResourceKindCluster,
+			MetricType:   constants.MetricTypeRestartCount,
+			MetricName:   "cluster.pod.restarts.total",
+			Value:        float64(podRestarts),
+			Unit:         "count",
+			Timestamp:    now,
+			Labels:       k8sLabels,
+			Metadata:     metadata,
+		},
+		{
+			ProjectID:    cluster.ProjectID,
+			ClusterID:    cluster.ID,
+			ResourceID:   cluster.ID,
+			ResourceKind: constants.ResourceKindCluster,
+			MetricType:   constants.MetricTypeAvailability,
+			MetricName:   "cluster.pod.not_ready.count",
+			Value:        float64(notReadyPods),
+			Unit:         "count",
+			Timestamp:    now,
+			Labels:       k8sLabels,
+			Metadata:     metadata,
+		},
+		{
+			ProjectID:    cluster.ProjectID,
+			ClusterID:    cluster.ID,
+			ResourceID:   cluster.ID,
+			ResourceKind: constants.ResourceKindCluster,
+			MetricType:   constants.MetricTypeReplicaCount,
+			MetricName:   "cluster.deployment.available_replicas.total",
+			Value:        float64(availableReplicas),
+			Unit:         "count",
+			Timestamp:    now,
+			Labels:       k8sLabels,
+			Metadata:     metadata,
+		},
+		{
+			ProjectID:    cluster.ProjectID,
+			ClusterID:    cluster.ID,
+			ResourceID:   cluster.ID,
+			ResourceKind: constants.ResourceKindCluster,
+			MetricType:   constants.MetricTypeReplicaCount,
+			MetricName:   "cluster.deployment.unavailable_replicas.total",
+			Value:        float64(unavailableReplicas),
+			Unit:         "count",
+			Timestamp:    now,
+			Labels:       k8sLabels,
 			Metadata:     metadata,
 		},
 	}

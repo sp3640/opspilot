@@ -148,6 +148,7 @@ var (
 	ErrLogInvalidKubeconfig  = errors.New("invalid kubeconfig")
 	ErrLogClusterUnavailable = errors.New("cluster unavailable")
 	ErrLogTimeout            = errors.New("kubernetes timeout")
+	ErrLogPreviousNotFound   = errors.New("no previous container instance found")
 
 	// Kubernetes configmap errors
 	ErrConfigMapNotFound           = errors.New("configmap not found")
