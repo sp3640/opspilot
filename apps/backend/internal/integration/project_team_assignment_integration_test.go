@@ -37,7 +37,7 @@ func TestProjectTeamAssignmentIntegration(t *testing.T) {
 	if err := userRepo.AssignOrganizationAndRole(adminB.ID, orgB, models.RolePlatformAdmin); err != nil {
 		t.Fatalf("assign admin role for orgB admin: %v", err)
 	}
-	if err := userRepo.AssignOrganizationAndRole(userA.ID, orgA, models.RoleUser); err != nil {
+	if err := userRepo.AssignOrganizationAndRole(userA.ID, orgA, models.RoleViewer); err != nil {
 		t.Fatalf("assign user role for orgA member: %v", err)
 	}
 
@@ -74,8 +74,8 @@ func TestProjectTeamAssignmentIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("User forbidden to assign", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RoleUser, orgA, projectA.ID, teamA2.ID)
+	t.Run("Viewer forbidden to assign", func(t *testing.T) {
+		_, err := service.AssignTeam(models.RoleViewer, orgA, projectA.ID, teamA2.ID)
 		if !errors.Is(err, apperrors.ErrProjectForbidden) {
 			t.Fatalf("expected ErrProjectForbidden, got %v", err)
 		}
@@ -89,7 +89,7 @@ func TestProjectTeamAssignmentIntegration(t *testing.T) {
 	})
 
 	t.Run("List Project Teams", func(t *testing.T) {
-		result, err := service.ListProjectTeams(models.RoleUser, orgA, projectA.ID)
+		result, err := service.ListProjectTeams(models.RoleViewer, orgA, projectA.ID)
 		if err != nil {
 			t.Fatalf("list project teams: %v", err)
 		}
@@ -99,7 +99,7 @@ func TestProjectTeamAssignmentIntegration(t *testing.T) {
 	})
 
 	t.Run("List Team Projects", func(t *testing.T) {
-		result, err := service.ListTeamProjects(models.RoleUser, orgA, teamA.ID)
+		result, err := service.ListTeamProjects(models.RoleViewer, orgA, teamA.ID)
 		if err != nil {
 			t.Fatalf("list team projects: %v", err)
 		}

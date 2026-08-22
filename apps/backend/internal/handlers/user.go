@@ -55,7 +55,7 @@ func (h *UserHandler) Me(c *gin.Context) {
 
 func resolvedRole(role string) string {
 	if strings.TrimSpace(role) == "" {
-		return models.RoleUser
+		return models.RoleViewer
 	}
 
 	return role

@@ -9,6 +9,7 @@ import {
   ChartNoAxesCombined,
   ClipboardList,
   Settings,
+  Users,
 } from "lucide-react";
 
 export const navigationGroups = [
@@ -65,6 +66,11 @@ export const navigationGroups = [
         title: "Organization",
         href: "/organization",
         icon: Building2,
+      },
+      {
+        title: "Teams",
+        href: "/teams",
+        icon: Users,
       },
       {
         title: "Settings",

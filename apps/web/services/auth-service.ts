@@ -22,4 +22,15 @@ export const authService = {
     const response = await api.get<MeResponse>("/users/me");
     return response.data;
   },
+
+  /**
+   * Mints a fresh access token reflecting the caller's CURRENT database
+   * role/organization. Used right after an action that can change them
+   * (currently: invitation acceptance) so the session's authorization
+   * doesn't stay stale until the next full login.
+   */
+  reissue: async (): Promise<LoginResponse> => {
+    const response = await api.post<LoginResponse>("/auth/reissue");
+    return response.data;
+  },
 };

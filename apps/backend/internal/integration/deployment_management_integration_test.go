@@ -15,7 +15,7 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 	app := setupRBACApp(t)
 
 	adminToken := registerAndLogin(t, app.router, "Deploy Admin", "deploy-admin@opspilot.dev", "password123")
-	memberToken := registerAndLogin(t, app.router, "Deploy Member", "deploy-member@opspilot.dev", "password123")
+	registerAndLogin(t, app.router, "Deploy Member", "deploy-member@opspilot.dev", "password123")
 
 	admin := mustGetUserByEmail(t, app.userRepo, "deploy-admin@opspilot.dev")
 	member := mustGetUserByEmail(t, app.userRepo, "deploy-member@opspilot.dev")
@@ -23,9 +23,13 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 		t.Fatalf("expected admin organization")
 	}
 	organizationA := *admin.OrganizationID
-	if err := app.userRepo.AssignOrganizationAndRole(member.ID, organizationA, models.RoleUser); err != nil {
+	// Uninvited registration now creates its own organization, so the member
+	// must be explicitly moved into organization A and re-authenticated to
+	// pick up the updated organization/role claims.
+	if err := app.userRepo.AssignOrganizationAndRole(member.ID, organizationA, models.RoleViewer); err != nil {
 		t.Fatalf("assign member to organization: %v", err)
 	}
+	memberToken := loginOnly(t, app.router, "deploy-member@opspilot.dev", "password123")
 
 	projectID := createProject(t, app.router, adminToken, "Deployment Project")
 	clusterID := createCluster(t, app.router, adminToken, projectID, "deployment-cluster")
@@ -156,6 +160,38 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 		t.Fatalf("expected latest deployment %s, got %s", secondID.String(), latest.ID.String())
 	}
 
+	// GET /applications/:id/deployments/latest (Phase 8) surfaces the same
+	// "most recently created" deployment over HTTP — this is the
+	// authoritative Application -> Cluster/Namespace/Environment mapping the
+	// frontend Runtime summary consumes directly.
+	latestRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/applications/"+applicationID.String()+"/deployments/latest", memberToken, nil)
+	assertStatus(t, latestRec, http.StatusOK)
+	latestData := decodeDataMap(t, latestRec)
+	if latestData["id"].(string) != secondID.String() {
+		t.Fatalf("expected latest deployment endpoint to return %s, got %v", secondID.String(), latestData["id"])
+	}
+	if latestData["targetClusterId"].(string) != clusterID.String() {
+		t.Fatalf("expected latest deployment to map to cluster %s, got %v", clusterID.String(), latestData["targetClusterId"])
+	}
+	if latestData["namespace"].(string) != "ops-api" {
+		t.Fatalf("expected latest deployment namespace ops-api, got %v", latestData["namespace"])
+	}
+	if latestData["environment"].(string) != constants.DeploymentEnvironmentStaging {
+		t.Fatalf("expected latest deployment environment %s, got %v", constants.DeploymentEnvironmentStaging, latestData["environment"])
+	}
+
+	// An application with no deployments yet has no runtime mapping: the
+	// endpoint returns a clean 404 rather than a zero-value/empty record, so
+	// the frontend can render a clear empty state.
+	noDeploymentsAppRec := doJSONRequest(t, app.router, http.MethodPost, "/api/v1/projects/"+projectID.String()+"/applications", adminToken, map[string]any{
+		"name":    "No Deployments App",
+		"runtime": constants.ApplicationRuntimeGo,
+		"port":    8080,
+	})
+	assertStatus(t, noDeploymentsAppRec, http.StatusCreated)
+	noDeploymentsAppID := decodeDataMap(t, noDeploymentsAppRec)["id"].(string)
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/applications/"+noDeploymentsAppID+"/deployments/latest", adminToken, nil), http.StatusNotFound)
+
 	orgBRec := doJSONRequest(t, app.router, http.MethodPost, "/api/v1/organizations", adminToken, map[string]any{
 		"name":        "Deploy Org B",
 		"description": "secondary org",
@@ -174,6 +210,12 @@ func TestDeploymentManagementIntegration(t *testing.T) {
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/deployments/"+deploymentID.String(), memberOrgBToken, nil), http.StatusForbidden)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodPatch, "/api/v1/deployments/"+deploymentID.String(), memberOrgBToken, map[string]any{"imageTag": "forbidden"}), http.StatusForbidden)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/deployments/"+deploymentID.String(), memberOrgBToken, nil), http.StatusForbidden)
+	// Cross-org access to another org's application's runtime mapping never
+	// succeeds — arbitrary cross-org resource mapping must be impossible.
+	// This matches the existing application-scoped deployment endpoints'
+	// convention of reporting a cross-org application as not found rather
+	// than distinguishing "forbidden" from "doesn't exist."
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/applications/"+applicationID.String()+"/deployments/latest", memberOrgBToken, nil), http.StatusNotFound)
 
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/deployments/"+deploymentID.String(), adminToken, nil), http.StatusOK)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/deployments/"+deploymentID.String(), adminToken, nil), http.StatusNotFound)

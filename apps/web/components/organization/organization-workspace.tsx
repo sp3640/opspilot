@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { ErrorState } from "@/components/common";
 import { SectionCard } from "@/components/dashboard";
+import { InvitationWorkspace } from "@/components/invitations";
 import { type OrganizationFormValues } from "@/lib/validation/organization";
 import {
   useCreateOrganization,
@@ -11,6 +12,7 @@ import {
   useOrganizations,
   useUpdateOrganization,
 } from "@/hooks/use-organizations";
+import { useIsPlatformAdmin } from "@/store/auth-store";
 
 import { OrganizationCard } from "./organization-card";
 import { OrganizationDeleteDialog } from "./organization-delete-dialog";
@@ -28,6 +30,7 @@ const listParams = {
 };
 
 export function OrganizationWorkspace() {
+  const isAdmin = useIsPlatformAdmin();
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isCreateMode, setCreateMode] = useState(false);
 
@@ -121,6 +124,8 @@ export function OrganizationWorkspace() {
           <OrganizationCard organization={organization} />
         </div>
       )}
+
+      {organization && isAdmin ? <InvitationWorkspace /> : null}
 
       {organization ? (
         <OrganizationDeleteDialog

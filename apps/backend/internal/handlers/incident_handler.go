@@ -9,6 +9,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -22,7 +23,7 @@ func NewIncidentHandler(service *services.IncidentService) *IncidentHandler {
 }
 
 func (h *IncidentHandler) Create(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionIncidentManage) {
 		return
 	}
 
@@ -127,7 +128,7 @@ func (h *IncidentHandler) GetByID(c *gin.Context) {
 }
 
 func (h *IncidentHandler) Update(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionIncidentManage) {
 		return
 	}
 
@@ -182,7 +183,7 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 }
 
 func (h *IncidentHandler) Delete(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionIncidentManage) {
 		return
 	}
 

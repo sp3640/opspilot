@@ -4,6 +4,7 @@ import { Grid2X2, List, Plus, Search, SlidersHorizontal, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useHasPermission } from "@/store/auth-store";
 
 type ApplicationView = "grid" | "table";
 
@@ -37,6 +38,7 @@ export function ApplicationToolbar({
   onViewChange,
   onCreate,
 }: ApplicationToolbarProps) {
+  const canManageApplications = useHasPermission("application:manage");
   const showFilters = Boolean(onRuntimeChange || onStatusChange);
 
   return (
@@ -155,10 +157,12 @@ export function ApplicationToolbar({
         </div>
 
         <div className="flex items-center gap-2">
-          <Button type="button" onClick={onCreate}>
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Create application
-          </Button>
+          {canManageApplications ? (
+            <Button type="button" onClick={onCreate}>
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              Create application
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -18,4 +18,9 @@ export const configMapService = {
     );
     return response.data.data;
   },
+
+  async listConfigMapsByCluster(clusterId: string, params: ConfigMapQueryParams): Promise<ConfigMapListResponse> {
+    const response = await api.get<APIResponse<ConfigMapListResponse>>(`/clusters/${clusterId}/configmaps`, { params });
+    return response.data.data;
+  },
 };

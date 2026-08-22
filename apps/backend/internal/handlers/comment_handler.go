@@ -8,6 +8,7 @@ import (
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -29,7 +30,7 @@ func NewCommentHandler(service *services.CommentService) *CommentHandler {
 }
 
 func (h *CommentHandler) Create(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionIncidentComment) {
 		return
 	}
 

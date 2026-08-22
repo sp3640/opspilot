@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -85,6 +86,43 @@ func (s *ReplicaSetService) ListReplicaSetsByApplication(
 
 	items := s.mapper.MapReplicaSetList(replicaSets.Items)
 
+	return &dto.ReplicaSetListResponse{
+		Items: items,
+		Total: len(items),
+	}, nil
+}
+
+// ListReplicaSetsForCluster lists every ReplicaSet in the cluster (optionally
+// filtered by namespace), reusing the same decrypt/clientFactory plumbing.
+func (s *ReplicaSetService) ListReplicaSetsForCluster(
+	ctx context.Context,
+	clusterID uuid.UUID,
+	organizationID uuid.UUID,
+	namespace string,
+) (*dto.ReplicaSetListResponse, error) {
+	cluster, err := s.getOwnedCluster(clusterID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := s.clientsetForCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	ns := strings.TrimSpace(namespace)
+	if ns == "" {
+		ns = metav1.NamespaceAll
+	}
+
+	replicaSets, err := clientset.AppsV1().ReplicaSets(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, mapReplicaSetError(err)
+	}
+
+	items := s.mapper.MapReplicaSetList(replicaSets.Items)
+
+	s.recordDiscovery(cluster.ID, organizationID)
 	return &dto.ReplicaSetListResponse{
 		Items: items,
 		Total: len(items),
@@ -223,4 +261,38 @@ func (s *ReplicaSetService) defaultClientFactory(
 	kubeconfig []byte,
 ) (kubernetes.Interface, error) {
 	return intkube.NewClient(kubeconfig).Clientset()
+}
+
+func (s *ReplicaSetService) getOwnedCluster(id uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {
+	cluster, err := s.clusterRepo.FindByID(id, organizationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrClusterNotFound
+		}
+		return nil, err
+	}
+
+	return cluster, nil
+}
+
+func (s *ReplicaSetService) clientsetForCluster(cluster *models.Cluster) (kubernetes.Interface, error) {
+	if s.credentialCipher == nil {
+		return nil, apperrors.ErrRuntimeDeploymentInvalidKubeconfig
+	}
+
+	kubeconfig, err := s.credentialCipher.Decrypt(cluster.KubeconfigEncrypted)
+	if err != nil {
+		return nil, apperrors.ErrRuntimeDeploymentInvalidKubeconfig
+	}
+
+	clientset, err := s.clientFactory([]byte(kubeconfig))
+	if err != nil {
+		return nil, mapReplicaSetError(err)
+	}
+
+	return clientset, nil
+}
+
+func (s *ReplicaSetService) recordDiscovery(clusterID uuid.UUID, organizationID uuid.UUID) {
+	_ = s.clusterRepo.UpdateDiscovery(clusterID, organizationID, time.Now())
 }

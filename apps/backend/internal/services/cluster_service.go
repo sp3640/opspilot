@@ -11,12 +11,18 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	kubeintegration "github.com/sp3640/opspilot/backend/internal/integrations/kubernetes"
 	"github.com/sp3640/opspilot/backend/internal/mapper"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"github.com/sp3640/opspilot/backend/internal/security"
 	"gorm.io/gorm"
 )
+
+// clusterValidationTimeout bounds how long a single connectivity check may
+// take, so validating an unreachable cluster fails fast instead of hanging
+// the request on the client's default (long) dial/response timeouts.
+const clusterValidationTimeout = 10 * time.Second
 
 type ClusterService struct {
 	repo             *repository.ClusterRepository
@@ -37,34 +43,31 @@ func (s *ClusterService) CreateCluster(
 	projectID uuid.UUID,
 	name,
 	provider,
-	status,
 	connectionType,
-	kubeconfigEncrypted,
+	kubeconfig,
 	apiEndpoint,
-	region,
-	version,
-	validationError string,
+	region string,
 	metadata json.RawMessage,
-	lastValidatedAt,
-	lastDiscoveryAt *time.Time,
 	userID uint,
 	organizationID uuid.UUID,
 ) (*dto.ClusterResponse, error) {
 	provider = strings.TrimSpace(strings.ToUpper(provider))
-	status = strings.TrimSpace(strings.ToUpper(status))
 	connectionType = strings.TrimSpace(strings.ToUpper(connectionType))
 	name = strings.TrimSpace(name)
-	kubeconfigEncrypted = strings.TrimSpace(kubeconfigEncrypted)
+	kubeconfig = strings.TrimSpace(kubeconfig)
 	apiEndpoint = strings.TrimSpace(apiEndpoint)
 	region = strings.TrimSpace(region)
-	version = strings.TrimSpace(version)
-	validationError = strings.TrimSpace(validationError)
-	encryptedCredential, err := s.encryptCredential(kubeconfigEncrypted)
-	if err != nil {
+
+	if kubeconfig == "" {
+		return nil, apperrors.ErrClusterCredentialRequired
+	}
+
+	if err := validateClusterInput(provider, connectionType); err != nil {
 		return nil, err
 	}
 
-	if err := validateClusterInput(provider, status, connectionType); err != nil {
+	encryptedCredential, err := s.encryptCredential(kubeconfig)
+	if err != nil {
 		return nil, err
 	}
 
@@ -90,6 +93,10 @@ func (s *ClusterService) CreateCluster(
 		}
 	}
 
+	// Status/validation state is always server-owned: a newly created cluster
+	// has not been checked yet, so it starts PENDING_VALIDATION regardless of
+	// anything the client sends. Real state only ever comes from
+	// ValidateClusterCredential.
 	cluster := &models.Cluster{
 		OrganizationID:      organizationID,
 		ProjectID:           projectID,
@@ -97,17 +104,13 @@ func (s *ClusterService) CreateCluster(
 		Provider:            provider,
 		ConnectionType:      connectionType,
 		CredentialType:      connectionType,
-		Status:              status,
+		Status:              constants.ClusterStatusPendingValidation,
 		IsDefault:           isDefault,
 		KubeconfigEncrypted: encryptedCredential,
 		EncryptedCredential: encryptedCredential,
 		APIEndpoint:         apiEndpoint,
 		Region:              region,
-		Version:             version,
-		LastValidatedAt:     lastValidatedAt,
-		LastDiscoveryAt:     lastDiscoveryAt,
 		CreatedBy:           userID,
-		ValidationError:     validationError,
 		Metadata:            resolvedMetadata,
 	}
 
@@ -130,6 +133,13 @@ func (s *ClusterService) CreateCluster(
 	return &response, nil
 }
 
+// UpdateCluster applies a full update to a cluster's identity/connection
+// fields. kubeconfig is a pointer: nil means "not provided" and the stored
+// credential is left completely untouched; a non-nil pointer means the
+// caller intends to replace the credential, and an empty/whitespace-only
+// value is rejected rather than silently wiping the stored credential.
+// Replacing the credential resets validation state to PENDING_VALIDATION,
+// since a prior validation no longer says anything about the new credential.
 func (s *ClusterService) UpdateCluster(
 	ctx context.Context,
 	id uuid.UUID,
@@ -138,33 +148,33 @@ func (s *ClusterService) UpdateCluster(
 	projectID uuid.UUID,
 	name,
 	provider,
-	status,
-	connectionType,
-	kubeconfigEncrypted,
+	connectionType string,
+	kubeconfig *string,
 	apiEndpoint,
-	region,
-	version,
-	validationError string,
+	region string,
 	metadata json.RawMessage,
-	lastValidatedAt,
-	lastDiscoveryAt *time.Time,
 ) (*dto.ClusterResponse, error) {
 	provider = strings.TrimSpace(strings.ToUpper(provider))
-	status = strings.TrimSpace(strings.ToUpper(status))
 	connectionType = strings.TrimSpace(strings.ToUpper(connectionType))
 	name = strings.TrimSpace(name)
-	kubeconfigEncrypted = strings.TrimSpace(kubeconfigEncrypted)
 	apiEndpoint = strings.TrimSpace(apiEndpoint)
 	region = strings.TrimSpace(region)
-	version = strings.TrimSpace(version)
-	validationError = strings.TrimSpace(validationError)
-	encryptedCredential, err := s.encryptCredential(kubeconfigEncrypted)
-	if err != nil {
+
+	if err := validateClusterInput(provider, connectionType); err != nil {
 		return nil, err
 	}
 
-	if err := validateClusterInput(provider, status, connectionType); err != nil {
-		return nil, err
+	var newEncryptedCredential *string
+	if kubeconfig != nil {
+		trimmed := strings.TrimSpace(*kubeconfig)
+		if trimmed == "" {
+			return nil, apperrors.ErrClusterCredentialRequired
+		}
+		encrypted, err := s.encryptCredential(trimmed)
+		if err != nil {
+			return nil, err
+		}
+		newEncryptedCredential = &encrypted
 	}
 
 	cluster, err := s.getOwnedCluster(id, organizationID)
@@ -189,10 +199,8 @@ func (s *ClusterService) UpdateCluster(
 	previousKubeconfigEncrypted := cluster.KubeconfigEncrypted
 	previousAPIEndpoint := cluster.APIEndpoint
 	previousRegion := cluster.Region
-	previousVersion := cluster.Version
 	previousValidationError := cluster.ValidationError
 	previousLastValidatedAt := cluster.LastValidatedAt
-	previousLastDiscoveryAt := cluster.LastDiscoveryAt
 
 	shouldBecomeDefault := cluster.IsDefault
 	if previousProjectID != projectID {
@@ -211,16 +219,16 @@ func (s *ClusterService) UpdateCluster(
 	cluster.Provider = provider
 	cluster.ConnectionType = connectionType
 	cluster.CredentialType = connectionType
-	cluster.Status = status
 	cluster.IsDefault = shouldBecomeDefault
-	cluster.KubeconfigEncrypted = encryptedCredential
-	cluster.EncryptedCredential = encryptedCredential
 	cluster.APIEndpoint = apiEndpoint
 	cluster.Region = region
-	cluster.Version = version
-	cluster.LastValidatedAt = lastValidatedAt
-	cluster.LastDiscoveryAt = lastDiscoveryAt
-	cluster.ValidationError = validationError
+	if newEncryptedCredential != nil {
+		cluster.KubeconfigEncrypted = *newEncryptedCredential
+		cluster.EncryptedCredential = *newEncryptedCredential
+		cluster.Status = constants.ClusterStatusPendingValidation
+		cluster.ValidationError = ""
+		cluster.LastValidatedAt = nil
+	}
 	if len(metadata) > 0 {
 		cluster.Metadata = metadata
 	}
@@ -267,8 +275,10 @@ func (s *ClusterService) UpdateCluster(
 			}
 		}
 		if previousKubeconfigEncrypted != cluster.KubeconfigEncrypted {
-			if err := s.auditRepo.LogUpdate(userID, organizationID, "cluster", cluster.ID.String(), &cluster.ProjectID, nil, "kubeconfig_encrypted", previousKubeconfigEncrypted, cluster.KubeconfigEncrypted); err != nil {
-				logAuditFailure(ctx, "update", "cluster", 0, err)
+			// Never write the encrypted credential itself into the audit
+			// trail — only record that a rotation happened.
+			if err := s.auditRepo.LogUpdate(userID, organizationID, "cluster", cluster.ID.String(), &cluster.ProjectID, nil, "credential", "rotated", "rotated"); err != nil {
+				logAuditFailure(ctx, "credential_rotation", "cluster", 0, err)
 			}
 		}
 		if previousAPIEndpoint != cluster.APIEndpoint {
@@ -281,11 +291,6 @@ func (s *ClusterService) UpdateCluster(
 				logAuditFailure(ctx, "update", "cluster", 0, err)
 			}
 		}
-		if previousVersion != cluster.Version {
-			if err := s.auditRepo.LogUpdate(userID, organizationID, "cluster", cluster.ID.String(), &cluster.ProjectID, nil, "version", previousVersion, cluster.Version); err != nil {
-				logAuditFailure(ctx, "update", "cluster", 0, err)
-			}
-		}
 		if previousValidationError != cluster.ValidationError {
 			if err := s.auditRepo.LogUpdate(userID, organizationID, "cluster", cluster.ID.String(), &cluster.ProjectID, nil, "validation_error", previousValidationError, cluster.ValidationError); err != nil {
 				logAuditFailure(ctx, "validation_status_change", "cluster", 0, err)
@@ -294,11 +299,6 @@ func (s *ClusterService) UpdateCluster(
 		if !timePointersEqual(previousLastValidatedAt, cluster.LastValidatedAt) {
 			if err := s.auditRepo.LogUpdate(userID, organizationID, "cluster", cluster.ID.String(), &cluster.ProjectID, nil, "last_validated_at", timePointerString(previousLastValidatedAt), timePointerString(cluster.LastValidatedAt)); err != nil {
 				logAuditFailure(ctx, "validation_status_change", "cluster", 0, err)
-			}
-		}
-		if !timePointersEqual(previousLastDiscoveryAt, cluster.LastDiscoveryAt) {
-			if err := s.auditRepo.LogUpdate(userID, organizationID, "cluster", cluster.ID.String(), &cluster.ProjectID, nil, "last_discovery_at", timePointerString(previousLastDiscoveryAt), timePointerString(cluster.LastDiscoveryAt)); err != nil {
-				logAuditFailure(ctx, "discovery_timestamp_update", "cluster", 0, err)
 			}
 		}
 	}
@@ -401,6 +401,13 @@ func (s *ClusterService) SetDefaultCluster(ctx context.Context, id uuid.UUID, us
 	return &response, nil
 }
 
+// ValidateClusterCredential performs a real connectivity check against the
+// cluster's Kubernetes API server: it decrypts the stored credential,
+// confirms the API server is reachable (/readyz), confirms the credential
+// carries at least list-namespaces permission, and reads the server version.
+// The outcome (connected or not) is persisted onto the cluster's
+// status/validation fields either way, so GET /clusters/:id always reflects
+// the last known connectivity state without re-validating.
 func (s *ClusterService) ValidateClusterCredential(ctx context.Context, id uuid.UUID, organizationID uuid.UUID) (*dto.ValidationResponse, error) {
 	cluster, err := s.getOwnedCluster(id, organizationID)
 	if err != nil {
@@ -408,22 +415,69 @@ func (s *ClusterService) ValidateClusterCredential(ctx context.Context, id uuid.
 	}
 
 	validatedAt := time.Now().UTC()
+
+	plaintext, err := s.decryptCredential(cluster.KubeconfigEncrypted)
+	if err != nil {
+		return s.recordValidationOutcome(cluster, organizationID, validatedAt, nil, apperrors.ErrClusterCredentialCorrupted)
+	}
+
+	validationCtx, cancel := context.WithTimeout(ctx, clusterValidationTimeout)
+	defer cancel()
+
+	client := kubeintegration.NewClient([]byte(plaintext))
+	result, err := kubeintegration.NewValidator(client).ValidateConnection(validationCtx)
+	if err != nil {
+		return s.recordValidationOutcome(cluster, organizationID, validatedAt, nil, err)
+	}
+
+	return s.recordValidationOutcome(cluster, organizationID, validatedAt, result, nil)
+}
+
+// recordValidationOutcome persists the result of a validation attempt
+// (success or failure) and returns the response payload for it. On failure,
+// validationErr carries a human-readable, classified reason; the previously
+// known Kubernetes version is left untouched (a failed re-validation doesn't
+// erase what was last successfully observed).
+func (s *ClusterService) recordValidationOutcome(
+	cluster *models.Cluster,
+	organizationID uuid.UUID,
+	validatedAt time.Time,
+	result *kubeintegration.ValidationResult,
+	validationErr error,
+) (*dto.ValidationResponse, error) {
 	response := &dto.ValidationResponse{
-		Status:      constants.ClusterStatusPendingValidation,
-		Healthy:     true,
 		ValidatedAt: validatedAt,
 	}
 
-	if _, err := s.decryptCredential(cluster.KubeconfigEncrypted); err != nil {
-		response.Status = constants.ClusterStatusInvalid
-		response.Healthy = false
-		response.Error = err.Error()
-		if updateErr := s.repo.UpdateValidation(cluster.ID, organizationID, response.Status, &validatedAt, response.Error); updateErr != nil {
-			return nil, updateErr
+	kubernetesVersion := cluster.KubernetesVersion
+	status := constants.ClusterStatusInvalid
+	errorMessage := ""
+
+	if validationErr != nil {
+		errorMessage = validationErr.Error()
+	}
+
+	if result != nil {
+		status = constants.ClusterStatusHealthy
+		response.Connected = true
+		response.APIServerURL = result.APIServerURL
+		response.LatencyMs = result.Latency.Milliseconds()
+		if result.ClusterVersion != nil {
+			kubernetesVersion = result.ClusterVersion.GitVersion
 		}
-	} else {
-		if err := s.repo.UpdateValidation(cluster.ID, organizationID, response.Status, &validatedAt, ""); err != nil {
-			return nil, err
+	}
+
+	response.Status = status
+	response.KubernetesVersion = kubernetesVersion
+	response.Error = errorMessage
+
+	if err := s.repo.UpdateValidation(cluster.ID, organizationID, status, &validatedAt, errorMessage, kubernetesVersion); err != nil {
+		return nil, err
+	}
+
+	if s.auditRepo != nil && cluster.Status != status {
+		if err := s.auditRepo.LogUpdate(cluster.CreatedBy, organizationID, "cluster", cluster.ID.String(), &cluster.ProjectID, nil, "status", cluster.Status, status); err != nil {
+			logAuditFailure(context.Background(), "validation_status_change", "cluster", 0, err)
 		}
 	}
 
@@ -483,12 +537,9 @@ func (s *ClusterService) assignNewDefaultCluster(ctx context.Context, projectID 
 	return nil
 }
 
-func validateClusterInput(provider, status, connectionType string) error {
+func validateClusterInput(provider, connectionType string) error {
 	if !constants.IsValidClusterProvider(provider) {
 		return apperrors.ErrInvalidClusterProvider
-	}
-	if !constants.IsValidClusterStatus(status) {
-		return apperrors.ErrInvalidClusterStatus
 	}
 	if !constants.IsValidClusterConnectionType(connectionType) {
 		return apperrors.ErrInvalidClusterConnectionType

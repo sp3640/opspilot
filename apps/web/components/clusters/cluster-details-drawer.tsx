@@ -2,23 +2,53 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Boxes,
   CheckCircle2,
+  ClipboardList,
+  Cpu,
+  Globe,
+  Layers3,
+  Network,
   Pencil,
-  RefreshCw,
+  Server,
   ShieldCheck,
   ShieldPlus,
   Trash2,
   X,
+  type LucideIcon,
 } from "lucide-react";
 
 import { ErrorState } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { useCluster, useSetDefaultCluster, useValidateCluster } from "@/hooks/use-clusters";
+import { useHasPermission } from "@/store/auth-store";
 import type { ClusterValidationResponse } from "@/types/cluster-api";
 
+import { ClusterConfigMaps } from "./cluster-configmaps";
+import { ClusterDeployments } from "./cluster-deployments";
+import { ClusterIngresses } from "./cluster-ingresses";
+import { ClusterNamespaces } from "./cluster-namespaces";
+import { ClusterNodes } from "./cluster-nodes";
+import { ClusterPods } from "./cluster-pods";
+import { ClusterReplicaSets } from "./cluster-replicasets";
+import { ClusterSecrets } from "./cluster-secrets";
+import { ClusterServices } from "./cluster-services";
 import { ClusterProviderBadge, ClusterStatusBadge } from "./cluster-status";
 import { DeleteClusterDialog } from "./delete-cluster-dialog";
 import { EditClusterModal } from "./edit-cluster-modal";
+
+const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
+  { label: "Overview", icon: CheckCircle2 },
+  { label: "Nodes", icon: Cpu },
+  { label: "Namespaces", icon: Boxes },
+  { label: "Pods", icon: Boxes },
+  { label: "Deployments", icon: Server },
+  { label: "ReplicaSets", icon: Layers3 },
+  { label: "Services", icon: Network },
+  { label: "Ingresses", icon: Globe },
+  { label: "ConfigMaps", icon: ClipboardList },
+  { label: "Secrets", icon: ShieldCheck },
+];
 
 export function ClusterDetailsDrawer({
   clusterID,
@@ -29,14 +59,17 @@ export function ClusterDetailsDrawer({
   projectNameById: Map<string, string>;
   onClose: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState("Overview");
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [validationResult, setValidationResult] = useState<ClusterValidationResponse | null>(null);
+  const canManageClusters = useHasPermission("cluster:manage");
   const { data: cluster, error, isError, isLoading, refetch } = useCluster(clusterID);
   const validateCluster = useValidateCluster();
   const setDefaultCluster = useSetDefaultCluster();
 
   useEffect(() => {
+    setActiveTab("Overview");
     setEditModalOpen(false);
     setDeleteDialogOpen(false);
     setValidationResult(null);
@@ -102,6 +135,10 @@ export function ClusterDetailsDrawer({
     );
   }
 
+  const tabListId = "cluster-details-tablist";
+  const activeTabKey = activeTab.toLowerCase();
+  const activePanelId = `cluster-details-panel-${activeTabKey}`;
+
   return (
     <div
       className="fixed inset-0 z-[60] flex justify-end bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)]"
@@ -135,26 +172,30 @@ export function ClusterDetailsDrawer({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setEditModalOpen(true)}
-                className="px-3"
-                aria-label="Edit cluster"
-              >
-                <Pencil aria-hidden="true" className="h-4 w-4" />
-                <span className="hidden sm:inline">Edit</span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setDeleteDialogOpen(true)}
-                className="px-3 text-[var(--danger)]"
-                aria-label="Delete cluster"
-              >
-                <Trash2 aria-hidden="true" className="h-4 w-4" />
-                <span className="hidden sm:inline">Delete</span>
-              </Button>
+              {canManageClusters ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setEditModalOpen(true)}
+                    className="px-3"
+                    aria-label="Edit cluster"
+                  >
+                    <Pencil aria-hidden="true" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="px-3 text-[var(--danger)]"
+                    aria-label="Delete cluster"
+                  >
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </Button>
+                </>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -172,47 +213,111 @@ export function ClusterDetailsDrawer({
             <ClusterProviderBadge provider={cluster.provider} />
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                void runValidation();
-              }}
-              loading={validating}
-              disabled={validating}
-            >
-              <CheckCircle2 aria-hidden={true} className="h-4 w-4" />
-              Validate cluster
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                void runValidation();
-              }}
-              loading={validating}
-              disabled={validating}
-            >
-              <RefreshCw aria-hidden={true} className="h-4 w-4" />
-              Refresh validation
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                void handleSetDefault();
-              }}
-              loading={settingDefault}
-              disabled={settingDefault || cluster.isDefault}
-            >
-              <ShieldPlus aria-hidden={true} className="h-4 w-4" />
-              Set default cluster
-            </Button>
-          </div>
+          {canManageClusters ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  void runValidation();
+                }}
+                loading={validating}
+                disabled={validating}
+              >
+                <CheckCircle2 aria-hidden={true} className="h-4 w-4" />
+                Validate cluster
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void handleSetDefault();
+                }}
+                loading={settingDefault}
+                disabled={settingDefault || cluster.isDefault}
+              >
+                <ShieldPlus aria-hidden={true} className="h-4 w-4" />
+                Set default cluster
+              </Button>
+            </div>
+          ) : null}
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-5">
+        <div className="overflow-x-auto border-b px-3" style={{ borderColor: "var(--border)" }}>
+          <div className="flex gap-1" role="tablist" id={tabListId} aria-label="Cluster details sections">
+            {tabs.map(({ label, icon: TabIcon }, index) => {
+              const isActive = activeTab === label;
+              const tabId = `cluster-details-tab-${label.toLowerCase()}`;
+              const panelId = `cluster-details-panel-${label.toLowerCase()}`;
+
+              return (
+                <button
+                  key={label}
+                  id={tabId}
+                  type="button"
+                  role="tab"
+                  tabIndex={isActive ? 0 : -1}
+                  aria-selected={isActive}
+                  aria-controls={panelId}
+                  onClick={() => setActiveTab(label)}
+                  onKeyDown={(event) => {
+                    if (!"ArrowLeft ArrowRight Home End".includes(event.key)) return;
+                    event.preventDefault();
+
+                    const maxIndex = tabs.length - 1;
+                    let nextIndex = index;
+                    if (event.key === "ArrowRight") nextIndex = index === maxIndex ? 0 : index + 1;
+                    if (event.key === "ArrowLeft") nextIndex = index === 0 ? maxIndex : index - 1;
+                    if (event.key === "Home") nextIndex = 0;
+                    if (event.key === "End") nextIndex = maxIndex;
+
+                    const nextTab = tabs[nextIndex];
+                    if (!nextTab) return;
+                    setActiveTab(nextTab.label);
+                    const nextTabButton = document.getElementById(`cluster-details-tab-${nextTab.label.toLowerCase()}`);
+                    nextTabButton?.focus();
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-medium transition-colors"
+                  style={{
+                    color: isActive ? "var(--primary)" : "var(--muted-foreground)",
+                    borderColor: isActive ? "var(--primary)" : "transparent",
+                  }}
+                >
+                  <TabIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div
+          id={activePanelId}
+          role="tabpanel"
+          aria-labelledby={`cluster-details-tab-${activeTabKey}`}
+          aria-describedby={tabListId}
+          className="flex-1 overflow-y-auto p-5"
+        >
+          {activeTab === "Nodes" ? (
+            <ClusterNodes clusterId={cluster.id} />
+          ) : activeTab === "Namespaces" ? (
+            <ClusterNamespaces clusterId={cluster.id} />
+          ) : activeTab === "Pods" ? (
+            <ClusterPods clusterId={cluster.id} />
+          ) : activeTab === "Deployments" ? (
+            <ClusterDeployments clusterId={cluster.id} />
+          ) : activeTab === "ReplicaSets" ? (
+            <ClusterReplicaSets clusterId={cluster.id} />
+          ) : activeTab === "Services" ? (
+            <ClusterServices clusterId={cluster.id} />
+          ) : activeTab === "Ingresses" ? (
+            <ClusterIngresses clusterId={cluster.id} />
+          ) : activeTab === "ConfigMaps" ? (
+            <ClusterConfigMaps clusterId={cluster.id} />
+          ) : activeTab === "Secrets" ? (
+            <ClusterSecrets clusterId={cluster.id} />
+          ) : (
+            <div className="space-y-6">
           <section>
             <h3 className="text-sm font-semibold">Connection</h3>
             <dl className="mt-3 grid gap-3">
@@ -221,7 +326,7 @@ export function ClusterDetailsDrawer({
               <DrawerStat label="Status" value={cluster.status} />
               <DrawerStat label="Connection type" value={cluster.connectionType || "-"} />
               <DrawerStat label="API endpoint" value={cluster.apiEndpoint || "-"} />
-              <DrawerStat label="Version" value={cluster.version || "-"} />
+              <DrawerStat label="Kubernetes version" value={cluster.kubernetesVersion || "-"} />
               <DrawerStat label="Region" value={cluster.region || "-"} />
             </dl>
           </section>
@@ -240,7 +345,7 @@ export function ClusterDetailsDrawer({
             {validationResult ? (
               <dl className="mt-3 grid gap-3">
                 <DrawerStat label="Connected" value={validationResult.connected ? "Yes" : "No"} />
-                <DrawerStat label="Version" value={validationResult.clusterVersion || "-"} />
+                <DrawerStat label="Kubernetes version" value={validationResult.kubernetesVersion || "-"} />
                 <DrawerStat label="API server" value={validationResult.apiServerUrl || "-"} />
                 <DrawerStat label="Latency" value={`${validationResult.latencyMs} ms`} />
                 <DrawerStat label="Validation time" value={formatDateTime(validationResult.validatedAt)} />
@@ -248,7 +353,7 @@ export function ClusterDetailsDrawer({
               </dl>
             ) : (
               <p className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
-                Run Validate cluster or Refresh validation to view the latest validation result.
+                Run Validate cluster to check live connectivity, Kubernetes version, and API reachability.
               </p>
             )}
           </section>
@@ -273,6 +378,8 @@ export function ClusterDetailsDrawer({
               <DrawerStat label="Updated" value={formatDateTime(cluster.updatedAt)} />
             </dl>
           </section>
+            </div>
+          )}
         </div>
       </aside>
 

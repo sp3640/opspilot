@@ -8,6 +8,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/services"
 
 	"github.com/sp3640/opspilot/backend/internal/response"
@@ -22,7 +23,7 @@ func NewOrganizationHandler(service *services.OrganizationService) *Organization
 }
 
 func (h *OrganizationHandler) Create(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionOrganizationManage) {
 		return
 	}
 
@@ -65,7 +66,7 @@ func (h *OrganizationHandler) List(c *gin.Context) {
 		return
 	}
 
-	organization, err := h.service.GetByID(organizationID, c.MustGet("userID").(uint))
+	organization, err := h.service.GetByID(organizationID, organizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrOrganizationNotFound:
@@ -94,7 +95,10 @@ func (h *OrganizationHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
+	callerOrganizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	organizationID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -102,7 +106,7 @@ func (h *OrganizationHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	organization, err := h.service.GetByID(organizationID, userID)
+	organization, err := h.service.GetByID(organizationID, callerOrganizationID)
 	if err != nil {
 		switch err {
 		case apperrors.ErrOrganizationNotFound:
@@ -119,11 +123,14 @@ func (h *OrganizationHandler) GetByID(c *gin.Context) {
 }
 
 func (h *OrganizationHandler) Update(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionOrganizationManage) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
+	callerOrganizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	organizationID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -137,7 +144,7 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 		return
 	}
 
-	organization, err := h.service.Update(organizationID, userID, req)
+	organization, err := h.service.Update(organizationID, callerOrganizationID, req)
 	if err != nil {
 		switch err {
 		case apperrors.ErrOrganizationNotFound:
@@ -158,11 +165,14 @@ func (h *OrganizationHandler) Update(c *gin.Context) {
 }
 
 func (h *OrganizationHandler) Delete(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionOrganizationManage) {
 		return
 	}
 
-	userID := c.MustGet("userID").(uint)
+	callerOrganizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
 
 	organizationID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -170,7 +180,7 @@ func (h *OrganizationHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(organizationID, userID); err != nil {
+	if err := h.service.Delete(organizationID, callerOrganizationID); err != nil {
 		switch err {
 		case apperrors.ErrOrganizationNotFound:
 			response.Error(c, http.StatusNotFound, err.Error())

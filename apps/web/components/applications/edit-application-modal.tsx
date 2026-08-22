@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { useUpdateApplication } from "@/hooks/use-applications";
-import { applicationSchema, type ApplicationFormValues } from "@/lib/validation/application";
+import { APPLICATION_ENVIRONMENT_VALUES, applicationSchema, type ApplicationFormValues } from "@/lib/validation/application";
 import type { ApplicationResponse, UpdateApplicationRequest } from "@/types/application-api";
 
 type EditApplicationModalProps = {
@@ -19,6 +19,15 @@ type EditApplicationModalProps = {
 
 const RUNTIME_OPTIONS = ["NodeJS", "Go", "Java", "Python", "DotNet", "Static", "Docker"] as const;
 const STATUS_OPTIONS = ["Draft", "Ready", "Archived"] as const;
+
+// Older rows may still carry pre-validation freeform text; only reuse a
+// stored environment value if it exactly matches a known option, otherwise
+// fall back to "Not set" rather than showing a mismatched select.
+function toEnvironmentOption(value: string | undefined): ApplicationFormValues["environment"] {
+  return (APPLICATION_ENVIRONMENT_VALUES as readonly string[]).includes(value ?? "")
+    ? (value as ApplicationFormValues["environment"])
+    : "";
+}
 
 const inputClass =
   "mt-2 w-full rounded-2xl border bg-transparent px-3 py-2.5 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]";
@@ -44,7 +53,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
       build_command: application?.buildCommand ?? "",
       start_command: application?.startCommand ?? "",
       port: application?.port ?? 0,
-      environment: application?.environment ?? "",
+      environment: toEnvironmentOption(application?.environment),
       status: (application?.status as ApplicationFormValues["status"]) ?? "Draft",
     },
     values: {
@@ -57,7 +66,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
       build_command: application?.buildCommand ?? "",
       start_command: application?.startCommand ?? "",
       port: application?.port ?? 0,
-      environment: application?.environment ?? "",
+      environment: toEnvironmentOption(application?.environment),
       status: (application?.status as ApplicationFormValues["status"]) ?? "Draft",
     },
   });
@@ -324,15 +333,20 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
               <label htmlFor="edit-application-environment" className="text-sm font-medium">
                 Environment
               </label>
-              <input
+              <select
                 id="edit-application-environment"
                 {...register("environment")}
-                placeholder="e.g. production"
                 className={inputClass}
                 style={{ borderColor: errors.environment ? "var(--danger)" : "var(--border)" }}
                 disabled={updateApplication.isPending}
                 aria-invalid={Boolean(errors.environment)}
-              />
+              >
+                {APPLICATION_ENVIRONMENT_VALUES.map((option) => (
+                  <option key={option} value={option}>
+                    {option || "Not set"}
+                  </option>
+                ))}
+              </select>
               {errors.environment && (
                 <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
                   {errors.environment.message}

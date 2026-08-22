@@ -9,6 +9,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -22,7 +23,7 @@ func NewDeploymentHandler(service *services.DeploymentService) *DeploymentHandle
 }
 
 func (h *DeploymentHandler) Create(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionDeploymentCreate) {
 		return
 	}
 
@@ -120,7 +121,7 @@ func (h *DeploymentHandler) GetByID(c *gin.Context) {
 }
 
 func (h *DeploymentHandler) Update(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionDeploymentUpdate) {
 		return
 	}
 
@@ -152,7 +153,7 @@ func (h *DeploymentHandler) Update(c *gin.Context) {
 }
 
 func (h *DeploymentHandler) Cancel(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionDeploymentCancel) {
 		return
 	}
 
@@ -178,7 +179,7 @@ func (h *DeploymentHandler) Cancel(c *gin.Context) {
 }
 
 func (h *DeploymentHandler) Delete(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionDeploymentDelete) {
 		return
 	}
 
@@ -202,7 +203,7 @@ func (h *DeploymentHandler) Delete(c *gin.Context) {
 }
 
 func (h *DeploymentHandler) Rollback(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionDeploymentRollback) {
 		return
 	}
 
@@ -260,6 +261,34 @@ func (h *DeploymentHandler) ListByApplication(c *gin.Context) {
 	}
 
 	response.OK(c, "Deployments fetched successfully", result)
+}
+
+// GetLatestByApplication returns the application's most recently created
+// deployment record — the authoritative "where is this running" answer
+// (target cluster, namespace, environment, image/status), reused as-is by
+// the frontend Runtime summary rather than duplicating this information.
+func (h *DeploymentHandler) GetLatestByApplication(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+	applicationID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid application id")
+		return
+	}
+
+	result, err := h.service.GetLatestDeployment(applicationID, organizationID)
+	if err != nil {
+		handleDeploymentServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Latest deployment fetched successfully", result)
 }
 
 func (h *DeploymentHandler) ListByProject(c *gin.Context) {

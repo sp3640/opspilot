@@ -27,6 +27,8 @@ import (
 	k8sexecutor "github.com/sp3640/opspilot/backend/internal/kubernetes/executor"
 	k8singresses "github.com/sp3640/opspilot/backend/internal/kubernetes/ingresses"
 	k8slogs "github.com/sp3640/opspilot/backend/internal/kubernetes/logs"
+	k8snamespaces "github.com/sp3640/opspilot/backend/internal/kubernetes/namespaces"
+	k8snodes "github.com/sp3640/opspilot/backend/internal/kubernetes/nodes"
 	k8spods "github.com/sp3640/opspilot/backend/internal/kubernetes/pods"
 	k8sreplicasets "github.com/sp3640/opspilot/backend/internal/kubernetes/replicasets"
 	k8ssecrets "github.com/sp3640/opspilot/backend/internal/kubernetes/secrets"
@@ -135,6 +137,7 @@ func run() error {
 	deploymentHistoryRepo := repository.NewDeploymentHistoryRepository(database.DB)
 	teamRepo := repository.NewTeamRepository(database.DB)
 	projectTeamRepo := repository.NewProjectTeamRepository(database.DB)
+	applicationTeamRepo := repository.NewApplicationTeamRepository(database.DB)
 	teamMemberRepo := repository.NewTeamMemberRepository(database.DB)
 	incidentRepo := repository.NewIncidentRepository(database.DB)
 	alertRepo := repository.NewAlertRepository(database.DB)
@@ -145,9 +148,9 @@ func run() error {
 	auditRepo := repository.NewAuditRepository(database.DB)
 	dashboardRepo := repository.NewDashboardRepository(database.DB)
 
-	userService := services.NewUserService(userRepo, organizationRepo, cfg)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg)
 	organizationService := services.NewOrganizationService(organizationRepo)
-	invitationService := services.NewInvitationService(invitationRepo, userRepo)
+	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 	auditService := services.NewAuditService(auditRepo).
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
@@ -157,6 +160,7 @@ func run() error {
 	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo, deploymentHistoryService)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
+	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterCredentialCipher, err := security.NewClusterCredentialCipher(cfg.ClusterCredentialEncryptionKey)
@@ -176,6 +180,8 @@ func run() error {
 	kubernetesServiceRuntime := k8sservices.NewServiceService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesIngressRuntime := k8singresses.NewIngressService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesEventRuntime := k8sevents.NewEventService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	kubernetesNodeRuntime := k8snodes.NewNodeService(clusterRepo, clusterCredentialCipher)
+	kubernetesNamespaceRuntime := k8snamespaces.NewNamespaceService(clusterRepo, clusterCredentialCipher)
 	clusterService := services.NewClusterService(clusterRepo, auditService, clusterCredentialCipher)
 	deploymentStatusUpdater := k8sexecutor.NewDeploymentStatusUpdater(deploymentRepo, deploymentHistoryService, auditService)
 	deploymentManifestBuilder := k8sexecutor.NewDeploymentManifestBuilder()
@@ -229,10 +235,13 @@ func run() error {
 	kubernetesServiceHandler := handlers.NewKubernetesServiceHandler(kubernetesServiceRuntime)
 	kubernetesIngressHandler := handlers.NewKubernetesIngressHandler(kubernetesIngressRuntime)
 	kubernetesEventHandler := handlers.NewKubernetesEventHandler(kubernetesEventRuntime)
+	kubernetesNodeHandler := handlers.NewKubernetesNodeHandler(kubernetesNodeRuntime)
+	kubernetesNamespaceHandler := handlers.NewKubernetesNamespaceHandler(kubernetesNamespaceRuntime)
 	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
 	deploymentHistoryHandler := handlers.NewDeploymentHistoryHandler(deploymentHistoryService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
+	applicationTeamHandler := handlers.NewApplicationTeamHandler(applicationTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
 	alertHandler := handlers.NewAlertHandler(alertService)
 	metricHandler := handlers.NewMetricHandler(metricService)
@@ -315,10 +324,13 @@ func run() error {
 		deploymentHistoryHandler,
 		teamHandler,
 		projectTeamHandler,
+		applicationTeamHandler,
 		incidentHandler,
 		alertHandler,
 		metricHandler,
 		clusterHandler,
+		kubernetesNodeHandler,
+		kubernetesNamespaceHandler,
 		resourceHandler,
 		commentHandler,
 		auditHandler,

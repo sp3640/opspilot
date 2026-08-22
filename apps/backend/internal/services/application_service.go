@@ -64,6 +64,14 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, projectID uu
 	if req.Port < 1 || req.Port > 65535 {
 		return nil, apperrors.ErrInvalidApplicationPort
 	}
+	environment := strings.TrimSpace(req.Environment)
+	if environment != "" {
+		var valid bool
+		environment, valid = constants.NormalizeDeploymentEnvironment(environment)
+		if !valid {
+			return nil, apperrors.ErrInvalidApplicationEnvironment
+		}
+	}
 
 	if _, err := s.getProjectForOrganization(projectID, organizationID); err != nil {
 		return nil, err
@@ -87,7 +95,7 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, projectID uu
 		BuildCommand:   strings.TrimSpace(req.BuildCommand),
 		StartCommand:   strings.TrimSpace(req.StartCommand),
 		Port:           req.Port,
-		Environment:    strings.TrimSpace(req.Environment),
+		Environment:    environment,
 		Status:         status,
 	}
 
@@ -145,7 +153,11 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, id uuid.UUID
 		application.Port = req.Port
 	}
 	if environment := strings.TrimSpace(req.Environment); environment != "" {
-		application.Environment = environment
+		resolvedEnvironment, ok := constants.NormalizeDeploymentEnvironment(environment)
+		if !ok {
+			return nil, apperrors.ErrInvalidApplicationEnvironment
+		}
+		application.Environment = resolvedEnvironment
 	}
 	if status := strings.TrimSpace(req.Status); status != "" {
 		resolvedStatus, ok := constants.NormalizeApplicationStatus(status)

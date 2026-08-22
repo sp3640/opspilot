@@ -12,6 +12,12 @@ const APPLICATION_RUNTIME_VALUES = [
 
 const APPLICATION_STATUS_VALUES = ["Draft", "Ready", "Archived"] as const;
 
+// Mirrors the backend's canonical environment enum exactly
+// (constants.NormalizeDeploymentEnvironment) — Application.Environment and
+// Deployment.Environment share one representation rather than two
+// inconsistent freeform concepts. Empty string means "not set".
+export const APPLICATION_ENVIRONMENT_VALUES = ["", "Development", "Staging", "Production"] as const;
+
 export const applicationSchema = z.object({
   name: z
     .string()
@@ -32,7 +38,9 @@ export const applicationSchema = z.object({
     .int("Port must be an integer.")
     .min(1, "Port must be between 1 and 65535.")
     .max(65535, "Port must be between 1 and 65535."),
-  environment: z.string().max(255, "Environment must be 255 characters or less."),
+  environment: z.enum(APPLICATION_ENVIRONMENT_VALUES, {
+    message: "Please select a valid environment.",
+  }),
   status: z.enum(APPLICATION_STATUS_VALUES, {
     message: "Please select a valid status.",
   }),

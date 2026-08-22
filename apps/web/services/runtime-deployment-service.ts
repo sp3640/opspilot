@@ -21,4 +21,15 @@ export const runtimeDeploymentService = {
     );
     return response.data.data;
   },
+
+  async listRuntimeDeploymentsByCluster(
+    clusterId: string,
+    params: RuntimeDeploymentQueryParams
+  ): Promise<RuntimeDeploymentListResponse> {
+    const response = await api.get<APIResponse<RuntimeDeploymentListResponse>>(
+      `/clusters/${clusterId}/deployments`,
+      { params }
+    );
+    return response.data.data;
+  },
 };

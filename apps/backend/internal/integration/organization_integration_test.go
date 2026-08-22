@@ -74,7 +74,7 @@ func TestOrganizationFoundationIntegration(t *testing.T) {
 			t.Fatalf("parse organization id: %v", err)
 		}
 
-		fetched, err := organizationService.GetByID(createdOrganizationID, owner.ID)
+		fetched, err := organizationService.GetByID(createdOrganizationID, createdOrganizationID)
 		if err != nil {
 			t.Fatalf("get organization: %v", err)
 		}
@@ -102,7 +102,7 @@ func TestOrganizationFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		updated, err := organizationService.Update(createdOrganizationID, owner.ID, dto.UpdateOrganizationRequest{
+		updated, err := organizationService.Update(createdOrganizationID, createdOrganizationID, dto.UpdateOrganizationRequest{
 			Name:        "Northwind Labs",
 			Description: "Updated description",
 		})
@@ -119,13 +119,62 @@ func TestOrganizationFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		if err := organizationService.Delete(createdOrganizationID, owner.ID); err != nil {
+		if err := organizationService.Delete(createdOrganizationID, createdOrganizationID); err != nil {
 			t.Fatalf("delete organization: %v", err)
 		}
 
-		_, err := organizationService.GetByID(createdOrganizationID, owner.ID)
+		_, err := organizationService.GetByID(createdOrganizationID, createdOrganizationID)
 		if !errors.Is(err, apperrors.ErrOrganizationNotFound) {
 			t.Fatalf("expected ErrOrganizationNotFound after delete, got %v", err)
+		}
+	})
+
+	t.Run("Cross-organization access is forbidden", func(t *testing.T) {
+		orgA, err := organizationService.Create(owner.ID, dto.CreateOrganizationRequest{
+			Name: "Org A Isolation",
+			Slug: "org-a-isolation",
+		})
+		if err != nil {
+			t.Fatalf("create org A: %v", err)
+		}
+		orgAID, err := uuid.Parse(orgA.ID)
+		if err != nil {
+			t.Fatalf("parse org A id: %v", err)
+		}
+
+		orgB, err := organizationService.Create(owner.ID, dto.CreateOrganizationRequest{
+			Name: "Org B Isolation",
+			Slug: "org-b-isolation",
+		})
+		if err != nil {
+			t.Fatalf("create org B: %v", err)
+		}
+		orgBID, err := uuid.Parse(orgB.ID)
+		if err != nil {
+			t.Fatalf("parse org B id: %v", err)
+		}
+
+		// A caller whose own organization is A must not be able to read,
+		// rename, or delete organization B merely by knowing its id.
+		if _, err := organizationService.GetByID(orgBID, orgAID); !errors.Is(err, apperrors.ErrOrganizationForbidden) {
+			t.Fatalf("expected ErrOrganizationForbidden reading org B as org A, got %v", err)
+		}
+		if _, err := organizationService.Update(orgBID, orgAID, dto.UpdateOrganizationRequest{
+			Name: "Hijacked Name",
+		}); !errors.Is(err, apperrors.ErrOrganizationForbidden) {
+			t.Fatalf("expected ErrOrganizationForbidden updating org B as org A, got %v", err)
+		}
+		if err := organizationService.Delete(orgBID, orgAID); !errors.Is(err, apperrors.ErrOrganizationForbidden) {
+			t.Fatalf("expected ErrOrganizationForbidden deleting org B as org A, got %v", err)
+		}
+
+		// Org B must be unaffected by the rejected attempts.
+		stillThere, err := organizationService.GetByID(orgBID, orgBID)
+		if err != nil {
+			t.Fatalf("expected org B to still be readable by its own caller: %v", err)
+		}
+		if stillThere.Name != "Org B Isolation" {
+			t.Fatalf("expected org B name unaffected by rejected cross-org update, got %q", stillThere.Name)
 		}
 	})
 }

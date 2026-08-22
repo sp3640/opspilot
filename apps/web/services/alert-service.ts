@@ -9,5 +9,6 @@ export const alertService = {
  deleteAlert: async (id: number) => { await api.delete(`/alerts/${id}`); },
  acknowledgeAlert: async (id: number) => (await api.post<APIResponse<AlertResponse>>(`/alerts/${id}/acknowledge`)).data.data,
  resolveAlert: async (id: number) => (await api.post<APIResponse<AlertResponse>>(`/alerts/${id}/resolve`)).data.data,
+ reopenAlert: async (id: number) => (await api.post<APIResponse<AlertResponse>>(`/alerts/${id}/reopen`)).data.data,
  attachIncident: async (id: number, incidentId: number) => (await api.post<APIResponse<AlertResponse>>(`/alerts/${id}/incident`, { incidentId })).data.data,
 };

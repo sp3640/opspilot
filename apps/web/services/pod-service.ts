@@ -18,4 +18,9 @@ export const podService = {
     );
     return response.data.data;
   },
+
+  async listPodsByCluster(clusterId: string, params: PodQueryParams): Promise<PodListResponse> {
+    const response = await api.get<APIResponse<PodListResponse>>(`/clusters/${clusterId}/pods`, { params });
+    return response.data.data;
+  },
 };

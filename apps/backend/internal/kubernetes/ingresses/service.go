@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -75,6 +76,38 @@ func (s *IngressService) ListIngressesByApplication(ctx context.Context, applica
 		items = append(items, s.mapper.MapIngress(item, false))
 	}
 
+	return &dto.IngressListResponse{Items: items, Total: len(items)}, nil
+}
+
+// ListIngressesForCluster lists every Ingress in the cluster (optionally
+// filtered by namespace), reusing the same decrypt/clientFactory plumbing.
+func (s *IngressService) ListIngressesForCluster(ctx context.Context, clusterID uuid.UUID, organizationID uuid.UUID, namespace string) (*dto.IngressListResponse, error) {
+	cluster, err := s.getOwnedCluster(clusterID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := s.clientsetForCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	ns := strings.TrimSpace(namespace)
+	if ns == "" {
+		ns = metav1.NamespaceAll
+	}
+
+	ingressList, err := clientset.NetworkingV1().Ingresses(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, mapIngressError(err)
+	}
+
+	items := make([]dto.IngressResponse, 0, len(ingressList.Items))
+	for _, item := range ingressList.Items {
+		items = append(items, s.mapper.MapIngress(item, false))
+	}
+
+	s.recordDiscovery(cluster.ID, organizationID)
 	return &dto.IngressListResponse{Items: items, Total: len(items)}, nil
 }
 
@@ -177,4 +210,38 @@ func (s *IngressService) getOwnedApplication(id uuid.UUID, organizationID uuid.U
 
 func (s *IngressService) defaultClientFactory(kubeconfig []byte) (kubernetes.Interface, error) {
 	return intkube.NewClient(kubeconfig).Clientset()
+}
+
+func (s *IngressService) getOwnedCluster(id uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {
+	cluster, err := s.clusterRepo.FindByID(id, organizationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrClusterNotFound
+		}
+		return nil, err
+	}
+
+	return cluster, nil
+}
+
+func (s *IngressService) clientsetForCluster(cluster *models.Cluster) (kubernetes.Interface, error) {
+	if s.credentialCipher == nil {
+		return nil, apperrors.ErrIngressInvalidKubeconfig
+	}
+
+	kubeconfig, err := s.credentialCipher.Decrypt(cluster.KubeconfigEncrypted)
+	if err != nil {
+		return nil, apperrors.ErrIngressInvalidKubeconfig
+	}
+
+	clientset, err := s.clientFactory([]byte(kubeconfig))
+	if err != nil {
+		return nil, mapIngressError(err)
+	}
+
+	return clientset, nil
+}
+
+func (s *IngressService) recordDiscovery(clusterID uuid.UUID, organizationID uuid.UUID) {
+	_ = s.clusterRepo.UpdateDiscovery(clusterID, organizationID, time.Now())
 }

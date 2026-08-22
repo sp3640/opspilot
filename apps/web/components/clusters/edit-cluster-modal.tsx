@@ -11,9 +11,8 @@ import { useUpdateCluster } from "@/hooks/use-clusters";
 import {
   CLUSTER_DEFAULT_CONNECTION_TYPE,
   CLUSTER_DEFAULT_PROVIDER,
-  CLUSTER_DEFAULT_STATUS,
 } from "@/lib/constants/cluster";
-import { clusterFormSchema, type ClusterFormInput } from "@/lib/validation/cluster";
+import { editClusterFormSchema, type ClusterFormInput } from "@/lib/validation/cluster";
 import type { ClusterResponse, UpdateClusterRequest } from "@/types/cluster-api";
 
 import { ClusterFormFields } from "./cluster-form-fields";
@@ -34,31 +33,25 @@ export function EditClusterModal({ open, cluster, onClose }: EditClusterModalPro
     formState: { errors },
     setError,
   } = useForm<ClusterFormInput>({
-    resolver: zodResolver(clusterFormSchema),
+    resolver: zodResolver(editClusterFormSchema),
     defaultValues: {
       project_id: cluster?.projectId ?? "",
       name: cluster?.name ?? "",
       provider: (cluster?.provider as ClusterFormInput["provider"]) ?? CLUSTER_DEFAULT_PROVIDER,
-      status: (cluster?.status as ClusterFormInput["status"]) ?? CLUSTER_DEFAULT_STATUS,
       connection_type: (cluster?.connectionType as ClusterFormInput["connection_type"]) ?? CLUSTER_DEFAULT_CONNECTION_TYPE,
-      kubeconfig_encrypted: cluster?.kubeconfigEncrypted ?? "",
+      kubeconfig_encrypted: "",
       api_endpoint: cluster?.apiEndpoint ?? "",
       region: cluster?.region ?? "",
-      version: cluster?.version ?? "",
-      validation_error: cluster?.validationError ?? "",
       metadataText: cluster?.metadata ? JSON.stringify(cluster.metadata, null, 2) : "{}",
     },
     values: {
       project_id: cluster?.projectId ?? "",
       name: cluster?.name ?? "",
       provider: (cluster?.provider as ClusterFormInput["provider"]) ?? CLUSTER_DEFAULT_PROVIDER,
-      status: (cluster?.status as ClusterFormInput["status"]) ?? CLUSTER_DEFAULT_STATUS,
       connection_type: (cluster?.connectionType as ClusterFormInput["connection_type"]) ?? CLUSTER_DEFAULT_CONNECTION_TYPE,
-      kubeconfig_encrypted: cluster?.kubeconfigEncrypted ?? "",
+      kubeconfig_encrypted: "",
       api_endpoint: cluster?.apiEndpoint ?? "",
       region: cluster?.region ?? "",
-      version: cluster?.version ?? "",
-      validation_error: cluster?.validationError ?? "",
       metadataText: cluster?.metadata ? JSON.stringify(cluster.metadata, null, 2) : "{}",
     },
   });
@@ -84,20 +77,20 @@ export function EditClusterModal({ open, cluster, onClose }: EditClusterModalPro
       return;
     }
 
+    // kubeconfig_encrypted is only included when the user actually typed a
+    // replacement — omitting the key (rather than sending "") tells the
+    // backend to leave the stored credential untouched, since it can never
+    // be pre-filled here to round-trip in the first place.
+    const trimmedKubeconfig = input.kubeconfig_encrypted.trim();
     const payload: UpdateClusterRequest = {
       project_id: input.project_id,
       name: input.name,
       provider: input.provider,
-      status: input.status,
       connection_type: input.connection_type,
-      kubeconfig_encrypted: input.kubeconfig_encrypted,
       api_endpoint: input.api_endpoint,
       region: input.region,
-      version: input.version,
-      validation_error: input.validation_error,
       metadata: metadata.value,
-      last_validated_at: cluster.lastValidatedAt,
-      last_discovery_at: cluster.lastDiscoveryAt,
+      ...(trimmedKubeconfig ? { kubeconfig_encrypted: trimmedKubeconfig } : {}),
     };
 
     try {
@@ -158,6 +151,7 @@ export function EditClusterModal({ open, cluster, onClose }: EditClusterModalPro
             disabled={updateCluster.isPending}
             queryEnabled={open}
             currentProjectId={cluster.projectId}
+            mode="edit"
           />
 
           {submitError ? (

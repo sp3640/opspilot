@@ -18,7 +18,7 @@ func TestDeploymentHistoryIntegration(t *testing.T) {
 	app := setupRBACApp(t)
 
 	adminToken := registerAndLogin(t, app.router, "History Admin", "history-admin@opspilot.dev", "password123")
-	memberToken := registerAndLogin(t, app.router, "History Member", "history-member@opspilot.dev", "password123")
+	registerAndLogin(t, app.router, "History Member", "history-member@opspilot.dev", "password123")
 
 	admin := mustGetUserByEmail(t, app.userRepo, "history-admin@opspilot.dev")
 	member := mustGetUserByEmail(t, app.userRepo, "history-member@opspilot.dev")
@@ -26,9 +26,13 @@ func TestDeploymentHistoryIntegration(t *testing.T) {
 		t.Fatalf("expected admin organization")
 	}
 	organizationID := *admin.OrganizationID
-	if err := app.userRepo.AssignOrganizationAndRole(member.ID, organizationID, models.RoleUser); err != nil {
+	// Uninvited registration now creates its own organization, so the member
+	// must be explicitly moved into the admin's organization and
+	// re-authenticated to pick up the updated organization/role claims.
+	if err := app.userRepo.AssignOrganizationAndRole(member.ID, organizationID, models.RoleViewer); err != nil {
 		t.Fatalf("assign member to organization: %v", err)
 	}
+	memberToken := loginOnly(t, app.router, "history-member@opspilot.dev", "password123")
 
 	projectID := createProject(t, app.router, adminToken, "History Project")
 	clusterID := createCluster(t, app.router, adminToken, projectID, "history-cluster")

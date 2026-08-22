@@ -18,4 +18,9 @@ export const secretService = {
     );
     return response.data.data;
   },
+
+  async listSecretsByCluster(clusterId: string, params: SecretQueryParams): Promise<SecretListResponse> {
+    const response = await api.get<APIResponse<SecretListResponse>>(`/clusters/${clusterId}/secrets`, { params });
+    return response.data.data;
+  },
 };

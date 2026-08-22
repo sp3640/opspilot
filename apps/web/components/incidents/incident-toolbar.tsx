@@ -3,6 +3,7 @@
 import { Plus, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useHasPermission } from "@/store/auth-store";
 
 import { IncidentSearch } from "./incident-search";
 import type { IncidentFilters } from "./hooks";
@@ -22,6 +23,7 @@ export function IncidentToolbar({
   onCreate,
   refreshing = false,
 }: IncidentToolbarProps) {
+  const canManageIncidents = useHasPermission("incident:manage");
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 lg:flex-row">
@@ -40,10 +42,12 @@ export function IncidentToolbar({
             <RefreshCw aria-hidden="true" className="h-4 w-4" />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button type="button" onClick={onCreate}>
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Create incident
-          </Button>
+          {canManageIncidents ? (
+            <Button type="button" onClick={onCreate}>
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              Create incident
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -45,6 +45,11 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("run organization backfill migration: %w", err)
 	}
 
+	if err := runRoleNormalizationMigration(db); err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("run role normalization migration: %w", err)
+	}
+
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.Organization{},
@@ -55,6 +60,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&models.DeploymentHistory{},
 		&models.Team{},
 		&models.ProjectTeam{},
+		&models.ApplicationTeam{},
 		&models.TeamMember{},
 		&models.Incident{},
 		&models.Alert{},

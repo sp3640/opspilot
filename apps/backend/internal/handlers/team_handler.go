@@ -10,6 +10,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -23,7 +24,7 @@ func NewTeamHandler(service *services.TeamService) *TeamHandler {
 }
 
 func (h *TeamHandler) Create(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionTeamManage) {
 		return
 	}
 
@@ -97,7 +98,7 @@ func (h *TeamHandler) GetByID(c *gin.Context) {
 }
 
 func (h *TeamHandler) Update(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionTeamManage) {
 		return
 	}
 
@@ -128,7 +129,7 @@ func (h *TeamHandler) Update(c *gin.Context) {
 }
 
 func (h *TeamHandler) Delete(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionTeamManage) {
 		return
 	}
 
@@ -152,7 +153,7 @@ func (h *TeamHandler) Delete(c *gin.Context) {
 }
 
 func (h *TeamHandler) AddMember(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionTeamManage) {
 		return
 	}
 
@@ -183,7 +184,7 @@ func (h *TeamHandler) AddMember(c *gin.Context) {
 }
 
 func (h *TeamHandler) RemoveMember(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionTeamManage) {
 		return
 	}
 

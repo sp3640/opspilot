@@ -68,17 +68,21 @@ var (
 	ErrInvalidClusterProvider       = errors.New("invalid cluster provider")
 	ErrInvalidClusterStatus         = errors.New("invalid cluster status")
 	ErrInvalidClusterConnectionType = errors.New("invalid cluster connection type")
+	ErrClusterCredentialRequired    = errors.New("cluster credential is required")
+	ErrClusterCredentialCorrupted   = errors.New("stored cluster credential could not be decrypted")
 
 	// Application errors
-	ErrApplicationNotFound       = errors.New("application not found")
-	ErrApplicationForbidden      = errors.New("forbidden")
-	ErrApplicationAlreadyExists  = errors.New("application already exists")
-	ErrInvalidApplicationName    = errors.New("application name is required")
-	ErrInvalidApplication        = errors.New("invalid application")
-	ErrInvalidApplicationSlug    = errors.New("invalid application slug")
-	ErrInvalidApplicationRuntime = errors.New("invalid application runtime")
-	ErrInvalidApplicationStatus  = errors.New("invalid application status")
-	ErrInvalidApplicationPort    = errors.New("invalid application port")
+	ErrApplicationNotFound            = errors.New("application not found")
+	ErrApplicationForbidden           = errors.New("forbidden")
+	ErrApplicationAlreadyExists       = errors.New("application already exists")
+	ErrApplicationTeamAlreadyAssigned = errors.New("team already assigned to application")
+	ErrInvalidApplicationName         = errors.New("application name is required")
+	ErrInvalidApplication             = errors.New("invalid application")
+	ErrInvalidApplicationSlug         = errors.New("invalid application slug")
+	ErrInvalidApplicationRuntime      = errors.New("invalid application runtime")
+	ErrInvalidApplicationStatus       = errors.New("invalid application status")
+	ErrInvalidApplicationPort         = errors.New("invalid application port")
+	ErrInvalidApplicationEnvironment  = errors.New("invalid application environment")
 
 	// Deployment errors
 	ErrDeploymentNotFound                  = errors.New("deployment not found")
@@ -168,6 +172,18 @@ var (
 	ErrRuntimeDeploymentInvalidKubeconfig  = errors.New("invalid kubeconfig")
 	ErrRuntimeDeploymentClusterUnavailable = errors.New("cluster unavailable")
 	ErrRuntimeDeploymentTimeout            = errors.New("kubernetes timeout")
+
+	// Kubernetes node errors
+	ErrNodeForbidden          = errors.New("forbidden")
+	ErrNodeInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrNodeClusterUnavailable = errors.New("cluster unavailable")
+	ErrNodeTimeout            = errors.New("kubernetes timeout")
+
+	// Kubernetes namespace errors
+	ErrNamespaceForbidden          = errors.New("forbidden")
+	ErrNamespaceInvalidKubeconfig  = errors.New("invalid kubeconfig")
+	ErrNamespaceClusterUnavailable = errors.New("cluster unavailable")
+	ErrNamespaceTimeout            = errors.New("kubernetes timeout")
 
 	// Comment errors
 	ErrCommentNotFound       = errors.New("comment not found")

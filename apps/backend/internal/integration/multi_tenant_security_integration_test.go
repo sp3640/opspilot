@@ -193,6 +193,9 @@ func TestMultiTenantSecurityIsolationIntegration(t *testing.T) {
 	}), http.StatusForbidden)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/incidents/"+strconv.FormatUint(uint64(incidentAID), 10), tokenB, nil), http.StatusForbidden)
 	assertListExcludesID(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/incidents", tokenB, nil), strconv.FormatUint(uint64(incidentAID), 10))
+	// projectId query filter cannot be used as a side channel to leak tenant A's
+	// incidents to tenant B: the organization_id constraint always applies too.
+	assertListEmpty(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/incidents?projectId="+projectAID.String(), tokenB, nil))
 
 	// Alerts: repeat assertions.
 	alertAIDStr := strconv.FormatUint(uint64(alertAID), 10)
@@ -215,6 +218,9 @@ func TestMultiTenantSecurityIsolationIntegration(t *testing.T) {
 	}), http.StatusForbidden)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/alerts/"+alertAIDStr, tokenB, nil), http.StatusForbidden)
 	assertListExcludesID(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/alerts", tokenB, nil), alertAIDStr)
+	// projectId query filter cannot be used as a side channel to leak tenant A's
+	// alerts to tenant B either.
+	assertListEmpty(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/alerts?projectId="+projectAID.String(), tokenB, nil))
 
 	// Metrics: B cannot view or list A metrics.
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet,
@@ -282,6 +288,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	invitationRepo := repository.NewInvitationRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
 	projectTeamRepo := repository.NewProjectTeamRepository(db)
+	applicationTeamRepo := repository.NewApplicationTeamRepository(db)
 	teamMemberRepo := repository.NewTeamMemberRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
 	alertRepo := repository.NewAlertRepository(db)
@@ -292,9 +299,9 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	auditRepo := repository.NewAuditRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
 
-	userService := services.NewUserService(userRepo, organizationRepo, cfg)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg)
 	organizationService := services.NewOrganizationService(organizationRepo)
-	invitationService := services.NewInvitationService(invitationRepo, userRepo)
+	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
@@ -302,6 +309,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo, deploymentHistoryService)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
+	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterService := services.NewClusterService(clusterRepo, auditService, testClusterCredentialCipher(t))
@@ -320,6 +328,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	deploymentHistoryHandler := handlers.NewDeploymentHistoryHandler(deploymentHistoryService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
+	applicationTeamHandler := handlers.NewApplicationTeamHandler(applicationTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
 	alertHandler := handlers.NewAlertHandler(alertService)
 	metricHandler := handlers.NewMetricHandler(metricService)
@@ -370,10 +379,13 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 		deploymentHistoryHandler,
 		teamHandler,
 		projectTeamHandler,
+		applicationTeamHandler,
 		incidentHandler,
 		alertHandler,
 		metricHandler,
 		clusterHandler,
+		nil,
+		nil,
 		resourceHandler,
 		commentHandler,
 		auditHandler,
@@ -585,6 +597,22 @@ func decodeDataMap(t *testing.T, rec *httptest.ResponseRecorder) map[string]any 
 		t.Fatalf("decode response data map: %v; data=%s", err, string(env.Data))
 	}
 	return data
+}
+
+func assertListEmpty(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	assertStatus(t, rec, http.StatusOK)
+	env := decodeEnvelope(t, rec)
+	var data struct {
+		Items []map[string]any `json:"items"`
+		Total int64            `json:"total"`
+	}
+	if err := json.Unmarshal(env.Data, &data); err != nil {
+		t.Fatalf("decode list payload: %v; data=%s", err, string(env.Data))
+	}
+	if data.Total != 0 || len(data.Items) != 0 {
+		t.Fatalf("expected empty list, got total=%d items=%d; body=%s", data.Total, len(data.Items), rec.Body.String())
+	}
 }
 
 func assertListExcludesID(t *testing.T, rec *httptest.ResponseRecorder, disallowedID string) {

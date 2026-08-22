@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -73,6 +74,38 @@ func (s *DeploymentRuntimeService) ListDeploymentsByApplication(ctx context.Cont
 		items = append(items, s.mapper.MapDeployment(item, false))
 	}
 
+	return &dto.DeploymentRuntimeListResponse{Items: items, Total: len(items)}, nil
+}
+
+// ListDeploymentsForCluster lists every Deployment in the cluster (optionally
+// filtered by namespace), reusing the same decrypt/clientFactory plumbing.
+func (s *DeploymentRuntimeService) ListDeploymentsForCluster(ctx context.Context, clusterID uuid.UUID, organizationID uuid.UUID, namespace string) (*dto.DeploymentRuntimeListResponse, error) {
+	cluster, err := s.getOwnedCluster(clusterID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := s.clientsetForCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	ns := strings.TrimSpace(namespace)
+	if ns == "" {
+		ns = metav1.NamespaceAll
+	}
+
+	deploymentList, err := clientset.AppsV1().Deployments(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, mapRuntimeDeploymentError(err)
+	}
+
+	items := make([]dto.DeploymentRuntimeResponse, 0, len(deploymentList.Items))
+	for _, item := range deploymentList.Items {
+		items = append(items, s.mapper.MapDeployment(item, false))
+	}
+
+	s.recordDiscovery(cluster.ID, organizationID)
 	return &dto.DeploymentRuntimeListResponse{Items: items, Total: len(items)}, nil
 }
 
@@ -175,4 +208,38 @@ func (s *DeploymentRuntimeService) getOwnedApplication(id uuid.UUID, organizatio
 
 func (s *DeploymentRuntimeService) defaultClientFactory(kubeconfig []byte) (kubernetes.Interface, error) {
 	return intkube.NewClient(kubeconfig).Clientset()
+}
+
+func (s *DeploymentRuntimeService) getOwnedCluster(id uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {
+	cluster, err := s.clusterRepo.FindByID(id, organizationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrClusterNotFound
+		}
+		return nil, err
+	}
+
+	return cluster, nil
+}
+
+func (s *DeploymentRuntimeService) clientsetForCluster(cluster *models.Cluster) (kubernetes.Interface, error) {
+	if s.credentialCipher == nil {
+		return nil, apperrors.ErrRuntimeDeploymentInvalidKubeconfig
+	}
+
+	kubeconfig, err := s.credentialCipher.Decrypt(cluster.KubeconfigEncrypted)
+	if err != nil {
+		return nil, apperrors.ErrRuntimeDeploymentInvalidKubeconfig
+	}
+
+	clientset, err := s.clientFactory([]byte(kubeconfig))
+	if err != nil {
+		return nil, mapRuntimeDeploymentError(err)
+	}
+
+	return clientset, nil
+}
+
+func (s *DeploymentRuntimeService) recordDiscovery(clusterID uuid.UUID, organizationID uuid.UUID) {
+	_ = s.clusterRepo.UpdateDiscovery(clusterID, organizationID, time.Now())
 }

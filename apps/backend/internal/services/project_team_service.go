@@ -2,12 +2,12 @@ package services
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/models"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"gorm.io/gorm"
 )
@@ -167,10 +167,9 @@ func mapProjectTeamResponse(mapping models.ProjectTeam) dto.ProjectTeamResponse 
 }
 
 func isProjectTeamPlatformAdminRole(role string) bool {
-	return strings.EqualFold(strings.TrimSpace(role), models.RolePlatformAdmin)
+	return rbac.HasPermission(role, rbac.PermissionProjectTeamManage)
 }
 
 func isProjectTeamOrganizationMemberRole(role string) bool {
-	normalized := strings.TrimSpace(role)
-	return strings.EqualFold(normalized, models.RolePlatformAdmin) || strings.EqualFold(normalized, models.RoleUser)
+	return rbac.HasPermission(role, rbac.PermissionProjectTeamRead)
 }

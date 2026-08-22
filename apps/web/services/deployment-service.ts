@@ -25,6 +25,13 @@ export const deploymentService = {
     return response.data.data;
   },
 
+  async getLatestDeploymentByApplication(applicationId: string): Promise<DeploymentResponse> {
+    const response = await api.get<APIResponse<DeploymentResponse>>(
+      `/applications/${applicationId}/deployments/latest`
+    );
+    return response.data.data;
+  },
+
   async getDeploymentHistory(deploymentId: string): Promise<DeploymentHistoryListResponse> {
     const response = await api.get<APIResponse<DeploymentHistoryListResponse>>(
       `/deployments/${deploymentId}/history`

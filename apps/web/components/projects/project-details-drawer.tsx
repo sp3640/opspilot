@@ -1,15 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ClipboardList, Layers3, Rocket, Settings, Users, type LucideIcon, X } from "lucide-react";
+import { Activity, ClipboardList, Layers3, Pencil, Rocket, Settings, Trash2, Users, type LucideIcon, X } from "lucide-react";
 
 import { ApplicationWorkspace } from "@/components/applications/application-workspace";
 import { ErrorState } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { useProject } from "@/hooks/use-projects";
+import { useIsPlatformAdmin } from "@/store/auth-store";
 
+import { DeleteProjectDialog } from "./delete-project-dialog";
+import { EditProjectModal } from "./edit-project-modal";
 import { getProjectIcon } from "./project-icon";
+import { ProjectAuditLog } from "./project-audit-log";
+import { ProjectDeployments } from "./project-deployments";
 import { ProjectEnvironmentBadge, ProjectHealthBadge } from "./project-status";
+import { ProjectOverview } from "./project-overview";
+import { ProjectSettings } from "./project-settings";
+import { ProjectTeams } from "./project-teams";
 
 const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Overview", icon: Activity },
@@ -23,19 +31,26 @@ const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
 /** Right-side project context loaded from the Project detail API. */
 export function ProjectDetailsDrawer({ projectID, onClose }: { projectID: string | null; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState("Overview");
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { data: project, error, isError, isLoading, refetch } = useProject(projectID);
+  const isAdmin = useIsPlatformAdmin();
 
   useEffect(() => {
     setActiveTab("Overview");
+    setEditModalOpen(false);
+    setDeleteDialogOpen(false);
   }, [projectID]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      if (editModalOpen || deleteDialogOpen) return;
+      onClose();
     };
     if (projectID) window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [projectID, onClose]);
+  }, [projectID, onClose, editModalOpen, deleteDialogOpen]);
 
   if (!projectID) return null;
 
@@ -103,15 +118,41 @@ export function ProjectDetailsDrawer({ projectID, onClose }: { projectID: string
                 </p>
               </div>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-              className="h-9 w-9 rounded-xl p-0"
-              aria-label="Close project details"
-            >
-              <X aria-hidden="true" className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              {isAdmin ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setEditModalOpen(true)}
+                    className="px-3"
+                    aria-label="Edit project"
+                  >
+                    <Pencil aria-hidden="true" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="px-3 text-[var(--danger)]"
+                    aria-label="Delete project"
+                  >
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </Button>
+                </>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={onClose}
+                className="h-9 w-9 rounded-xl p-0"
+                aria-label="Close project details"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
           <div className="mt-5 flex gap-2">
             <ProjectHealthBadge health={project.health} />
@@ -175,28 +216,22 @@ export function ProjectDetailsDrawer({ projectID, onClose }: { projectID: string
           className="flex-1 overflow-y-auto p-5"
         >
           {activeTab === "Overview" ? (
-            <div className="space-y-6">
-              <p className="text-sm leading-6" style={{ color: "var(--muted-foreground)" }}>
-                {project.description}
-              </p>
-              <dl className="grid grid-cols-2 gap-3">
-                <DrawerStat label="Services" value={String(project.services)} />
-                <DrawerStat label="Members" value={String(project.members)} />
-                <DrawerStat label="Created" value={formatDate(project.createdAt)} />
-                <DrawerStat label="Project owner" value={project.owner.name} />
-              </dl>
-              <div>
-                <h3 className="text-sm font-semibold">Project identifier</h3>
-                <p
-                  className="mt-3 rounded-2xl border p-3 text-sm"
-                  style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
-                >
-                  {project.slug}
-                </p>
-              </div>
-            </div>
+            <ProjectOverview project={project} />
           ) : activeTab === "Applications" ? (
             <ApplicationWorkspace projectId={project.id} />
+          ) : activeTab === "Deployments" ? (
+            <ProjectDeployments projectId={project.id} />
+          ) : activeTab === "Members" ? (
+            <ProjectTeams projectId={project.id} />
+          ) : activeTab === "Audit" ? (
+            <ProjectAuditLog projectId={project.id} />
+          ) : activeTab === "Settings" ? (
+            <ProjectSettings
+              project={project}
+              isAdmin={isAdmin}
+              onEdit={() => setEditModalOpen(true)}
+              onDelete={() => setDeleteDialogOpen(true)}
+            />
           ) : (
             <div
               className="flex min-h-56 items-center justify-center rounded-2xl border p-6 text-center text-sm"
@@ -207,6 +242,14 @@ export function ProjectDetailsDrawer({ projectID, onClose }: { projectID: string
           )}
         </div>
       </aside>
+
+      <EditProjectModal open={editModalOpen} project={project} onClose={() => setEditModalOpen(false)} />
+      <DeleteProjectDialog
+        open={deleteDialogOpen}
+        project={project}
+        onClose={() => setDeleteDialogOpen(false)}
+        onSuccess={onClose}
+      />
     </div>
   );
 }
@@ -232,21 +275,3 @@ function DrawerFrame({ ariaLabel, children, onClose }: { ariaLabel: string; chil
   );
 }
 
-function DrawerStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      className="rounded-2xl border p-4"
-      style={{
-        borderColor: "var(--border)",
-        backgroundColor: "color-mix(in srgb, var(--muted) 45%, transparent)",
-      }}
-    >
-      <dt className="text-xs" style={{ color: "var(--muted-foreground)" }}>{label}</dt>
-      <dd className="mt-1 font-semibold">{value}</dd>
-    </div>
-  );
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString();
-}

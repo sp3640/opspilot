@@ -1,8 +1,11 @@
+// Mirrors the backend's canonical cluster status values exactly
+// (internal/constants/cluster.go) — status is server-owned, set only by
+// cluster creation (PENDING_VALIDATION) and real connectivity validation
+// (HEALTHY / INVALID), never by client input.
 export const CLUSTER_STATUS_VALUES = [
-  "CONNECTED",
-  "DISCONNECTED",
-  "FAILED",
-  "PENDING",
+  "PENDING_VALIDATION",
+  "HEALTHY",
+  "INVALID",
 ] as const;
 
 export const CLUSTER_PROVIDER_VALUES = [
@@ -25,7 +28,6 @@ export type ClusterStatus = (typeof CLUSTER_STATUS_VALUES)[number];
 export type ClusterProvider = (typeof CLUSTER_PROVIDER_VALUES)[number];
 export type ClusterConnectionType = (typeof CLUSTER_CONNECTION_TYPE_VALUES)[number];
 
-export const CLUSTER_DEFAULT_STATUS: ClusterStatus = "PENDING";
 export const CLUSTER_DEFAULT_PROVIDER: ClusterProvider = "KUBERNETES";
 export const CLUSTER_DEFAULT_CONNECTION_TYPE: ClusterConnectionType = "KUBECONFIG";
 
@@ -38,11 +40,14 @@ export const CLUSTER_PROVIDER_LABELS: Record<ClusterProvider, string> = {
   CUSTOM: "Custom",
 };
 
+// Friendly labels for the server-owned status values — "Connected" /
+// "Disconnected" match how requirement #7 talks about connection status,
+// while still being byte-compatible with the raw HEALTHY/INVALID/
+// PENDING_VALIDATION strings the backend actually sends.
 export const CLUSTER_STATUS_LABELS: Record<ClusterStatus, string> = {
-  CONNECTED: "Connected",
-  DISCONNECTED: "Disconnected",
-  FAILED: "Failed",
-  PENDING: "Pending",
+  HEALTHY: "Connected",
+  INVALID: "Disconnected",
+  PENDING_VALIDATION: "Pending validation",
 };
 
 export const CLUSTER_SORT_FIELDS = {

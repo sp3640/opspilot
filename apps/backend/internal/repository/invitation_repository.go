@@ -50,6 +50,22 @@ func (r *InvitationRepository) GetByEmail(organizationID uuid.UUID, email string
 	return &invitation, nil
 }
 
+// GetPendingByEmail finds the most recent pending invitation for an email
+// address across all organizations. Unlike GetByEmail, it is not scoped to a
+// known organization — it exists for registration, where the invited
+// organization is not yet known and must be discovered from the invitation.
+func (r *InvitationRepository) GetPendingByEmail(email string) (*models.Invitation, error) {
+	var invitation models.Invitation
+	if err := r.db.
+		Where("email = ? AND status = ?", email, models.InvitationStatusPending).
+		Order("created_at DESC").
+		First(&invitation).Error; err != nil {
+		return nil, err
+	}
+
+	return &invitation, nil
+}
+
 func (r *InvitationRepository) ListByOrganization(req *models.PaginationRequest, organizationID uuid.UUID) ([]models.Invitation, int64, error) {
 	if err := req.Validate("created_at", "updated_at", "email", "expires_at", "status"); err != nil {
 		return nil, 0, err

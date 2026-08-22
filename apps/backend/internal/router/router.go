@@ -31,10 +31,13 @@ func RegisterRoutes(
 	deploymentHistoryHandler *handlers.DeploymentHistoryHandler,
 	teamHandler *handlers.TeamHandler,
 	projectTeamHandler *handlers.ProjectTeamHandler,
+	applicationTeamHandler *handlers.ApplicationTeamHandler,
 	incidentHandler *handlers.IncidentHandler,
 	alertHandler *handlers.AlertHandler,
 	metricHandler *handlers.MetricHandler,
 	clusterHandler *handlers.ClusterHandler,
+	kubernetesNodeHandler *handlers.KubernetesNodeHandler,
+	kubernetesNamespaceHandler *handlers.KubernetesNamespaceHandler,
 	resourceHandler *handlers.ResourceHandler,
 	commentHandler *handlers.CommentHandler,
 	auditHandler *handlers.AuditHandler,
@@ -60,6 +63,15 @@ func RegisterRoutes(
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
+		}
+
+		// =========================
+		// Protected Auth Routes
+		// =========================
+		authProtected := api.Group("/auth")
+		authProtected.Use(middleware.AuthMiddleware(cfg))
+		{
+			authProtected.POST("/reissue", authHandler.Reissue)
 		}
 
 		// =========================
@@ -89,6 +101,7 @@ func RegisterRoutes(
 		{
 			invitations.POST("", invitationHandler.Invite)
 			invitations.GET("", invitationHandler.List)
+			invitations.GET("/validate", invitationHandler.Validate)
 			invitations.POST("/accept", invitationHandler.Accept)
 			invitations.DELETE("/:id", invitationHandler.Revoke)
 		}
@@ -120,6 +133,10 @@ func RegisterRoutes(
 			applications.PUT("/:id", applicationHandler.Update)
 			applications.DELETE("/:id", applicationHandler.Delete)
 			applications.GET("/:id/deployments", deploymentHandler.ListByApplication)
+			applications.GET("/:id/deployments/latest", deploymentHandler.GetLatestByApplication)
+			applications.POST("/:id/teams", applicationTeamHandler.AssignTeam)
+			applications.GET("/:id/teams", applicationTeamHandler.ListApplicationTeams)
+			applications.DELETE("/:id/teams/:teamId", applicationTeamHandler.RemoveTeam)
 			if podHandler != nil {
 				applications.GET("/:id/pods", podHandler.ListByApplication)
 			}
@@ -234,6 +251,7 @@ func RegisterRoutes(
 			teams.GET("", teamHandler.List)
 			teams.GET("/:id", teamHandler.GetByID)
 			teams.GET("/:id/projects", projectTeamHandler.ListTeamProjects)
+			teams.GET("/:id/applications", applicationTeamHandler.ListTeamApplications)
 			teams.PUT("/:id", teamHandler.Update)
 			teams.DELETE("/:id", teamHandler.Delete)
 			teams.POST("/:id/members", teamHandler.AddMember)
@@ -291,6 +309,34 @@ func RegisterRoutes(
 			clusters.DELETE("/:id", clusterHandler.Delete)
 			clusters.POST("/:id/validate", clusterHandler.Validate)
 			clusters.POST("/:id/default", clusterHandler.SetDefault)
+
+			if kubernetesNodeHandler != nil {
+				clusters.GET("/:id/nodes", kubernetesNodeHandler.ListByCluster)
+			}
+			if kubernetesNamespaceHandler != nil {
+				clusters.GET("/:id/namespaces", kubernetesNamespaceHandler.ListByCluster)
+			}
+			if podHandler != nil {
+				clusters.GET("/:id/pods", podHandler.ListByCluster)
+			}
+			if kubernetesRuntimeDeploymentHandler != nil {
+				clusters.GET("/:id/deployments", kubernetesRuntimeDeploymentHandler.ListByCluster)
+			}
+			if kubernetesReplicaSetHandler != nil {
+				clusters.GET("/:id/replicasets", kubernetesReplicaSetHandler.ListByCluster)
+			}
+			if kubernetesServiceHandler != nil {
+				clusters.GET("/:id/services", kubernetesServiceHandler.ListByCluster)
+			}
+			if kubernetesIngressHandler != nil {
+				clusters.GET("/:id/ingresses", kubernetesIngressHandler.ListByCluster)
+			}
+			if kubernetesConfigMapHandler != nil {
+				clusters.GET("/:id/configmaps", kubernetesConfigMapHandler.ListByCluster)
+			}
+			if kubernetesSecretHandler != nil {
+				clusters.GET("/:id/secrets", kubernetesSecretHandler.ListByCluster)
+			}
 		}
 
 		resources := api.Group("/resources")

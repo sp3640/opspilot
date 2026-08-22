@@ -69,7 +69,10 @@ func (s *OrganizationService) List(ownerID uint, req *models.PaginationRequest) 
 	}, nil
 }
 
-func (s *OrganizationService) GetByID(id uuid.UUID, _ uint) (*dto.OrganizationResponse, error) {
+// GetByID returns organization id, but only when it matches the caller's own
+// organization: there is no multi-organization access model yet, so any
+// mismatch is treated as forbidden rather than trusting the path parameter.
+func (s *OrganizationService) GetByID(id uuid.UUID, callerOrganizationID uuid.UUID) (*dto.OrganizationResponse, error) {
 	organization, err := s.repo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -78,11 +81,15 @@ func (s *OrganizationService) GetByID(id uuid.UUID, _ uint) (*dto.OrganizationRe
 		return nil, err
 	}
 
+	if organization.ID != callerOrganizationID {
+		return nil, apperrors.ErrOrganizationForbidden
+	}
+
 	response := mapOrganizationResponse(*organization)
 	return &response, nil
 }
 
-func (s *OrganizationService) Update(id uuid.UUID, _ uint, req dto.UpdateOrganizationRequest) (*dto.OrganizationResponse, error) {
+func (s *OrganizationService) Update(id uuid.UUID, callerOrganizationID uuid.UUID, req dto.UpdateOrganizationRequest) (*dto.OrganizationResponse, error) {
 	name, slug, description, err := normalizeOrganizationInput(req.Name, req.Slug, req.Description)
 	if err != nil {
 		return nil, err
@@ -94,6 +101,10 @@ func (s *OrganizationService) Update(id uuid.UUID, _ uint, req dto.UpdateOrganiz
 			return nil, apperrors.ErrOrganizationNotFound
 		}
 		return nil, err
+	}
+
+	if organization.ID != callerOrganizationID {
+		return nil, apperrors.ErrOrganizationForbidden
 	}
 
 	if err := s.ensureSlugAvailable(slug, organization.ID); err != nil {
@@ -112,13 +123,17 @@ func (s *OrganizationService) Update(id uuid.UUID, _ uint, req dto.UpdateOrganiz
 	return &response, nil
 }
 
-func (s *OrganizationService) Delete(id uuid.UUID, _ uint) error {
-	_, err := s.repo.GetByID(id)
+func (s *OrganizationService) Delete(id uuid.UUID, callerOrganizationID uuid.UUID) error {
+	organization, err := s.repo.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return apperrors.ErrOrganizationNotFound
 		}
 		return err
+	}
+
+	if organization.ID != callerOrganizationID {
+		return apperrors.ErrOrganizationForbidden
 	}
 
 	return s.repo.Delete(id)

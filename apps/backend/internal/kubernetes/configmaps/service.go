@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -73,6 +74,40 @@ func (s *ConfigMapService) ListConfigMapsByApplication(ctx context.Context, appl
 		items = append(items, s.mapper.MapConfigMap(item, false))
 	}
 
+	return &dto.ConfigMapListResponse{Items: items, Total: len(items)}, nil
+}
+
+// ListConfigMapsForCluster lists every ConfigMap in the cluster (optionally
+// filtered by namespace), not just those belonging to one application. It
+// reuses the exact same decrypt/clientFactory plumbing as
+// ListConfigMapsByApplication — no separate Kubernetes client is created.
+func (s *ConfigMapService) ListConfigMapsForCluster(ctx context.Context, clusterID uuid.UUID, organizationID uuid.UUID, namespace string) (*dto.ConfigMapListResponse, error) {
+	cluster, err := s.getOwnedCluster(clusterID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := s.clientsetForCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	ns := strings.TrimSpace(namespace)
+	if ns == "" {
+		ns = metav1.NamespaceAll
+	}
+
+	configMapList, err := clientset.CoreV1().ConfigMaps(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, mapConfigMapError(err)
+	}
+
+	items := make([]dto.ConfigMapResponse, 0, len(configMapList.Items))
+	for _, item := range configMapList.Items {
+		items = append(items, s.mapper.MapConfigMap(item, false))
+	}
+
+	s.recordDiscovery(cluster.ID, organizationID)
 	return &dto.ConfigMapListResponse{Items: items, Total: len(items)}, nil
 }
 
@@ -175,4 +210,41 @@ func (s *ConfigMapService) getOwnedApplication(id uuid.UUID, organizationID uuid
 
 func (s *ConfigMapService) defaultClientFactory(kubeconfig []byte) (kubernetes.Interface, error) {
 	return intkube.NewClient(kubeconfig).Clientset()
+}
+
+func (s *ConfigMapService) getOwnedCluster(id uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {
+	cluster, err := s.clusterRepo.FindByID(id, organizationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrClusterNotFound
+		}
+		return nil, err
+	}
+
+	return cluster, nil
+}
+
+func (s *ConfigMapService) clientsetForCluster(cluster *models.Cluster) (kubernetes.Interface, error) {
+	if s.credentialCipher == nil {
+		return nil, apperrors.ErrConfigMapInvalidKubeconfig
+	}
+
+	kubeconfig, err := s.credentialCipher.Decrypt(cluster.KubeconfigEncrypted)
+	if err != nil {
+		return nil, apperrors.ErrConfigMapInvalidKubeconfig
+	}
+
+	clientset, err := s.clientFactory([]byte(kubeconfig))
+	if err != nil {
+		return nil, mapConfigMapError(err)
+	}
+
+	return clientset, nil
+}
+
+// recordDiscovery best-effort persists the timestamp of the last successful
+// live resource listing for this cluster. A failure to write it should never
+// fail the resource-list response itself.
+func (s *ConfigMapService) recordDiscovery(clusterID uuid.UUID, organizationID uuid.UUID) {
+	_ = s.clusterRepo.UpdateDiscovery(clusterID, organizationID, time.Now())
 }

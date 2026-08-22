@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -73,6 +74,39 @@ func (s *SecretService) ListSecretsByApplication(ctx context.Context, applicatio
 		items = append(items, s.mapper.MapSecret(item))
 	}
 
+	return &dto.SecretListResponse{Items: items, Total: len(items)}, nil
+}
+
+// ListSecretsForCluster lists every Secret in the cluster (optionally
+// filtered by namespace) using metadata-only mapping — secret values are
+// never included, matching ListSecretsByApplication's existing contract.
+func (s *SecretService) ListSecretsForCluster(ctx context.Context, clusterID uuid.UUID, organizationID uuid.UUID, namespace string) (*dto.SecretListResponse, error) {
+	cluster, err := s.getOwnedCluster(clusterID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := s.clientsetForCluster(cluster)
+	if err != nil {
+		return nil, err
+	}
+
+	ns := strings.TrimSpace(namespace)
+	if ns == "" {
+		ns = metav1.NamespaceAll
+	}
+
+	secretList, err := clientset.CoreV1().Secrets(ns).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, mapSecretError(err)
+	}
+
+	items := make([]dto.SecretResponse, 0, len(secretList.Items))
+	for _, item := range secretList.Items {
+		items = append(items, s.mapper.MapSecret(item))
+	}
+
+	s.recordDiscovery(cluster.ID, organizationID)
 	return &dto.SecretListResponse{Items: items, Total: len(items)}, nil
 }
 
@@ -175,4 +209,38 @@ func (s *SecretService) getOwnedApplication(id uuid.UUID, organizationID uuid.UU
 
 func (s *SecretService) defaultClientFactory(kubeconfig []byte) (kubernetes.Interface, error) {
 	return intkube.NewClient(kubeconfig).Clientset()
+}
+
+func (s *SecretService) getOwnedCluster(id uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {
+	cluster, err := s.clusterRepo.FindByID(id, organizationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrClusterNotFound
+		}
+		return nil, err
+	}
+
+	return cluster, nil
+}
+
+func (s *SecretService) clientsetForCluster(cluster *models.Cluster) (kubernetes.Interface, error) {
+	if s.credentialCipher == nil {
+		return nil, apperrors.ErrSecretInvalidKubeconfig
+	}
+
+	kubeconfig, err := s.credentialCipher.Decrypt(cluster.KubeconfigEncrypted)
+	if err != nil {
+		return nil, apperrors.ErrSecretInvalidKubeconfig
+	}
+
+	clientset, err := s.clientFactory([]byte(kubeconfig))
+	if err != nil {
+		return nil, mapSecretError(err)
+	}
+
+	return clientset, nil
+}
+
+func (s *SecretService) recordDiscovery(clusterID uuid.UUID, organizationID uuid.UUID) {
+	_ = s.clusterRepo.UpdateDiscovery(clusterID, organizationID, time.Now())
 }

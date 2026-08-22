@@ -11,6 +11,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -34,7 +35,7 @@ func (h *ClusterHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionClusterManage) {
 		return
 	}
 
@@ -48,16 +49,11 @@ func (h *ClusterHandler) Create(c *gin.Context) {
 		req.ProjectID,
 		req.Name,
 		req.Provider,
-		req.Status,
 		req.ConnectionType,
 		req.KubeconfigEncrypted,
 		req.APIEndpoint,
 		req.Region,
-		req.Version,
-		req.ValidationError,
 		req.Metadata,
-		req.LastValidatedAt,
-		req.LastDiscoveryAt,
 		userID,
 		organizationID,
 	)
@@ -75,7 +71,7 @@ func (h *ClusterHandler) List(c *gin.Context) {
 		return
 	}
 
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionClusterRead) {
 		return
 	}
 
@@ -120,7 +116,7 @@ func (h *ClusterHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionClusterRead) {
 		return
 	}
 
@@ -146,7 +142,7 @@ func (h *ClusterHandler) Update(c *gin.Context) {
 		return
 	}
 
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionClusterManage) {
 		return
 	}
 
@@ -170,16 +166,11 @@ func (h *ClusterHandler) Update(c *gin.Context) {
 		req.ProjectID,
 		req.Name,
 		req.Provider,
-		req.Status,
 		req.ConnectionType,
 		req.KubeconfigEncrypted,
 		req.APIEndpoint,
 		req.Region,
-		req.Version,
-		req.ValidationError,
 		req.Metadata,
-		req.LastValidatedAt,
-		req.LastDiscoveryAt,
 	)
 	if err != nil {
 		h.handleServiceError(c, err)
@@ -196,7 +187,7 @@ func (h *ClusterHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionClusterManage) {
 		return
 	}
 
@@ -221,7 +212,7 @@ func (h *ClusterHandler) Validate(c *gin.Context) {
 		return
 	}
 
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionClusterValidate) {
 		return
 	}
 
@@ -242,12 +233,15 @@ func (h *ClusterHandler) Validate(c *gin.Context) {
 		return
 	}
 
-	if validationResult.Healthy {
-		response.OK(c, "Cluster credential validated locally", validationResult)
+	// A disconnected/unreachable/misconfigured cluster is an expected,
+	// reportable outcome of validation, not a request error — the HTTP
+	// envelope always succeeds; callers branch on the "connected" field.
+	if validationResult.Connected {
+		response.OK(c, "Cluster is reachable", validationResult)
 		return
 	}
 
-	response.Error(c, http.StatusBadRequest, validationResult.Error)
+	response.OK(c, "Cluster validation failed: "+validationResult.Error, validationResult)
 }
 
 func (h *ClusterHandler) SetDefault(c *gin.Context) {
@@ -257,7 +251,7 @@ func (h *ClusterHandler) SetDefault(c *gin.Context) {
 		return
 	}
 
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionClusterSetDefault) {
 		return
 	}
 
@@ -282,7 +276,7 @@ func (h *ClusterHandler) handleServiceError(c *gin.Context, err error) {
 		response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
 	case apperrors.ErrProjectForbidden, apperrors.ErrInvalidProject:
 		response.Error(c, http.StatusForbidden, err.Error())
-	case apperrors.ErrInvalidClusterProvider, apperrors.ErrInvalidClusterStatus, apperrors.ErrInvalidClusterConnectionType:
+	case apperrors.ErrInvalidClusterProvider, apperrors.ErrInvalidClusterStatus, apperrors.ErrInvalidClusterConnectionType, apperrors.ErrClusterCredentialRequired:
 		response.Error(c, http.StatusBadRequest, err.Error())
 	default:
 		response.InternalServerError(c, err)

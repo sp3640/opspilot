@@ -17,7 +17,7 @@ export function UserMenu() {
 
   const name = currentUser?.name?.trim() || "User";
   const email = currentUser?.email?.trim() || "";
-  const role = currentUser?.role?.trim() || "User";
+  const role = currentUser?.role?.trim() || "Viewer";
   const organizationName = useMemo(() => {
     return data?.items?.[0]?.name?.trim() || "No organization";
   }, [data]);

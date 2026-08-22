@@ -21,17 +21,22 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// TestUserOrganizationRelationshipIntegration verifies that every uninvited
+// registrant — the very first user ever, and every one after them — creates
+// their own new workspace and becomes its Platform Admin. There is no hidden
+// "join an existing organization" fallback for uninvited signups.
 func TestUserOrganizationRelationshipIntegration(t *testing.T) {
 	db := setupSQLiteUserOrganizationDB(t)
 
 	userRepo := repository.NewUserRepository(db)
 	organizationRepo := repository.NewOrganizationRepository(db)
+	invitationRepo := repository.NewInvitationRepository(db)
 	testConfig := &config.Config{JWTSecret: "this-is-a-very-long-test-jwt-secret-1234567890"}
 
-	userService := services.NewUserService(userRepo, organizationRepo, testConfig)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, testConfig)
 	userHandler := handlers.NewUserHandler(userService)
 
-	if err := userService.Register("Alice", "alice@opspilot.dev", "password123"); err != nil {
+	if err := userService.Register("Alice", "alice@opspilot.dev", "password123", ""); err != nil {
 		t.Fatalf("register first user: %v", err)
 	}
 
@@ -46,18 +51,20 @@ func TestUserOrganizationRelationshipIntegration(t *testing.T) {
 		t.Fatalf("expected first user organization id to be assigned")
 	}
 
-	organization, err := organizationRepo.GetByID(*firstUser.OrganizationID)
+	firstOrganization, err := organizationRepo.GetByID(*firstUser.OrganizationID)
 	if err != nil {
 		t.Fatalf("load first user's organization: %v", err)
 	}
-	if organization.OwnerID != firstUser.ID {
-		t.Fatalf("expected organization owner %d, got %d", firstUser.ID, organization.OwnerID)
+	if firstOrganization.OwnerID != firstUser.ID {
+		t.Fatalf("expected organization owner %d, got %d", firstUser.ID, firstOrganization.OwnerID)
 	}
-	if organization.Name != "Alice's Workspace" {
-		t.Fatalf("unexpected default organization name: %s", organization.Name)
+	if firstOrganization.Name != "Alice's Workspace" {
+		t.Fatalf("unexpected default organization name: %s", firstOrganization.Name)
 	}
 
-	if err := userService.Register("Bob", "bob@opspilot.dev", "password123"); err != nil {
+	// A second, later, entirely uninvited registrant must get their OWN new
+	// workspace — not silently join Alice's — and may name it explicitly.
+	if err := userService.Register("Bob", "bob@opspilot.dev", "password123", "Bob's Team"); err != nil {
 		t.Fatalf("register second user: %v", err)
 	}
 
@@ -65,22 +72,33 @@ func TestUserOrganizationRelationshipIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load second user: %v", err)
 	}
-	if secondUser.Role != models.RoleUser {
-		t.Fatalf("expected second user role %q, got %q", models.RoleUser, secondUser.Role)
+	if secondUser.Role != models.RolePlatformAdmin {
+		t.Fatalf("expected second user role %q, got %q", models.RolePlatformAdmin, secondUser.Role)
 	}
 	if secondUser.OrganizationID == nil {
 		t.Fatalf("expected second user organization id to be assigned")
 	}
-	if *secondUser.OrganizationID != *firstUser.OrganizationID {
-		t.Fatalf("expected second user to join existing organization")
+	if *secondUser.OrganizationID == *firstUser.OrganizationID {
+		t.Fatalf("expected second user to create their own organization, not join the first user's")
+	}
+
+	secondOrganization, err := organizationRepo.GetByID(*secondUser.OrganizationID)
+	if err != nil {
+		t.Fatalf("load second user's organization: %v", err)
+	}
+	if secondOrganization.OwnerID != secondUser.ID {
+		t.Fatalf("expected second user to own their own new workspace")
+	}
+	if secondOrganization.Name != "Bob's Team" {
+		t.Fatalf("expected the requested organization name to be honored, got %q", secondOrganization.Name)
 	}
 
 	organizationCount, err := organizationRepo.CountOrganizations()
 	if err != nil {
 		t.Fatalf("count organizations: %v", err)
 	}
-	if organizationCount != 1 {
-		t.Fatalf("expected exactly 1 organization, got %d", organizationCount)
+	if organizationCount != 2 {
+		t.Fatalf("expected exactly 2 organizations, got %d", organizationCount)
 	}
 
 	token, err := userService.Login("bob@opspilot.dev", "password123")
@@ -92,8 +110,8 @@ func TestUserOrganizationRelationshipIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("validate token: %v", err)
 	}
-	if claims.OrganizationID != firstUser.OrganizationID.String() {
-		t.Fatalf("expected token organization id %q, got %q", firstUser.OrganizationID.String(), claims.OrganizationID)
+	if claims.OrganizationID != secondUser.OrganizationID.String() {
+		t.Fatalf("expected token organization id %q, got %q", secondUser.OrganizationID.String(), claims.OrganizationID)
 	}
 
 	gin.SetMode(gin.TestMode)
@@ -123,14 +141,14 @@ func TestUserOrganizationRelationshipIntegration(t *testing.T) {
 	organizationID, _ := payload.Data["organizationId"].(string)
 	organizationName, _ := payload.Data["organizationName"].(string)
 	organizationSlug, _ := payload.Data["organizationSlug"].(string)
-	if organizationID != firstUser.OrganizationID.String() {
-		t.Fatalf("expected /users/me organizationId %q, got %q", firstUser.OrganizationID.String(), organizationID)
+	if organizationID != secondUser.OrganizationID.String() {
+		t.Fatalf("expected /users/me organizationId %q, got %q", secondUser.OrganizationID.String(), organizationID)
 	}
-	if organizationName != organization.Name {
-		t.Fatalf("expected /users/me organizationName %q, got %q", organization.Name, organizationName)
+	if organizationName != secondOrganization.Name {
+		t.Fatalf("expected /users/me organizationName %q, got %q", secondOrganization.Name, organizationName)
 	}
-	if organizationSlug != organization.Slug {
-		t.Fatalf("expected /users/me organizationSlug %q, got %q", organization.Slug, organizationSlug)
+	if organizationSlug != secondOrganization.Slug {
+		t.Fatalf("expected /users/me organizationSlug %q, got %q", secondOrganization.Slug, organizationSlug)
 	}
 }
 

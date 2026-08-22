@@ -11,6 +11,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -28,7 +29,7 @@ func NewAlertHandler(service *services.AlertService) *AlertHandler {
 }
 
 func (h *AlertHandler) Create(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionAlertManage) {
 		return
 	}
 
@@ -141,7 +142,7 @@ func (h *AlertHandler) GetByID(c *gin.Context) {
 }
 
 func (h *AlertHandler) Update(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionAlertManage) {
 		return
 	}
 
@@ -193,7 +194,7 @@ func (h *AlertHandler) Update(c *gin.Context) {
 }
 
 func (h *AlertHandler) Delete(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionAlertManage) {
 		return
 	}
 
@@ -219,7 +220,7 @@ func (h *AlertHandler) Delete(c *gin.Context) {
 }
 
 func (h *AlertHandler) Acknowledge(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionAlertAcknowledge) {
 		return
 	}
 
@@ -245,7 +246,7 @@ func (h *AlertHandler) Acknowledge(c *gin.Context) {
 }
 
 func (h *AlertHandler) Resolve(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionAlertResolve) {
 		return
 	}
 
@@ -271,7 +272,7 @@ func (h *AlertHandler) Resolve(c *gin.Context) {
 }
 
 func (h *AlertHandler) Reopen(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionAlertReopen) {
 		return
 	}
 
@@ -297,7 +298,7 @@ func (h *AlertHandler) Reopen(c *gin.Context) {
 }
 
 func (h *AlertHandler) AttachIncident(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionAlertManage) {
 		return
 	}
 

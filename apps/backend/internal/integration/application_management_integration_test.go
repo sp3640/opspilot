@@ -15,7 +15,7 @@ func TestApplicationManagementIntegration(t *testing.T) {
 	app := setupRBACApp(t)
 
 	adminToken := registerAndLogin(t, app.router, "App Admin", "app-admin@opspilot.dev", "password123")
-	memberToken := registerAndLogin(t, app.router, "App Member", "app-member@opspilot.dev", "password123")
+	registerAndLogin(t, app.router, "App Member", "app-member@opspilot.dev", "password123")
 
 	admin := mustGetUserByEmail(t, app.userRepo, "app-admin@opspilot.dev")
 	member := mustGetUserByEmail(t, app.userRepo, "app-member@opspilot.dev")
@@ -23,9 +23,13 @@ func TestApplicationManagementIntegration(t *testing.T) {
 		t.Fatalf("expected admin organization")
 	}
 	organizationA := *admin.OrganizationID
-	if err := app.userRepo.AssignOrganizationAndRole(member.ID, organizationA, models.RoleUser); err != nil {
+	// Uninvited registration now creates its own organization, so the member
+	// must be explicitly moved into organization A and re-authenticated to
+	// pick up the updated organization/role claims.
+	if err := app.userRepo.AssignOrganizationAndRole(member.ID, organizationA, models.RoleViewer); err != nil {
 		t.Fatalf("assign member to organization: %v", err)
 	}
+	memberToken := loginOnly(t, app.router, "app-member@opspilot.dev", "password123")
 
 	projectID := createProject(t, app.router, adminToken, "Application Project")
 
@@ -55,6 +59,19 @@ func TestApplicationManagementIntegration(t *testing.T) {
 	if application["status"].(string) != constants.ApplicationStatusDraft {
 		t.Fatalf("expected default status %q, got %v", constants.ApplicationStatusDraft, application["status"])
 	}
+	// Phase 8: Application.Environment shares the same
+	// Development/Staging/Production enum as Deployment.Environment rather
+	// than being a second, inconsistent freeform representation.
+	if application["environment"].(string) != constants.DeploymentEnvironmentProduction {
+		t.Fatalf("expected normalized environment %q, got %v", constants.DeploymentEnvironmentProduction, application["environment"])
+	}
+
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/projects/"+projectID.String()+"/applications", adminToken, map[string]any{
+		"name":        "Bad Environment",
+		"runtime":     constants.ApplicationRuntimeGo,
+		"port":        3005,
+		"environment": "sandbox",
+	}), http.StatusBadRequest)
 
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/projects/"+projectID.String()+"/applications", adminToken, map[string]any{
 		"name":    "Orders API copy",
@@ -82,9 +99,20 @@ func TestApplicationManagementIntegration(t *testing.T) {
 		"runtime":     constants.ApplicationRuntimeGo,
 		"port":        8080,
 		"status":      constants.ApplicationStatusReady,
+		"environment": "dev",
 	})
 	assertStatus(t, updateRec, http.StatusOK)
 	updated := decodeDataMap(t, updateRec)
+	if updated["environment"].(string) != constants.DeploymentEnvironmentDevelopment {
+		t.Fatalf("expected normalized environment %q, got %v", constants.DeploymentEnvironmentDevelopment, updated["environment"])
+	}
+
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodPut, "/api/v1/applications/"+applicationID.String(), adminToken, map[string]any{
+		"name":        "Orders API v2",
+		"runtime":     constants.ApplicationRuntimeGo,
+		"port":        8080,
+		"environment": "sandbox",
+	}), http.StatusBadRequest)
 	if updated["name"].(string) != "Orders API v2" {
 		t.Fatalf("expected updated name, got %v", updated["name"])
 	}

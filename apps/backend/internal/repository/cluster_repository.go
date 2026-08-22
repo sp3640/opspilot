@@ -152,11 +152,12 @@ func (r *ClusterRepository) SetDefaultCluster(projectID, clusterID, organization
 	})
 }
 
-func (r *ClusterRepository) UpdateValidation(id uuid.UUID, organizationID uuid.UUID, status string, lastValidatedAt *time.Time, validationError string) error {
+func (r *ClusterRepository) UpdateValidation(id uuid.UUID, organizationID uuid.UUID, status string, lastValidatedAt *time.Time, validationError, kubernetesVersion string) error {
 	return r.db.Model(&models.Cluster{}).Where("id = ? AND organization_id = ?", id, organizationID).Updates(map[string]interface{}{
-		"status":            status,
-		"last_validated_at": lastValidatedAt,
-		"validation_error":  validationError,
+		"status":             status,
+		"last_validated_at":  lastValidatedAt,
+		"validation_error":   validationError,
+		"kubernetes_version": kubernetesVersion,
 	}).Error
 }
 

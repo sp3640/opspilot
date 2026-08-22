@@ -1,45 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Boxes,
   ClipboardList,
   Cpu,
+  Globe,
   Layers3,
-  List,
   Network,
   Rocket,
   Server,
   ShieldCheck,
+  Users,
   type LucideIcon,
   X,
 } from "lucide-react";
 
 import { StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
+import { useApplicationTeams } from "@/hooks/use-application-teams";
+import { useTeams } from "@/hooks/use-teams";
 import type { ApplicationResponse } from "@/types/application-api";
 
 import { ApplicationConfigMaps } from "./application-configmaps";
 import { ApplicationDeployments } from "./application-deployments";
 import { ApplicationEvents } from "./application-events";
+import { ApplicationHealth } from "./application-health";
+import { ApplicationIngresses } from "./application-ingresses";
 import { ApplicationPods } from "./application-pods";
 import { ApplicationReplicaSets } from "./application-replicasets";
 import { ApplicationRuntimeDeployments } from "./application-runtime-deployments";
 import { ApplicationSecrets } from "./application-secrets";
 import { ApplicationServices } from "./application-services";
+import { ApplicationTeams } from "./application-teams";
+
+const TEAM_LOOKUP_QUERY = { page: 1, limit: 100, sort: "name" as const, order: "asc" as const };
 
 const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Overview", icon: Activity },
   { label: "Deployments", icon: Rocket },
   { label: "Pods", icon: Boxes },
   { label: "Services", icon: Network },
+  { label: "Ingresses", icon: Globe },
   { label: "ConfigMaps", icon: ClipboardList },
   { label: "Secrets", icon: ShieldCheck },
   { label: "ReplicaSets", icon: Layers3 },
   { label: "Runtime Deployments", icon: Server },
   { label: "Events", icon: Cpu },
-  { label: "Logs", icon: List },
+  { label: "Teams", icon: Users },
 ];
 
 /** Right-side application context. Only Overview renders real content today. */
@@ -66,6 +75,15 @@ export function ApplicationDetailsDrawer({
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open, onClose]);
 
+  const { data: owningTeamsData, isLoading: isOwningTeamsLoading } = useApplicationTeams(
+    open ? application?.id ?? null : null
+  );
+  const { data: teamsLookupData } = useTeams(TEAM_LOOKUP_QUERY, open && Boolean(application));
+  const owningTeamNames = useMemo(() => {
+    const teamById = new Map((teamsLookupData?.items ?? []).map((team) => [team.id, team.name]));
+    return (owningTeamsData?.items ?? []).map((assignment) => teamById.get(assignment.teamId) ?? assignment.teamId);
+  }, [owningTeamsData, teamsLookupData]);
+
   if (!open || !application) return null;
 
   const titleId = "application-details-title";
@@ -76,11 +94,9 @@ export function ApplicationDetailsDrawer({
   const overviewStats = [
     { label: "Name", value: application.name },
     { label: "Runtime", value: application.runtime },
-    { label: "Status", value: application.status },
     { label: "Repository URL", value: application.repositoryUrl || "-" },
     { label: "Default branch", value: application.defaultBranch || "-" },
     { label: "Port", value: String(application.port) },
-    { label: "Environment", value: application.environment || "-" },
     { label: "Created", value: formatDate(application.createdAt) },
     { label: "Updated", value: formatDate(application.updatedAt) },
   ];
@@ -200,6 +216,12 @@ export function ApplicationDetailsDrawer({
         >
           {activeTab === "Overview" ? (
             <div className="space-y-6">
+              <ApplicationHealth
+                applicationId={application.id}
+                projectId={application.projectId}
+                status={application.status}
+                environment={application.environment}
+              />
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
                   Description
@@ -223,13 +245,42 @@ export function ApplicationDetailsDrawer({
                   </div>
                 ))}
               </dl>
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
+                  Owning team
+                </h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {isOwningTeamsLoading ? (
+                    <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Loading owning team...</p>
+                  ) : owningTeamNames.length === 0 ? (
+                    <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>No team assigned</p>
+                  ) : (
+                    owningTeamNames.map((name) => (
+                      <span
+                        key={name}
+                        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+                        style={{
+                          color: "var(--primary)",
+                          backgroundColor: "color-mix(in srgb, var(--primary) 12%, transparent)",
+                        }}
+                      >
+                        {name}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
+          ) : activeTab === "Teams" ? (
+            <ApplicationTeams applicationId={application.id} />
           ) : activeTab === "Deployments" ? (
             <ApplicationDeployments applicationId={application.id} />
           ) : activeTab === "Pods" ? (
             <ApplicationPods applicationId={application.id} />
           ) : activeTab === "Services" ? (
             <ApplicationServices applicationId={application.id} />
+          ) : activeTab === "Ingresses" ? (
+            <ApplicationIngresses applicationId={application.id} />
           ) : activeTab === "ConfigMaps" ? (
             <ApplicationConfigMaps applicationId={application.id} />
           ) : activeTab === "Secrets" ? (

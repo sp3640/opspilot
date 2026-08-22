@@ -7,10 +7,11 @@ import type { Cluster } from "./types";
 
 type ClusterTableProps = {
   clusters: Cluster[];
+  projectNameById: Map<string, string>;
   onOpen: (clusterID: string) => void;
 };
 
-export function ClusterTable({ clusters, onOpen }: ClusterTableProps) {
+export function ClusterTable({ clusters, projectNameById, onOpen }: ClusterTableProps) {
   return (
     <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: "var(--border)" }}>
       <table className="w-full min-w-[1120px] text-left text-sm">
@@ -24,6 +25,7 @@ export function ClusterTable({ clusters, onOpen }: ClusterTableProps) {
         >
           <tr>
             <th scope="col" className="px-5 py-3 font-semibold">Name</th>
+            <th scope="col" className="px-5 py-3 font-semibold">Project</th>
             <th scope="col" className="px-5 py-3 font-semibold">Provider</th>
             <th scope="col" className="px-5 py-3 font-semibold">Status</th>
             <th scope="col" className="px-5 py-3 font-semibold">API endpoint</th>
@@ -53,12 +55,15 @@ export function ClusterTable({ clusters, onOpen }: ClusterTableProps) {
               style={{ borderColor: "var(--border)" }}
             >
               <td className="px-5 py-4 font-medium">{cluster.name}</td>
+              <td className="max-w-[200px] truncate px-5 py-4" style={{ color: "var(--muted-foreground)" }}>
+                {projectNameById.get(cluster.projectId) || cluster.projectId}
+              </td>
               <td className="px-5 py-4"><ClusterProviderBadge provider={cluster.provider} /></td>
               <td className="px-5 py-4"><ClusterStatusBadge status={cluster.status} /></td>
               <td className="max-w-[280px] truncate px-5 py-4" title={cluster.apiEndpoint || ""}>
                 {cluster.apiEndpoint || "-"}
               </td>
-              <td className="px-5 py-4">{cluster.version || "-"}</td>
+              <td className="px-5 py-4">{cluster.kubernetesVersion || "-"}</td>
               <td className="px-5 py-4">{cluster.region || "-"}</td>
               <td className="px-5 py-4" style={{ color: "var(--muted-foreground)" }}>
                 {formatDateTime(cluster.lastValidatedAt)}

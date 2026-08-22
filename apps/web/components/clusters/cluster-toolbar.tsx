@@ -3,6 +3,7 @@
 import { Plus, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useHasPermission } from "@/store/auth-store";
 import type { ProjectResponse } from "@/types/project-api";
 
 import { ClusterFilter } from "./cluster-filter";
@@ -31,6 +32,7 @@ export function ClusterToolbar({
   onCreate,
   refreshing = false,
 }: ClusterToolbarProps) {
+  const canManageClusters = useHasPermission("cluster:manage");
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-3 lg:flex-row">
@@ -55,10 +57,12 @@ export function ClusterToolbar({
             <RefreshCw aria-hidden="true" className="h-4 w-4" />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
-          <Button type="button" onClick={onCreate}>
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Create cluster
-          </Button>
+          {canManageClusters ? (
+            <Button type="button" onClick={onCreate}>
+              <Plus aria-hidden="true" className="h-4 w-4" />
+              Create cluster
+            </Button>
+          ) : null}
         </div>
       </div>
     </div>

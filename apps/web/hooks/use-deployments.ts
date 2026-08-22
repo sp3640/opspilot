@@ -5,6 +5,7 @@ import axios from "axios";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/auth-store";
 
+import { projectDeploymentKeys } from "@/hooks/use-project-deployments";
 import { deploymentService } from "@/services/deployment-service";
 import type { DeploymentQueryParams } from "@/types/deployment-api";
 
@@ -12,6 +13,7 @@ const deploymentKeys = {
   all: ["deployments"] as const,
   list: (applicationId: string, params: DeploymentQueryParams) =>
     ["deployments", "list", applicationId, params] as const,
+  latest: (applicationId: string) => ["deployments", "latest", applicationId] as const,
   history: (deploymentId: string) => ["deployments", "history", deploymentId] as const,
 };
 
@@ -26,6 +28,26 @@ export function useDeploymentsByApplication(
     queryKey: deploymentKeys.list(applicationId ?? "", params),
     queryFn: () => deploymentService.listDeploymentsByApplication(applicationId ?? "", params),
     enabled: queryEnabled && Boolean(accessToken) && Boolean(applicationId),
+  });
+}
+
+/**
+ * The application's most recently created deployment — the authoritative
+ * "where is this running" answer (target cluster, namespace, environment).
+ * A 404 means the application has no runtime mapping yet (never deployed),
+ * which callers should render as an empty state rather than an error.
+ */
+export function useLatestDeployment(applicationId: string | null, queryEnabled = true) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  return useQuery({
+    queryKey: deploymentKeys.latest(applicationId ?? ""),
+    queryFn: () => deploymentService.getLatestDeploymentByApplication(applicationId ?? ""),
+    enabled: queryEnabled && Boolean(accessToken) && Boolean(applicationId),
+    retry: (failureCount, error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 404) return false;
+      return failureCount < 2;
+    },
   });
 }
 
@@ -47,7 +69,10 @@ export function useRollbackDeployment() {
       deploymentService.rollbackDeployment(id, revision),
     onSuccess: () => {
       toast.success("Deployment rolled back successfully.");
-      return queryClient.invalidateQueries({ queryKey: deploymentKeys.all });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: deploymentKeys.all }),
+        queryClient.invalidateQueries({ queryKey: projectDeploymentKeys.all }),
+      ]);
     },
     onError: (error) => {
       toast.error(getMutationErrorMessage(error, "Failed to roll back deployment."));
@@ -62,7 +87,10 @@ export function useCancelDeployment() {
     mutationFn: (id: string) => deploymentService.cancelDeployment(id),
     onSuccess: () => {
       toast.success("Deployment cancelled successfully.");
-      return queryClient.invalidateQueries({ queryKey: deploymentKeys.all });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: deploymentKeys.all }),
+        queryClient.invalidateQueries({ queryKey: projectDeploymentKeys.all }),
+      ]);
     },
     onError: (error) => {
       toast.error(getMutationErrorMessage(error, "Failed to cancel deployment."));

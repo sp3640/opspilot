@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, PageHeader } from "@/components/common";
 import { SectionCard } from "@/components/dashboard";
 import { Button } from "@/components/ui/button";
 import { useApplicationsByProject } from "@/hooks/use-applications";
+import { useHasPermission } from "@/store/auth-store";
 
 import { ApplicationGrid } from "./application-grid";
 import { ApplicationTable } from "./application-table";
@@ -21,6 +22,7 @@ type ApplicationWorkspaceProps = {
 };
 
 export function ApplicationWorkspace({ projectId }: ApplicationWorkspaceProps) {
+  const canManageApplications = useHasPermission("application:manage");
   const workspace = useApplicationsWorkspace();
 
   const params = useMemo(
@@ -86,25 +88,27 @@ export function ApplicationWorkspace({ projectId }: ApplicationWorkspaceProps) {
               title="No applications yet"
               description="Create your first application to define its runtime and deployment configuration."
               action={
-                <Button type="button" onClick={workspace.openCreate}>
-                  <Plus aria-hidden="true" className="h-4 w-4" />
-                  Create application
-                </Button>
+                canManageApplications ? (
+                  <Button type="button" onClick={workspace.openCreate}>
+                    <Plus aria-hidden="true" className="h-4 w-4" />
+                    Create application
+                  </Button>
+                ) : undefined
               }
             />
           ) : workspace.view === "grid" ? (
             <ApplicationGrid
               applications={applications}
               onCardClick={(application) => workspace.openDetails(application.id)}
-              onEdit={(application) => workspace.openEdit(application.id)}
-              onDelete={(application) => workspace.openDelete(application.id)}
+              onEdit={canManageApplications ? (application) => workspace.openEdit(application.id) : undefined}
+              onDelete={canManageApplications ? (application) => workspace.openDelete(application.id) : undefined}
             />
           ) : (
             <ApplicationTable
               applications={applications}
               onRowClick={(application) => workspace.openDetails(application.id)}
-              onEdit={(application) => workspace.openEdit(application.id)}
-              onDelete={(application) => workspace.openDelete(application.id)}
+              onEdit={canManageApplications ? (application) => workspace.openEdit(application.id) : undefined}
+              onDelete={canManageApplications ? (application) => workspace.openDelete(application.id) : undefined}
             />
           )}
         </div>

@@ -18,4 +18,9 @@ export const replicaSetService = {
     );
     return response.data.data;
   },
+
+  async listReplicaSetsByCluster(clusterId: string, params: ReplicaSetQueryParams): Promise<ReplicaSetListResponse> {
+    const response = await api.get<APIResponse<ReplicaSetListResponse>>(`/clusters/${clusterId}/replicasets`, { params });
+    return response.data.data;
+  },
 };

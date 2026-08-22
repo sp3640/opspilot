@@ -10,12 +10,14 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 )
 
 type kubernetesConfigMapReader interface {
 	ListConfigMapsByApplication(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string) (*dto.ConfigMapListResponse, error)
 	GetConfigMap(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string, name string) (*dto.ConfigMapResponse, error)
+	ListConfigMapsForCluster(ctx context.Context, clusterID uuid.UUID, organizationID uuid.UUID, namespace string) (*dto.ConfigMapListResponse, error)
 }
 
 type KubernetesConfigMapHandler struct {
@@ -49,6 +51,40 @@ func (h *KubernetesConfigMapHandler) ListByApplication(c *gin.Context) {
 	namespace := strings.TrimSpace(c.Query("namespace"))
 	result, err := h.service.ListConfigMapsByApplication(c.Request.Context(), applicationID, organizationID, namespace)
 	if err != nil {
+		handleKubernetesConfigMapError(c, err)
+		return
+	}
+
+	response.OK(c, "ConfigMaps fetched successfully", result)
+}
+
+func (h *KubernetesConfigMapHandler) ListByCluster(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionClusterRead) {
+		return
+	}
+	if h.service == nil {
+		response.InternalServerError(c)
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	clusterID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid cluster id")
+		return
+	}
+
+	namespace := strings.TrimSpace(c.Query("namespace"))
+	result, err := h.service.ListConfigMapsForCluster(c.Request.Context(), clusterID, organizationID, namespace)
+	if err != nil {
+		if err == apperrors.ErrClusterNotFound {
+			response.Error(c, http.StatusForbidden, apperrors.ErrProjectForbidden.Error())
+			return
+		}
 		handleKubernetesConfigMapError(c, err)
 		return
 	}

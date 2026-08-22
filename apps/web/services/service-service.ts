@@ -18,4 +18,9 @@ export const serviceService = {
     );
     return response.data.data;
   },
+
+  async listServicesByCluster(clusterId: string, params: ServiceQueryParams): Promise<ServiceListResponse> {
+    const response = await api.get<APIResponse<ServiceListResponse>>(`/clusters/${clusterId}/services`, { params });
+    return response.data.data;
+  },
 };

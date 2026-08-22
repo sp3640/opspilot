@@ -10,6 +10,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -23,7 +24,7 @@ func NewProjectTeamHandler(service *services.ProjectTeamService) *ProjectTeamHan
 }
 
 func (h *ProjectTeamHandler) AssignTeam(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionProjectTeamManage) {
 		return
 	}
 
@@ -60,7 +61,7 @@ func (h *ProjectTeamHandler) AssignTeam(c *gin.Context) {
 }
 
 func (h *ProjectTeamHandler) RemoveTeam(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionProjectTeamManage) {
 		return
 	}
 

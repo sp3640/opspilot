@@ -6,8 +6,6 @@ import {
   CLUSTER_CONNECTION_TYPE_VALUES,
   CLUSTER_PROVIDER_LABELS,
   CLUSTER_PROVIDER_VALUES,
-  CLUSTER_STATUS_LABELS,
-  CLUSTER_STATUS_VALUES,
 } from "@/lib/constants/cluster";
 import type { ClusterFormInput } from "@/lib/validation/cluster";
 import { ProjectSelect } from "@/components/incidents/project-select";
@@ -18,6 +16,9 @@ type ClusterFormFieldsProps = {
   disabled: boolean;
   queryEnabled?: boolean;
   currentProjectId?: string;
+  /** create: kubeconfig is required. edit: kubeconfig is optional — leaving
+   * it blank preserves the cluster's existing (never-returned) credential. */
+  mode: "create" | "edit";
 };
 
 const inputClass =
@@ -29,6 +30,7 @@ export function ClusterFormFields({
   disabled,
   queryEnabled = true,
   currentProjectId,
+  mode,
 }: ClusterFormFieldsProps) {
   return (
     <>
@@ -76,17 +78,6 @@ export function ClusterFormFields({
         />
 
         <SelectField
-          id="cluster-status"
-          label="Status"
-          disabled={disabled}
-          errorMessage={errors.status?.message}
-          register={register("status")}
-          options={CLUSTER_STATUS_VALUES.map((value) => ({ value, label: CLUSTER_STATUS_LABELS[value] }))}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <SelectField
           id="cluster-connection-type"
           label="Connection type"
           disabled={disabled}
@@ -94,22 +85,6 @@ export function ClusterFormFields({
           register={register("connection_type")}
           options={CLUSTER_CONNECTION_TYPE_VALUES.map((value) => ({ value, label: value }))}
         />
-
-        <div>
-          <label htmlFor="cluster-region" className="text-sm font-medium">
-            Region
-          </label>
-          <input
-            id="cluster-region"
-            {...register("region")}
-            placeholder="e.g. us-east-1"
-            className={inputClass}
-            style={{ borderColor: errors.region ? "var(--danger)" : "var(--border)" }}
-            disabled={disabled}
-            aria-invalid={Boolean(errors.region)}
-          />
-          {errors.region ? <FieldError message={errors.region.message} /> : null}
-        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -130,36 +105,41 @@ export function ClusterFormFields({
         </div>
 
         <div>
-          <label htmlFor="cluster-version" className="text-sm font-medium">
-            Kubernetes version
+          <label htmlFor="cluster-region" className="text-sm font-medium">
+            Region
           </label>
           <input
-            id="cluster-version"
-            {...register("version")}
-            placeholder="e.g. v1.30.2"
+            id="cluster-region"
+            {...register("region")}
+            placeholder="e.g. us-east-1"
             className={inputClass}
-            style={{ borderColor: errors.version ? "var(--danger)" : "var(--border)" }}
+            style={{ borderColor: errors.region ? "var(--danger)" : "var(--border)" }}
             disabled={disabled}
-            aria-invalid={Boolean(errors.version)}
+            aria-invalid={Boolean(errors.region)}
           />
-          {errors.version ? <FieldError message={errors.version.message} /> : null}
+          {errors.region ? <FieldError message={errors.region.message} /> : null}
         </div>
       </div>
 
       <div>
         <label htmlFor="cluster-kubeconfig" className="text-sm font-medium">
-          Kubeconfig (encrypted string)
+          {mode === "create" ? "Kubeconfig" : "Replace kubeconfig"}
         </label>
         <textarea
           id="cluster-kubeconfig"
           {...register("kubeconfig_encrypted")}
           rows={4}
-          placeholder="Paste encrypted kubeconfig"
+          placeholder={mode === "create" ? "Paste the cluster's kubeconfig" : "Leave blank to keep the current credentials"}
           className={inputClass}
           style={{ borderColor: errors.kubeconfig_encrypted ? "var(--danger)" : "var(--border)" }}
           disabled={disabled}
           aria-invalid={Boolean(errors.kubeconfig_encrypted)}
         />
+        {mode === "edit" ? (
+          <p className="mt-1.5 text-xs" style={{ color: "var(--muted-foreground)" }}>
+            For security, the stored kubeconfig is never shown here. Only fill this in if you want to replace it.
+          </p>
+        ) : null}
         {errors.kubeconfig_encrypted ? <FieldError message={errors.kubeconfig_encrypted.message} /> : null}
       </div>
 

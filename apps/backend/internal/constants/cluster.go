@@ -13,6 +13,12 @@ const (
 )
 
 // Cluster provider values.
+//
+// ClusterProviderKubernetes is its own distinct value (a generic/vanilla
+// Kubernetes cluster), separate from ClusterProviderKind (the "KIND"
+// local-dev tool) — they used to be aliased to the same string, which meant
+// the frontend's generic "Kubernetes" option was silently rejected as an
+// invalid provider.
 const (
 	ClusterProviderAKS      = "AKS"
 	ClusterProviderEKS      = "EKS"
@@ -21,7 +27,7 @@ const (
 	ClusterProviderKind     = "KIND"
 	ClusterProviderMinikube = "MINIKUBE"
 
-	ClusterProviderKubernetes = ClusterProviderKind
+	ClusterProviderKubernetes = "KUBERNETES"
 	ClusterProviderDocker     = "DOCKER"
 	ClusterProviderVM         = "VM"
 	ClusterProviderAzure      = "AZURE"
@@ -97,7 +103,8 @@ func IsValidClusterProvider(provider string) bool {
 		ClusterProviderGKE,
 		ClusterProviderOnPrem,
 		ClusterProviderKind,
-		ClusterProviderMinikube:
+		ClusterProviderMinikube,
+		ClusterProviderKubernetes:
 		return true
 	case ClusterProviderDocker,
 		ClusterProviderVM,

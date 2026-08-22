@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { useCreateApplication } from "@/hooks/use-applications";
-import { applicationSchema, type ApplicationFormValues } from "@/lib/validation/application";
+import { APPLICATION_ENVIRONMENT_VALUES, applicationSchema, type ApplicationFormValues } from "@/lib/validation/application";
 import type { CreateApplicationRequest } from "@/types/application-api";
 
 type CreateApplicationModalProps = {
@@ -276,15 +276,20 @@ export function CreateApplicationModal({ open, projectId, onClose }: CreateAppli
               <label htmlFor="application-environment" className="text-sm font-medium">
                 Environment
               </label>
-              <input
+              <select
                 id="application-environment"
                 {...register("environment")}
-                placeholder="e.g. production"
                 className={inputClass}
                 style={{ borderColor: errors.environment ? "var(--danger)" : "var(--border)" }}
                 disabled={createApplication.isPending}
                 aria-invalid={Boolean(errors.environment)}
-              />
+              >
+                {APPLICATION_ENVIRONMENT_VALUES.map((option) => (
+                  <option key={option} value={option}>
+                    {option || "Not set"}
+                  </option>
+                ))}
+              </select>
               {errors.environment ? <FieldError message={errors.environment.message} /> : null}
             </div>
 

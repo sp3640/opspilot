@@ -12,6 +12,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/models"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"gorm.io/gorm"
 )
@@ -19,12 +20,17 @@ import (
 const defaultInvitationExpiry = 7 * 24 * time.Hour
 
 type InvitationService struct {
-	repo     *repository.InvitationRepository
-	userRepo *repository.UserRepository
+	repo             *repository.InvitationRepository
+	userRepo         *repository.UserRepository
+	organizationRepo *repository.OrganizationRepository
 }
 
-func NewInvitationService(repo *repository.InvitationRepository, userRepo *repository.UserRepository) *InvitationService {
-	return &InvitationService{repo: repo, userRepo: userRepo}
+func NewInvitationService(
+	repo *repository.InvitationRepository,
+	userRepo *repository.UserRepository,
+	organizationRepo *repository.OrganizationRepository,
+) *InvitationService {
+	return &InvitationService{repo: repo, userRepo: userRepo, organizationRepo: organizationRepo}
 }
 
 func (s *InvitationService) InviteUser(invitedBy uint, inviterRole string, organizationID uuid.UUID, req dto.InviteRequest) (*dto.InvitationResponse, error) {
@@ -81,7 +87,70 @@ func (s *InvitationService) InviteUser(invitedBy uint, inviterRole string, organ
 }
 
 func (s *InvitationService) AcceptInvitation(userID uint, userEmail string, req dto.AcceptInvitationRequest) (*dto.InvitationResponse, error) {
-	token := strings.TrimSpace(req.Token)
+	invitation, err := s.resolveValidInvitation(strings.TrimSpace(req.Token), userEmail)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	if !strings.EqualFold(strings.TrimSpace(user.Email), invitation.Email) {
+		return nil, apperrors.ErrInvitationEmailMismatch
+	}
+
+	if err := s.userRepo.AssignOrganizationAndRole(user.ID, invitation.OrganizationID, invitation.Role); err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	invitation.Status = models.InvitationStatusAccepted
+	invitation.AcceptedAt = &now
+	if err := s.repo.Update(invitation); err != nil {
+		return nil, err
+	}
+
+	response := mapInvitationResponse(*invitation)
+	return &response, nil
+}
+
+// ValidateInvitation resolves an invitation for display before acceptance. It
+// performs the same checks as AcceptInvitation but never mutates state, so
+// opening the acceptance page cannot consume an invitation.
+func (s *InvitationService) ValidateInvitation(userEmail, token string) (*dto.ValidateInvitationResponse, error) {
+	invitation, err := s.resolveValidInvitation(strings.TrimSpace(token), userEmail)
+	if err != nil {
+		return nil, err
+	}
+
+	organization, err := s.organizationRepo.GetByID(invitation.OrganizationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrOrganizationNotFound
+		}
+		return nil, err
+	}
+
+	return &dto.ValidateInvitationResponse{
+		Email:            invitation.Email,
+		Role:             invitation.Role,
+		OrganizationID:   invitation.OrganizationID.String(),
+		OrganizationName: organization.Name,
+		Status:           invitation.Status,
+		ExpiresAt:        invitation.ExpiresAt,
+	}, nil
+}
+
+// resolveValidInvitation loads the invitation for token and confirms it is
+// still pending, unexpired, and addressed to userEmail. It is shared by
+// AcceptInvitation and ValidateInvitation so both apply identical validity
+// and authorization rules; only AcceptInvitation goes on to mutate state.
+func (s *InvitationService) resolveValidInvitation(token, userEmail string) (*models.Invitation, error) {
 	if token == "" {
 		return nil, apperrors.ErrInvalidInvitationToken
 	}
@@ -91,8 +160,7 @@ func (s *InvitationService) AcceptInvitation(userID uint, userEmail string, req 
 		return nil, err
 	}
 
-	_, err = s.repo.ExpireOldInvitations(time.Now().UTC())
-	if err != nil {
+	if _, err := s.repo.ExpireOldInvitations(time.Now().UTC()); err != nil {
 		return nil, err
 	}
 
@@ -124,30 +192,7 @@ func (s *InvitationService) AcceptInvitation(userID uint, userEmail string, req 
 		return nil, apperrors.ErrInvitationEmailMismatch
 	}
 
-	user, err := s.userRepo.GetByID(userID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, apperrors.ErrUserNotFound
-		}
-		return nil, err
-	}
-
-	if !strings.EqualFold(strings.TrimSpace(user.Email), invitation.Email) {
-		return nil, apperrors.ErrInvitationEmailMismatch
-	}
-
-	if err := s.userRepo.AssignOrganizationAndRole(user.ID, invitation.OrganizationID, invitation.Role); err != nil {
-		return nil, err
-	}
-
-	invitation.Status = models.InvitationStatusAccepted
-	invitation.AcceptedAt = &now
-	if err := s.repo.Update(invitation); err != nil {
-		return nil, err
-	}
-
-	response := mapInvitationResponse(*invitation)
-	return &response, nil
+	return invitation, nil
 }
 
 func (s *InvitationService) RevokeInvitation(invitationID uuid.UUID, actorRole string, organizationID uuid.UUID) error {
@@ -229,14 +274,16 @@ func normalizeEmail(value string) (string, error) {
 	return email, nil
 }
 
+// normalizeInvitationRole validates that role is one of the four RBAC
+// roles. It never trusts the raw string from the frontend as-is: only an
+// exact (case/whitespace-insensitive) match against rbac.AllRoles passes.
 func normalizeInvitationRole(value string) (string, error) {
 	role := strings.TrimSpace(value)
-	switch role {
-	case models.RoleUser, models.RolePlatformAdmin:
-		return role, nil
-	default:
+	if !rbac.IsValidRole(role) {
 		return "", apperrors.ErrInvalidInvitationRole
 	}
+
+	return role, nil
 }
 
 func isPlatformAdminRole(role string) bool {

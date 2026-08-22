@@ -32,3 +32,14 @@ type InvitationListResponse struct {
 	Total      int64                `json:"total"`
 	TotalPages int                  `json:"totalPages"`
 }
+
+// ValidateInvitationResponse describes an invitation for display before
+// acceptance. It deliberately omits the raw Token field.
+type ValidateInvitationResponse struct {
+	Email            string    `json:"email"`
+	Role             string    `json:"role"`
+	OrganizationID   string    `json:"organizationId"`
+	OrganizationName string    `json:"organizationName"`
+	Status           string    `json:"status"`
+	ExpiresAt        time.Time `json:"expiresAt"`
+}

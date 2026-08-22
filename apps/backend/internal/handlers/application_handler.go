@@ -9,6 +9,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -22,7 +23,7 @@ func NewApplicationHandler(service *services.ApplicationService) *ApplicationHan
 }
 
 func (h *ApplicationHandler) Create(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionApplicationManage) {
 		return
 	}
 
@@ -108,7 +109,7 @@ func (h *ApplicationHandler) GetByID(c *gin.Context) {
 }
 
 func (h *ApplicationHandler) Update(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionApplicationManage) {
 		return
 	}
 
@@ -139,7 +140,7 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 }
 
 func (h *ApplicationHandler) Delete(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionApplicationManage) {
 		return
 	}
 
@@ -170,7 +171,7 @@ func handleApplicationServiceError(c *gin.Context, err error) {
 		response.Error(c, http.StatusNotFound, err.Error())
 	case apperrors.ErrApplicationAlreadyExists:
 		response.Conflict(c, err.Error())
-	case apperrors.ErrInvalidApplicationName, apperrors.ErrInvalidApplicationSlug, apperrors.ErrInvalidApplicationRuntime, apperrors.ErrInvalidApplicationStatus, apperrors.ErrInvalidApplicationPort:
+	case apperrors.ErrInvalidApplicationName, apperrors.ErrInvalidApplicationSlug, apperrors.ErrInvalidApplicationRuntime, apperrors.ErrInvalidApplicationStatus, apperrors.ErrInvalidApplicationPort, apperrors.ErrInvalidApplicationEnvironment:
 		response.Error(c, http.StatusBadRequest, err.Error())
 	default:
 		response.InternalServerError(c, err)

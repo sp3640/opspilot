@@ -11,9 +11,8 @@ import { useCreateCluster } from "@/hooks/use-clusters";
 import {
   CLUSTER_DEFAULT_CONNECTION_TYPE,
   CLUSTER_DEFAULT_PROVIDER,
-  CLUSTER_DEFAULT_STATUS,
 } from "@/lib/constants/cluster";
-import { clusterFormSchema, type ClusterFormInput } from "@/lib/validation/cluster";
+import { createClusterFormSchema, type ClusterFormInput } from "@/lib/validation/cluster";
 import type { ClusterResponse, CreateClusterRequest } from "@/types/cluster-api";
 
 import { ClusterFormFields } from "./cluster-form-fields";
@@ -35,18 +34,15 @@ export function CreateClusterModal({ open, onClose, onCreated }: CreateClusterMo
     formState: { errors },
     setError,
   } = useForm<ClusterFormInput>({
-    resolver: zodResolver(clusterFormSchema),
+    resolver: zodResolver(createClusterFormSchema),
     defaultValues: {
       project_id: "",
       name: "",
       provider: CLUSTER_DEFAULT_PROVIDER,
-      status: CLUSTER_DEFAULT_STATUS,
       connection_type: CLUSTER_DEFAULT_CONNECTION_TYPE,
       kubeconfig_encrypted: "",
       api_endpoint: "",
       region: "",
-      version: "",
-      validation_error: "",
       metadataText: "{}",
     },
   });
@@ -76,13 +72,10 @@ export function CreateClusterModal({ open, onClose, onCreated }: CreateClusterMo
       project_id: input.project_id,
       name: input.name,
       provider: input.provider,
-      status: input.status,
       connection_type: input.connection_type,
       kubeconfig_encrypted: input.kubeconfig_encrypted,
       api_endpoint: input.api_endpoint,
       region: input.region,
-      version: input.version,
-      validation_error: input.validation_error,
       metadata: metadata.value,
     };
 
@@ -138,7 +131,13 @@ export function CreateClusterModal({ open, onClose, onCreated }: CreateClusterMo
         </header>
 
         <div className="space-y-5 p-5">
-          <ClusterFormFields register={register} errors={errors} disabled={createCluster.isPending} queryEnabled={open} />
+          <ClusterFormFields
+            register={register}
+            errors={errors}
+            disabled={createCluster.isPending}
+            queryEnabled={open}
+            mode="create"
+          />
 
           {submitError ? (
             <p role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger)" }}>

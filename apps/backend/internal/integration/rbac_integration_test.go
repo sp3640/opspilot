@@ -35,7 +35,7 @@ func TestRBACOrganizationLevelIntegration(t *testing.T) {
 	app := setupRBACApp(t)
 
 	adminToken := registerAndLogin(t, app.router, "RBAC Admin", "rbac-admin@opspilot.dev", "password123")
-	userToken := registerAndLogin(t, app.router, "RBAC User", "rbac-user@opspilot.dev", "password123")
+	registerAndLogin(t, app.router, "RBAC User", "rbac-user@opspilot.dev", "password123")
 
 	admin := mustGetUserByEmail(t, app.userRepo, "rbac-admin@opspilot.dev")
 	member := mustGetUserByEmail(t, app.userRepo, "rbac-user@opspilot.dev")
@@ -44,9 +44,13 @@ func TestRBACOrganizationLevelIntegration(t *testing.T) {
 		t.Fatalf("expected admin organization")
 	}
 	orgID := *admin.OrganizationID
-	if err := app.userRepo.AssignOrganizationAndRole(member.ID, orgID, models.RoleUser); err != nil {
+	// Uninvited registration now creates its own organization, so the member
+	// must be explicitly moved into the admin's organization and
+	// re-authenticated to pick up the updated organization/role claims.
+	if err := app.userRepo.AssignOrganizationAndRole(member.ID, orgID, models.RoleViewer); err != nil {
 		t.Fatalf("assign user to admin organization: %v", err)
 	}
+	userToken := loginOnly(t, app.router, "rbac-user@opspilot.dev", "password123")
 
 	projectID := createProject(t, app.router, adminToken, "RBAC Project")
 	clusterID := createCluster(t, app.router, adminToken, projectID, "rbac-cluster")
@@ -86,14 +90,14 @@ func TestRBACOrganizationLevelIntegration(t *testing.T) {
 	}), http.StatusCreated)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/invitations", adminToken, map[string]any{
 		"email": "invitee@opspilot.dev",
-		"role":  models.RoleUser,
+		"role":  models.RoleViewer,
 	}), http.StatusCreated)
 
 	// User forbidden from admin endpoints
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/organizations/"+orgID.String(), userToken, nil), http.StatusForbidden)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/invitations", userToken, map[string]any{
 		"email": "blocked@opspilot.dev",
-		"role":  models.RoleUser,
+		"role":  models.RoleViewer,
 	}), http.StatusForbidden)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/projects/"+projectID.String(), userToken, nil), http.StatusForbidden)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/clusters", userToken, map[string]any{
@@ -185,10 +189,10 @@ func TestRBACOrganizationLevelIntegration(t *testing.T) {
 	// Audit protection (member access)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/incidents/"+itoa(incidentID)+"/audit-logs", userToken, nil), http.StatusOK)
 
-	// Alert protection (admin write; member ack/resolve)
+	// Alert protection: Viewer is read-only and cannot write, acknowledge, or resolve.
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/alerts/"+itoa(alertID), userToken, nil), http.StatusForbidden)
-	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/alerts/"+itoa(alertID)+"/acknowledge", userToken, nil), http.StatusOK)
-	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/alerts/"+itoa(alertID)+"/resolve", userToken, nil), http.StatusOK)
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/alerts/"+itoa(alertID)+"/acknowledge", userToken, nil), http.StatusForbidden)
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/alerts/"+itoa(alertID)+"/resolve", userToken, nil), http.StatusForbidden)
 
 	// Incident delete protected (admin only)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/incidents/"+itoa(incidentID), userToken, nil), http.StatusForbidden)
@@ -200,6 +204,7 @@ type rbacTestApp struct {
 	cfg                   *config.Config
 	userRepo              *repository.UserRepository
 	organizationRepo      *repository.OrganizationRepository
+	invitationRepo        *repository.InvitationRepository
 	applicationRepo       *repository.ApplicationRepository
 	clusterRepo           *repository.ClusterRepository
 	metricService         *services.MetricService
@@ -233,6 +238,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	deploymentHistoryRepo := repository.NewDeploymentHistoryRepository(db)
 	teamRepo := repository.NewTeamRepository(db)
 	projectTeamRepo := repository.NewProjectTeamRepository(db)
+	applicationTeamRepo := repository.NewApplicationTeamRepository(db)
 	teamMemberRepo := repository.NewTeamMemberRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
 	alertRepo := repository.NewAlertRepository(db)
@@ -243,9 +249,9 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	auditRepo := repository.NewAuditRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
 
-	userService := services.NewUserService(userRepo, organizationRepo, cfg)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg)
 	organizationService := services.NewOrganizationService(organizationRepo)
-	invitationService := services.NewInvitationService(invitationRepo, userRepo)
+	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
 	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
@@ -253,6 +259,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo, deploymentHistoryService)
 	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
 	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
+	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterService := services.NewClusterService(clusterRepo, auditService, testClusterCredentialCipher(t))
@@ -271,6 +278,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	deploymentHistoryHandler := handlers.NewDeploymentHistoryHandler(deploymentHistoryService)
 	teamHandler := handlers.NewTeamHandler(teamService)
 	projectTeamHandler := handlers.NewProjectTeamHandler(projectTeamService)
+	applicationTeamHandler := handlers.NewApplicationTeamHandler(applicationTeamService)
 	incidentHandler := handlers.NewIncidentHandler(incidentService)
 	alertHandler := handlers.NewAlertHandler(alertService)
 	metricHandler := handlers.NewMetricHandler(metricService)
@@ -321,10 +329,13 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		deploymentHistoryHandler,
 		teamHandler,
 		projectTeamHandler,
+		applicationTeamHandler,
 		incidentHandler,
 		alertHandler,
 		metricHandler,
 		clusterHandler,
+		nil,
+		nil,
 		resourceHandler,
 		commentHandler,
 		auditHandler,
@@ -338,6 +349,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		cfg:                   cfg,
 		userRepo:              userRepo,
 		organizationRepo:      organizationRepo,
+		invitationRepo:        invitationRepo,
 		applicationRepo:       applicationRepo,
 		clusterRepo:           clusterRepo,
 		metricService:         metricService,

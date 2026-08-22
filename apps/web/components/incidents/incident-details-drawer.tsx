@@ -6,6 +6,7 @@ import { AlertCircle, Pencil, Trash2, X } from "lucide-react";
 import { ErrorState, StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import { useIncident } from "@/hooks/use-incidents";
+import { useHasPermission } from "@/store/auth-store";
 import {
   INCIDENT_SEVERITY_COLORS,
   INCIDENT_STATUS_LABELS,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/constants";
 import { DeleteIncidentDialog } from "./delete-incident-dialog";
 import { EditIncidentModal } from "./edit-incident-modal";
+import { IncidentComments } from "./incident-comments";
 
 /** Read-only incident context loaded from the Incident detail API. */
 export function IncidentDetailsDrawer({
@@ -28,6 +30,7 @@ export function IncidentDetailsDrawer({
 }) {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const canManageIncidents = useHasPermission("incident:manage");
   const { data: incident, error, isError, isLoading, refetch } = useIncident(incidentID);
 
   useEffect(() => {
@@ -111,26 +114,30 @@ export function IncidentDetailsDrawer({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setEditModalOpen(true)}
-                className="px-3"
-                aria-label="Edit incident"
-              >
-                <Pencil aria-hidden="true" className="h-4 w-4" />
-                <span className="hidden sm:inline">Edit</span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setDeleteDialogOpen(true)}
-                className="px-3 text-[var(--danger)]"
-                aria-label="Delete incident"
-              >
-                <Trash2 aria-hidden="true" className="h-4 w-4" />
-                <span className="hidden sm:inline">Delete</span>
-              </Button>
+              {canManageIncidents ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setEditModalOpen(true)}
+                    className="px-3"
+                    aria-label="Edit incident"
+                  >
+                    <Pencil aria-hidden="true" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    className="px-3 text-[var(--danger)]"
+                    aria-label="Delete incident"
+                  >
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </Button>
+                </>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -174,6 +181,16 @@ export function IncidentDetailsDrawer({
               <DrawerStat label="Created" value={formatDate(incident.createdAt)} />
               <DrawerStat label="Updated" value={formatDate(incident.updatedAt)} />
             </dl>
+
+            {/* Comments */}
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
+                Comments
+              </h3>
+              <div className="mt-2">
+                <IncidentComments incidentId={incident.id} />
+              </div>
+            </div>
           </div>
         </div>
       </aside>

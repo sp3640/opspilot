@@ -125,9 +125,9 @@ export function ClustersWorkspace() {
               onCreate={() => workspace.setCreateOpen(true)}
             />
           ) : workspace.view === "grid" ? (
-            <ClusterGrid clusters={clusters} onOpen={workspace.setSelectedClusterID} />
+            <ClusterGrid clusters={clusters} projectNameById={projectNameById} onOpen={workspace.setSelectedClusterID} />
           ) : (
-            <ClusterTable clusters={clusters} onOpen={workspace.setSelectedClusterID} />
+            <ClusterTable clusters={clusters} projectNameById={projectNameById} onOpen={workspace.setSelectedClusterID} />
           )}
         </div>
 

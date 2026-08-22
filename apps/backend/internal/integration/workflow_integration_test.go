@@ -63,6 +63,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 
 	userRepo := repository.NewUserRepository(db)
 	organizationRepo := repository.NewOrganizationRepository(db)
+	invitationRepo := repository.NewInvitationRepository(db)
 	projectRepo := repository.NewProjectRepository(db)
 	incidentRepo := repository.NewIncidentRepository(db)
 	alertRepo := repository.NewAlertRepository(db)
@@ -75,7 +76,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 
 	testConfig := &config.Config{JWTSecret: "this-is-a-very-long-test-jwt-secret-1234567890", ClusterCredentialEncryptionKey: testClusterEncryptionKey()}
 
-	userService := services.NewUserService(userRepo, organizationRepo, testConfig)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, testConfig)
 	auditService := services.NewAuditService(auditRepo).
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
@@ -88,7 +89,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
 	// 1) User authentication
-	if err := userService.Register("Ops Owner", "owner@opspilot.dev", "password123"); err != nil {
+	if err := userService.Register("Ops Owner", "owner@opspilot.dev", "password123", ""); err != nil {
 		t.Fatalf("register user: %v", err)
 	}
 	token, err := userService.Login("owner@opspilot.dev", "password123")
@@ -127,16 +128,11 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 		projectID,
 		"primary-cluster",
 		constants.ClusterProviderKubernetes,
-		constants.ClusterStatusPending,
 		constants.ClusterConnectionTypeKubeconfig,
 		"not-a-valid-kubeconfig",
 		"",
 		"us-east-1",
-		"",
-		"",
 		json.RawMessage(`{"environment":"test"}`),
-		nil,
-		nil,
 		owner.ID,
 		organizationID,
 	)
@@ -148,17 +144,24 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 		t.Fatalf("parse cluster id: %v", err)
 	}
 
-	// 4) Cluster validation
+	// 4) Cluster validation — "not-a-valid-kubeconfig" is not real kubeconfig
+	// YAML, so real connectivity validation correctly reports it as
+	// unreachable/invalid rather than healthy; the workflow under test here is
+	// that validation runs and persists an outcome, not that this particular
+	// placeholder credential is connectable.
 	validationResult, err := clusterService.ValidateClusterCredential(ctx, clusterID, organizationID)
 	if err != nil {
 		t.Fatalf("validate cluster credential: %v", err)
 	}
-	if !validationResult.Healthy {
-		t.Fatalf("expected local credential validation to succeed: %+v", validationResult)
+	if validationResult.Connected {
+		t.Fatalf("expected placeholder kubeconfig to fail real validation: %+v", validationResult)
 	}
 	validatedCluster := validationResult.Cluster
 	if validatedCluster == nil || validatedCluster.LastValidatedAt == nil {
 		t.Fatalf("expected last validated at to be set")
+	}
+	if validatedCluster.Status != constants.ClusterStatusInvalid {
+		t.Fatalf("expected cluster status INVALID after failed validation, got %s", validatedCluster.Status)
 	}
 
 	// 5) Resource discovery
@@ -416,6 +419,7 @@ func migrateIntegrationSchema(t *testing.T, db *gorm.DB) {
 		&models.DeploymentHistory{},
 		&models.Team{},
 		&models.ProjectTeam{},
+		&models.ApplicationTeam{},
 		&models.TeamMember{},
 		&models.Incident{},
 		&models.Alert{},

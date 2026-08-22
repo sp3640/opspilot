@@ -10,6 +10,8 @@ const runtimeDeploymentKeys = {
   all: ["runtime-deployments"] as const,
   list: (applicationId: string, params: RuntimeDeploymentQueryParams) =>
     ["runtime-deployments", "list", applicationId, params] as const,
+  clusterList: (clusterId: string, params: RuntimeDeploymentQueryParams) =>
+    ["runtime-deployments", "cluster-list", clusterId, params] as const,
 };
 
 export function useRuntimeDeploymentsByApplication(
@@ -23,5 +25,19 @@ export function useRuntimeDeploymentsByApplication(
     queryKey: runtimeDeploymentKeys.list(applicationId ?? "", params),
     queryFn: () => runtimeDeploymentService.listRuntimeDeploymentsByApplication(applicationId ?? "", params),
     enabled: queryEnabled && Boolean(accessToken) && Boolean(applicationId),
+  });
+}
+
+export function useRuntimeDeploymentsByCluster(
+  clusterId: string | null,
+  params: RuntimeDeploymentQueryParams,
+  queryEnabled = true
+) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  return useQuery({
+    queryKey: runtimeDeploymentKeys.clusterList(clusterId ?? "", params),
+    queryFn: () => runtimeDeploymentService.listRuntimeDeploymentsByCluster(clusterId ?? "", params),
+    enabled: queryEnabled && Boolean(accessToken) && Boolean(clusterId),
   });
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
 )
@@ -23,7 +24,7 @@ func NewInvitationHandler(service *services.InvitationService) *InvitationHandle
 }
 
 func (h *InvitationHandler) Invite(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionInvitationCreate) {
 		return
 	}
 
@@ -51,7 +52,7 @@ func (h *InvitationHandler) Invite(c *gin.Context) {
 }
 
 func (h *InvitationHandler) List(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionInvitationRead) {
 		return
 	}
 
@@ -100,8 +101,33 @@ func (h *InvitationHandler) Accept(c *gin.Context) {
 	response.OK(c, "Invitation accepted successfully", invitation)
 }
 
+// Validate resolves an invitation by token for display before acceptance.
+// It requires authentication and is bound to the caller's own email — it
+// never mutates the invitation and never returns the raw token.
+func (h *InvitationHandler) Validate(c *gin.Context) {
+	if c.GetString("email") == "" {
+		response.Unauthorized(c, "missing authenticated user")
+		return
+	}
+
+	userEmail := strings.TrimSpace(c.GetString("email"))
+	token := strings.TrimSpace(c.Query("token"))
+	if token == "" {
+		response.BadRequest(c, "token is required")
+		return
+	}
+
+	result, err := h.service.ValidateInvitation(userEmail, token)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Invitation validated successfully", result)
+}
+
 func (h *InvitationHandler) Revoke(c *gin.Context) {
-	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePlatformAdmin(c) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionInvitationRevoke) {
 		return
 	}
 
@@ -136,7 +162,7 @@ func (h *InvitationHandler) handleServiceError(c *gin.Context, err error) {
 		response.Error(c, http.StatusForbidden, err.Error())
 	case apperrors.ErrInvitationExpired, apperrors.ErrInvitationNotPending, apperrors.ErrInvalidInvitationToken, apperrors.ErrInvalidInvitationEmail, apperrors.ErrInvalidInvitationRole:
 		response.BadRequest(c, err.Error())
-	case apperrors.ErrUserNotFound:
+	case apperrors.ErrUserNotFound, apperrors.ErrOrganizationNotFound:
 		response.Error(c, http.StatusNotFound, err.Error())
 	default:
 		response.InternalServerError(c, err)

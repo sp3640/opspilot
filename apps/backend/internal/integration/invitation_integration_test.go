@@ -19,11 +19,11 @@ func TestInvitationSystemIntegration(t *testing.T) {
 	userRepo := repository.NewUserRepository(db)
 	organizationRepo := repository.NewOrganizationRepository(db)
 	invitationRepo := repository.NewInvitationRepository(db)
-	invitationService := services.NewInvitationService(invitationRepo, userRepo)
+	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 
 	admin := mustCreateInvitationUser(t, userRepo, "Admin", "admin@opspilot.dev", models.RolePlatformAdmin)
-	member := mustCreateInvitationUser(t, userRepo, "Member", "member@opspilot.dev", models.RoleUser)
-	otherUser := mustCreateInvitationUser(t, userRepo, "Other", "other@opspilot.dev", models.RoleUser)
+	member := mustCreateInvitationUser(t, userRepo, "Member", "member@opspilot.dev", models.RoleViewer)
+	otherUser := mustCreateInvitationUser(t, userRepo, "Other", "other@opspilot.dev", models.RoleViewer)
 
 	orgA := mustCreateTeamTestOrganization(t, organizationRepo, "Org A", "org-a-invites", admin.ID)
 	orgB := mustCreateTeamTestOrganization(t, organizationRepo, "Org B", "org-b-invites", otherUser.ID)
@@ -38,7 +38,7 @@ func TestInvitationSystemIntegration(t *testing.T) {
 	t.Run("Invite user", func(t *testing.T) {
 		created, err := invitationService.InviteUser(admin.ID, models.RolePlatformAdmin, orgA, dto.InviteRequest{
 			Email: member.Email,
-			Role:  models.RoleUser,
+			Role:  models.RoleViewer,
 		})
 		if err != nil {
 			t.Fatalf("invite user: %v", err)
@@ -62,7 +62,7 @@ func TestInvitationSystemIntegration(t *testing.T) {
 	t.Run("Duplicate invite rejected", func(t *testing.T) {
 		_, err := invitationService.InviteUser(admin.ID, models.RolePlatformAdmin, orgA, dto.InviteRequest{
 			Email: member.Email,
-			Role:  models.RoleUser,
+			Role:  models.RoleViewer,
 		})
 		if !errors.Is(err, apperrors.ErrInvitationAlreadyExists) {
 			t.Fatalf("expected ErrInvitationAlreadyExists, got %v", err)
@@ -102,7 +102,7 @@ func TestInvitationSystemIntegration(t *testing.T) {
 		if updatedUser.OrganizationID == nil || *updatedUser.OrganizationID != orgA {
 			t.Fatalf("expected user to join invited organization")
 		}
-		if updatedUser.Role != models.RoleUser {
+		if updatedUser.Role != models.RoleViewer {
 			t.Fatalf("expected role to be updated from invitation, got %s", updatedUser.Role)
 		}
 	})
@@ -121,7 +121,7 @@ func TestInvitationSystemIntegration(t *testing.T) {
 		expiredInvitation := &models.Invitation{
 			OrganizationID: orgA,
 			Email:          "expired@opspilot.dev",
-			Role:           models.RoleUser,
+			Role:           models.RoleViewer,
 			Token:          "expired-token",
 			Status:         models.InvitationStatusPending,
 			InvitedBy:      admin.ID,
@@ -140,7 +140,7 @@ func TestInvitationSystemIntegration(t *testing.T) {
 	t.Run("Revoke invite", func(t *testing.T) {
 		revoked, err := invitationService.InviteUser(admin.ID, models.RolePlatformAdmin, orgA, dto.InviteRequest{
 			Email: "revoke@opspilot.dev",
-			Role:  models.RoleUser,
+			Role:  models.RoleViewer,
 		})
 		if err != nil {
 			t.Fatalf("create invitation to revoke: %v", err)
@@ -167,7 +167,7 @@ func TestInvitationSystemIntegration(t *testing.T) {
 	t.Run("Organization scoped listing", func(t *testing.T) {
 		_, err := invitationService.InviteUser(admin.ID, models.RolePlatformAdmin, orgA, dto.InviteRequest{
 			Email: "org-a-list@opspilot.dev",
-			Role:  models.RoleUser,
+			Role:  models.RoleViewer,
 		})
 		if err != nil {
 			t.Fatalf("create orgA listing invitation: %v", err)
@@ -175,7 +175,7 @@ func TestInvitationSystemIntegration(t *testing.T) {
 
 		_, err = invitationService.InviteUser(otherUser.ID, models.RolePlatformAdmin, orgB, dto.InviteRequest{
 			Email: "org-b-list@opspilot.dev",
-			Role:  models.RoleUser,
+			Role:  models.RoleViewer,
 		})
 		if err != nil {
 			t.Fatalf("create orgB listing invitation: %v", err)

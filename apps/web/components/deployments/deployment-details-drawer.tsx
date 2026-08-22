@@ -5,13 +5,14 @@ import { Activity, Ban, ClipboardList, RotateCcw, Rocket, type LucideIcon, X } f
 
 import { StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
+import { useHasPermission } from "@/store/auth-store";
 import type { DeploymentResponse } from "@/types/deployment-api";
 
 import { DeploymentCancel } from "./deployment-cancel";
 import { DeploymentHistory } from "./deployment-history";
 import { DeploymentRollback } from "./deployment-rollback";
 
-const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
+const allTabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Overview", icon: Activity },
   { label: "History", icon: ClipboardList },
   { label: "Rollback", icon: RotateCcw },
@@ -28,6 +29,8 @@ export function DeploymentDetailsDrawer({
   open: boolean;
   onClose: () => void;
 }) {
+  const canManageDeployments = useHasPermission("deployment:manage");
+  const tabs = canManageDeployments ? allTabs : allTabs.filter((tab) => tab.label !== "Rollback" && tab.label !== "Cancel");
   const [activeTab, setActiveTab] = useState("Overview");
 
   useEffect(() => {

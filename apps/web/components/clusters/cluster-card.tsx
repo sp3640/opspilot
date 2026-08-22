@@ -9,10 +9,11 @@ import type { Cluster } from "./types";
 
 type ClusterCardProps = {
   cluster: Cluster;
+  projectName?: string;
   onOpen: (clusterID: string) => void;
 };
 
-export function ClusterCard({ cluster, onOpen }: ClusterCardProps) {
+export function ClusterCard({ cluster, projectName, onOpen }: ClusterCardProps) {
   return (
     <article
       onClick={() => onOpen(cluster.id)}
@@ -63,15 +64,15 @@ export function ClusterCard({ cluster, onOpen }: ClusterCardProps) {
       </div>
 
       <dl className="mt-5 grid grid-cols-2 gap-3 border-y py-4 text-sm" style={{ borderColor: "var(--border)" }}>
-        <Meta label="Version" value={cluster.version || "-"} />
+        <Meta label="Version" value={cluster.kubernetesVersion || "-"} />
         <Meta label="Region" value={cluster.region || "-"} />
         <Meta label="Last validation" value={formatDateTime(cluster.lastValidatedAt)} />
         <Meta label="Last discovery" value={formatDateTime(cluster.lastDiscoveryAt)} />
       </dl>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <span className="inline-flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-          Project {cluster.projectId}
+        <span className="inline-flex items-center gap-1 truncate text-xs" style={{ color: "var(--muted-foreground)" }}>
+          Project {projectName || cluster.projectId}
         </span>
         <span className="inline-flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
           Updated {new Date(cluster.updatedAt).toLocaleDateString()}

@@ -17,10 +17,9 @@ import {
 } from "@/lib/constants/cluster";
 
 const statusVariantByValue: Record<ClusterStatus, "success" | "warning" | "critical" | "info"> = {
-  CONNECTED: "success",
-  DISCONNECTED: "warning",
-  FAILED: "critical",
-  PENDING: "info",
+  HEALTHY: "success",
+  INVALID: "critical",
+  PENDING_VALIDATION: "info",
 };
 
 const providerIconByValue: Record<ClusterProvider, LucideIcon> = {
@@ -33,7 +32,7 @@ const providerIconByValue: Record<ClusterProvider, LucideIcon> = {
 };
 
 export function ClusterStatusBadge({ status }: { status: string }) {
-  const statusValue = (status.toUpperCase() as ClusterStatus) || "PENDING";
+  const statusValue = (status.toUpperCase() as ClusterStatus) || "PENDING_VALIDATION";
   const label = CLUSTER_STATUS_LABELS[statusValue] ?? status;
   const variant = statusVariantByValue[statusValue] ?? "info";
 
