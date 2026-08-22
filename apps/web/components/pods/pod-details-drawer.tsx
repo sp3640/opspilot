@@ -1,21 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, Boxes, Cpu, List, type LucideIcon, X } from "lucide-react";
+import { Activity, Boxes, Container, Cpu, List, type LucideIcon, X } from "lucide-react";
 
 import { StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
+import { classifyPodHealth } from "@/lib/pod-health";
 import type { PodResponse } from "@/types/pod-api";
 
+import { PodContainers } from "./pod-containers";
+import { PodEvents } from "./pod-events";
 import { PodLogs } from "./pod-logs";
 
 const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Overview", icon: Activity },
+  { label: "Containers", icon: Container },
   { label: "Logs", icon: List },
   { label: "Events", icon: Cpu },
 ];
 
-/** Right-side pod context. Only Overview renders real content today. */
+/** Right-side pod context: Overview, Containers, Logs, and Events. */
 export function PodDetailsDrawer({
   pod,
   applicationId,
@@ -48,10 +52,14 @@ export function PodDetailsDrawer({
   const activeTabKey = activeTab.toLowerCase().replace(/\s+/g, "-");
   const activePanelId = `pod-details-panel-${activeTabKey}`;
 
+  const health = classifyPodHealth(pod);
+  const containerCount = pod.containerCount || (pod.containerStatuses ?? []).length;
+
   const overviewStats = [
     { label: "Name", value: pod.name },
     { label: "Namespace", value: pod.namespace },
-    { label: "Phase", value: pod.phase },
+    { label: "Status", value: health.state },
+    { label: "Ready containers", value: `${pod.readyContainerCount}/${containerCount}` },
     { label: "Node", value: pod.nodeName || "-" },
     { label: "Pod IP", value: pod.podIP || "-" },
     { label: "Host IP", value: pod.hostIP || "-" },
@@ -62,11 +70,7 @@ export function PodDetailsDrawer({
 
   const labelEntries = Object.entries(pod.labels ?? {});
   const ownerReferences = pod.ownerReferences ?? [];
-  const containerStatuses = pod.containerStatuses ?? [];
   const conditions = pod.conditions ?? [];
-
-  const placeholderMessage =
-    activeTab === "Logs" ? "Pod logs will be implemented next." : "Pod events will be implemented next.";
 
   return (
     <div
@@ -111,8 +115,8 @@ export function PodDetailsDrawer({
               <X aria-hidden="true" className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-5 flex gap-2">
-            <StatusBadge variant={getStatusVariant(pod.phase)}>{pod.phase}</StatusBadge>
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <StatusBadge variant={health.variant}>{health.state}</StatusBadge>
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
               style={{
@@ -123,6 +127,18 @@ export function PodDetailsDrawer({
               {pod.ready ? "Ready" : "Not ready"}
             </span>
           </div>
+          {health.reason ? (
+            <p
+              className="mt-3 rounded-xl border p-3 text-xs"
+              style={{
+                borderColor: "var(--danger)",
+                color: "var(--danger)",
+                backgroundColor: "color-mix(in srgb, var(--danger) 8%, transparent)",
+              }}
+            >
+              {health.reason}
+            </p>
+          ) : null}
         </header>
 
         <div className="overflow-x-auto border-b px-3" style={{ borderColor: "var(--border)" }}>
@@ -247,36 +263,6 @@ export function PodDetailsDrawer({
 
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-                  Container statuses
-                </h3>
-                {containerStatuses.length === 0 ? (
-                  <p className="mt-2 text-sm" style={{ color: "var(--muted-foreground)" }}>No container statuses</p>
-                ) : (
-                  <ul className="mt-2 space-y-2">
-                    {containerStatuses.map((container) => (
-                      <li
-                        key={container.name}
-                        className="rounded-2xl border p-3 text-sm"
-                        style={{ borderColor: "var(--border)" }}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="min-w-0 truncate font-medium">{container.name}</p>
-                          <StatusBadge variant={container.ready ? "success" : "critical"}>
-                            {container.ready ? "Ready" : "Not ready"}
-                          </StatusBadge>
-                        </div>
-                        <p className="mt-1 break-all text-xs" style={{ color: "var(--muted-foreground)" }}>{container.image}</p>
-                        <p className="mt-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                          State: {container.state} · Restarts: {container.restartCount}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              <section>
-                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
                   Conditions
                 </h3>
                 {conditions.length === 0 ? (
@@ -302,34 +288,17 @@ export function PodDetailsDrawer({
                 )}
               </section>
             </div>
+          ) : activeTab === "Containers" ? (
+            <PodContainers pod={pod} />
           ) : activeTab === "Logs" ? (
             <PodLogs applicationId={applicationId} pod={pod} />
           ) : (
-            <div
-              className="flex min-h-56 items-center justify-center rounded-2xl border p-6 text-center text-sm"
-              style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
-            >
-              {placeholderMessage}
-            </div>
+            <PodEvents applicationId={applicationId} pod={pod} />
           )}
         </div>
       </aside>
     </div>
   );
-}
-
-function getStatusVariant(phase: string): "success" | "warning" | "critical" | "info" {
-  switch (phase) {
-    case "Running":
-    case "Succeeded":
-      return "success";
-    case "Pending":
-      return "warning";
-    case "Failed":
-      return "critical";
-    default:
-      return "info";
-  }
 }
 
 function formatDateTime(value?: string) {

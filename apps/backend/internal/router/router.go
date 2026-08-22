@@ -172,6 +172,9 @@ func RegisterRoutes(
 			if kubernetesLogHandler != nil {
 				pods.GET("/:namespace/:name/logs", kubernetesLogHandler.GetPodLogs)
 			}
+			if kubernetesEventHandler != nil {
+				pods.GET("/:namespace/:name/events", kubernetesEventHandler.GetPodEvents)
+			}
 		}
 
 		services := api.Group("/services")

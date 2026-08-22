@@ -16,6 +16,7 @@ import (
 type kubernetesEventReader interface {
 	ListEventsByApplication(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string) (*dto.EventListResponse, error)
 	GetEvent(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string, name string) (*dto.EventDetailResponse, error)
+	ListEventsForPod(ctx context.Context, applicationID uuid.UUID, organizationID uuid.UUID, namespace string, podName string) (*dto.EventListResponse, error)
 }
 
 type KubernetesEventHandler struct {
@@ -91,6 +92,45 @@ func (h *KubernetesEventHandler) GetByNamespaceAndName(c *gin.Context) {
 	}
 
 	response.OK(c, "Event fetched successfully", result)
+}
+
+// GetPodEvents lists the real Kubernetes events involving a single pod,
+// mirroring the applicationId-query-param convention used by GetPodLogs.
+func (h *KubernetesEventHandler) GetPodEvents(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+	if h.service == nil {
+		response.InternalServerError(c)
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	applicationIDValue := strings.TrimSpace(c.Query("applicationId"))
+	if applicationIDValue == "" {
+		response.BadRequest(c, "applicationId is required")
+		return
+	}
+
+	applicationID, err := uuid.Parse(applicationIDValue)
+	if err != nil {
+		response.BadRequest(c, "invalid applicationId")
+		return
+	}
+
+	namespace := strings.TrimSpace(c.Param("namespace"))
+	name := strings.TrimSpace(c.Param("name"))
+	result, err := h.service.ListEventsForPod(c.Request.Context(), applicationID, organizationID, namespace, name)
+	if err != nil {
+		handleKubernetesEventError(c, err)
+		return
+	}
+
+	response.OK(c, "Pod events fetched successfully", result)
 }
 
 func handleKubernetesEventError(c *gin.Context, err error) {

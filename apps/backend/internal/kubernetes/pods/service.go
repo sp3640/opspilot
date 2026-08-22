@@ -16,16 +16,18 @@ import (
 	"gorm.io/gorm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
 type ClientsetFactory func(kubeconfig []byte) (kubernetes.Interface, error)
 
 type PodService struct {
-	applicationRepo  *repository.ApplicationRepository
-	clusterRepo      *repository.ClusterRepository
-	credentialCipher security.ClusterCredentialCipher
-	mapper           *PodMapper
-	clientFactory    ClientsetFactory
+	applicationRepo      *repository.ApplicationRepository
+	clusterRepo          *repository.ClusterRepository
+	credentialCipher     security.ClusterCredentialCipher
+	mapper               *PodMapper
+	clientFactory        ClientsetFactory
+	metricsClientFactory MetricsClientsetFactory
 }
 
 func NewPodService(applicationRepo *repository.ApplicationRepository, clusterRepo *repository.ClusterRepository, credentialCipher security.ClusterCredentialCipher) *PodService {
@@ -37,12 +39,21 @@ func NewPodService(applicationRepo *repository.ApplicationRepository, clusterRep
 	}
 
 	service.clientFactory = service.defaultClientFactory
+	service.metricsClientFactory = service.defaultMetricsClientFactory
 	return service
 }
 
 func (s *PodService) WithClientsetFactory(factory ClientsetFactory) *PodService {
 	if factory != nil {
 		s.clientFactory = factory
+	}
+
+	return s
+}
+
+func (s *PodService) WithMetricsClientsetFactory(factory MetricsClientsetFactory) *PodService {
+	if factory != nil {
+		s.metricsClientFactory = factory
 	}
 
 	return s
@@ -128,7 +139,8 @@ func (s *PodService) GetPod(ctx context.Context, applicationID uuid.UUID, organi
 		return nil, err
 	}
 
-	pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, strings.TrimSpace(name), metav1.GetOptions{})
+	trimmedName := strings.TrimSpace(name)
+	pod, err := clientset.CoreV1().Pods(namespace).Get(ctx, trimmedName, metav1.GetOptions{})
 	if err != nil {
 		return nil, mapPodError(err)
 	}
@@ -138,6 +150,11 @@ func (s *PodService) GetPod(ctx context.Context, applicationID uuid.UUID, organi
 	}
 
 	response := s.mapper.MapPod(*pod)
+
+	if kubeconfig, err := s.kubeconfigForApplication(application); err == nil {
+		response.Metrics = fetchPodMetrics(ctx, s.metricsClientFactory, kubeconfig, namespace, trimmedName)
+	}
+
 	return &response, nil
 }
 
@@ -146,6 +163,20 @@ func (s *PodService) applicationLabelSelector(applicationID uuid.UUID, organizat
 }
 
 func (s *PodService) clientsetForApplication(application *models.Application) (kubernetes.Interface, error) {
+	kubeconfig, err := s.kubeconfigForApplication(application)
+	if err != nil {
+		return nil, err
+	}
+
+	clientset, err := s.clientFactory(kubeconfig)
+	if err != nil {
+		return nil, mapPodError(err)
+	}
+
+	return clientset, nil
+}
+
+func (s *PodService) kubeconfigForApplication(application *models.Application) ([]byte, error) {
 	cluster, err := s.resolveProjectCluster(application.ProjectID, application.OrganizationID)
 	if err != nil {
 		return nil, err
@@ -160,12 +191,7 @@ func (s *PodService) clientsetForApplication(application *models.Application) (k
 		return nil, apperrors.ErrPodInvalidKubeconfig
 	}
 
-	clientset, err := s.clientFactory([]byte(kubeconfig))
-	if err != nil {
-		return nil, mapPodError(err)
-	}
-
-	return clientset, nil
+	return []byte(kubeconfig), nil
 }
 
 func (s *PodService) resolveProjectCluster(projectID uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {
@@ -207,6 +233,15 @@ func (s *PodService) getOwnedApplication(id uuid.UUID, organizationID uuid.UUID)
 
 func (s *PodService) defaultClientFactory(kubeconfig []byte) (kubernetes.Interface, error) {
 	return intkube.NewClient(kubeconfig).Clientset()
+}
+
+func (s *PodService) defaultMetricsClientFactory(kubeconfig []byte) (metricsclientset.Interface, error) {
+	cfg, err := intkube.NewClient(kubeconfig).RESTConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return metricsclientset.NewForConfig(cfg)
 }
 
 func (s *PodService) getOwnedCluster(id uuid.UUID, organizationID uuid.UUID) (*models.Cluster, error) {

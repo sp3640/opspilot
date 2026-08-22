@@ -12,6 +12,8 @@ const podKeys = {
     ["pods", "list", applicationId, params] as const,
   clusterList: (clusterId: string, params: PodQueryParams) =>
     ["pods", "cluster-list", clusterId, params] as const,
+  events: (applicationId: string, namespace: string, name: string) =>
+    ["pods", "events", applicationId, namespace, name] as const,
 };
 
 export function usePodsByApplication(
@@ -35,5 +37,20 @@ export function usePodsByCluster(clusterId: string | null, params: PodQueryParam
     queryKey: podKeys.clusterList(clusterId ?? "", params),
     queryFn: () => podService.listPodsByCluster(clusterId ?? "", params),
     enabled: queryEnabled && Boolean(accessToken) && Boolean(clusterId),
+  });
+}
+
+export function usePodEvents(
+  applicationId: string | null,
+  namespace: string,
+  name: string,
+  queryEnabled = true
+) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  return useQuery({
+    queryKey: podKeys.events(applicationId ?? "", namespace, name),
+    queryFn: () => podService.getPodEvents(namespace, name, applicationId ?? ""),
+    enabled: queryEnabled && Boolean(accessToken) && Boolean(applicationId) && Boolean(namespace) && Boolean(name),
   });
 }
