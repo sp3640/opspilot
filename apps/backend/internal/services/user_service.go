@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
@@ -46,13 +45,15 @@ func (s *UserService) WithAuditService(auditService *AuditService) *UserService 
 	return s
 }
 
-// Register creates a new user through exactly one of two explicit paths:
-//   - a pending invitation matching the email exists: the user joins that
-//     invitation's organization with its role (invitation-aware registration).
-//   - otherwise: the user creates their own new workspace and becomes its
-//     Platform Admin. This applies uniformly to the very first user ever
-//     registered and to every later uninvited signup — there is no hidden
-//     "attach to an existing organization" fallback (previously GetFirst()).
+// Register creates a new user who always creates their own new workspace
+// and becomes its Platform Admin - uniformly for the very first user ever
+// registered and for every later signup. There is no "attach to an existing
+// organization" fallback here, even when a pending invitation exists for the
+// email: registration alone never proves the registrant controls that email
+// address, so it must never be sufficient to grant membership in someone
+// else's organization. Joining an invited organization is exclusively the
+// job of the token-verified InvitationService.AcceptInvitation flow, which
+// requires both the invitation's token and a matching authenticated email.
 func (s *UserService) Register(name, email, password, organizationName string) error {
 
 	// Normalize user input
@@ -69,11 +70,6 @@ func (s *UserService) Register(name, email, password, organizationName string) e
 		return err
 	}
 
-	invitation, err := s.findValidPendingInvitation(email)
-	if err != nil {
-		return err
-	}
-
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -83,20 +79,11 @@ func (s *UserService) Register(name, email, password, organizationName string) e
 		Name:         name,
 		Email:        email,
 		PasswordHash: string(hash),
-	}
-
-	if invitation != nil {
-		user.Role = invitation.Role
-	} else {
-		user.Role = models.RolePlatformAdmin
+		Role:         models.RolePlatformAdmin,
 	}
 
 	if err := s.repo.Create(user); err != nil {
 		return err
-	}
-
-	if invitation != nil {
-		return s.repo.AssignOrganization(user.ID, invitation.OrganizationID)
 	}
 
 	organization, err := s.createWorkspace(user, organizationName)
@@ -136,31 +123,6 @@ func (s *UserService) createWorkspace(user *models.User, organizationName string
 	}
 
 	return organization, nil
-}
-
-// findValidPendingInvitation looks up a still-valid pending invitation for
-// email, reusing the same expiry semantics InvitationService already applies
-// (ExpireOldInvitations followed by an ExpiresAt check). It returns (nil, nil)
-// when no usable invitation exists, so registration falls back to the
-// existing first-organization behavior.
-func (s *UserService) findValidPendingInvitation(email string) (*models.Invitation, error) {
-	if _, err := s.invitationRepo.ExpireOldInvitations(time.Now().UTC()); err != nil {
-		return nil, err
-	}
-
-	invitation, err := s.invitationRepo.GetPendingByEmail(email)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	if invitation.ExpiresAt.Before(time.Now().UTC()) {
-		return nil, nil
-	}
-
-	return invitation, nil
 }
 
 // Login authenticates a user and returns a JWT token. ipAddress/userAgent

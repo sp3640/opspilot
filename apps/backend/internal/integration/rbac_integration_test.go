@@ -382,6 +382,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		dashboardHandler,
 		notificationHandler,
 		sreHandler,
+		nil,
 		healthHandler,
 		collector,
 	)

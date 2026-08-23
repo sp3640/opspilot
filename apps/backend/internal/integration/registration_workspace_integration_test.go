@@ -7,11 +7,14 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/models"
 )
 
-// TestRegistrationWorkspaceIntegration exercises the Phase 2 onboarding
-// contract over HTTP: POST /auth/register optionally names the workspace an
-// uninvited registrant creates, that name is ignored when a pending
-// invitation determines the organization instead, and GET /users/me reflects
-// the resulting organization either way.
+// TestRegistrationWorkspaceIntegration exercises the onboarding contract
+// over HTTP: POST /auth/register optionally names the workspace the
+// registrant creates, and GET /users/me reflects the resulting organization.
+// A pending invitation for the registrant's email never changes this -
+// registration alone doesn't prove the registrant controls that email
+// address, so it must never be sufficient to join someone else's
+// organization (see invitation_acceptance_integration_test.go for the
+// token-verified accept flow that actually does).
 func TestRegistrationWorkspaceIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +63,7 @@ func TestRegistrationWorkspaceIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Register with a pending invitation ignores the organization name and joins the invited org", func(t *testing.T) {
+	t.Run("Register with a pending invitation still creates its own workspace, not the invited org", func(t *testing.T) {
 		adminToken := registerAndLogin(t, app.router, "Workspace Admin", "workspace-admin@opspilot.dev", "password123")
 		admin := mustGetUserByEmail(t, app.userRepo, "workspace-admin@opspilot.dev")
 		if admin.OrganizationID == nil {
@@ -77,7 +80,7 @@ func TestRegistrationWorkspaceIntegration(t *testing.T) {
 			"name":             "Invited Founder",
 			"email":            "invited-founder@opspilot.dev",
 			"password":         "password123",
-			"organizationName": "Should Be Ignored Workspace",
+			"organizationName": "Invited Founder's Own Workspace",
 		})
 		assertStatus(t, registerRec, http.StatusCreated)
 
@@ -86,16 +89,22 @@ func TestRegistrationWorkspaceIntegration(t *testing.T) {
 		assertStatus(t, me, http.StatusOK)
 		data := decodeDataMap(t, me)
 
-		if data["role"] != models.RoleDeveloper {
-			t.Fatalf("expected invited role Developer, got %v", data["role"])
+		// A pending invitation must never be enough, by itself, to grant
+		// membership in its organization at registration time - only the
+		// token-verified /invitations/accept flow may do that.
+		if data["role"] != models.RolePlatformAdmin {
+			t.Fatalf("expected registrant to be Platform Admin of their own workspace, got %v", data["role"])
 		}
-		if data["organizationId"] != admin.OrganizationID.String() {
-			t.Fatalf("expected invited registrant to join the inviting organization, got %v", data["organizationId"])
+		if data["organizationId"] == admin.OrganizationID.String() {
+			t.Fatalf("expected registration to create its own workspace, not join the inviting organization via email match alone")
+		}
+		if data["organizationName"] != "Invited Founder's Own Workspace" {
+			t.Fatalf("expected requested organization name to be honored, got %v", data["organizationName"])
 		}
 
 		invited := mustGetUserByEmail(t, app.userRepo, "invited-founder@opspilot.dev")
-		if invited.OrganizationID == nil || *invited.OrganizationID != *admin.OrganizationID {
-			t.Fatalf("expected invited registrant's organization to match the inviting admin's")
+		if invited.OrganizationID == nil || *invited.OrganizationID == *admin.OrganizationID {
+			t.Fatalf("expected invited registrant's organization to differ from the inviting admin's")
 		}
 	})
 }

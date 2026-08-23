@@ -163,28 +163,29 @@ func TestInvitationAcceptanceIntegration(t *testing.T) {
 		assertStatus(t, inviteRec, http.StatusCreated)
 		token, _ := decodeDataMap(t, inviteRec)["token"].(string)
 
-		// Invitation-aware registration already assigns the invited org/role
-		// before acceptance ever runs.
+		// Registration alone must never assign the invited org/role - it
+		// doesn't prove the registrant controls the invited email address.
+		// The registrant becomes Platform Admin of their own new workspace,
+		// exactly like any other uninvited signup.
 		newMemberToken := registerAndLogin(t, app.router, "Invited Registrant", "invited-then-registered@opspilot.dev", "password123")
 
 		newMember := mustGetUserByEmail(t, app.userRepo, "invited-then-registered@opspilot.dev")
-		if newMember.OrganizationID == nil || *newMember.OrganizationID != orgID {
-			t.Fatalf("expected invitation-aware registration to already assign the invited organization")
-		}
-		if newMember.Role != models.RolePlatformAdmin {
-			t.Fatalf("expected invitation-aware registration to already assign the invited role")
+		if newMember.OrganizationID == nil || *newMember.OrganizationID == orgID {
+			t.Fatalf("expected registration alone to create its own workspace, not join the invited organization via email match")
 		}
 
+		// Only the token-verified accept flow may move them into the
+		// invited organization/role.
 		assertStatus(t, doJSONRequest(t, app.router, http.MethodPost, "/api/v1/invitations/accept", newMemberToken, map[string]any{
 			"token": token,
 		}), http.StatusOK)
 
 		reloaded := mustGetUserByEmail(t, app.userRepo, "invited-then-registered@opspilot.dev")
 		if reloaded.OrganizationID == nil || *reloaded.OrganizationID != orgID {
-			t.Fatalf("expected acceptance after invitation-aware registration to remain safe/idempotent")
+			t.Fatalf("expected acceptance to move the registrant into the invited organization")
 		}
 		if reloaded.Role != models.RolePlatformAdmin {
-			t.Fatalf("expected role to remain Platform Admin after acceptance")
+			t.Fatalf("expected role to be set to the invited role after acceptance")
 		}
 	})
 

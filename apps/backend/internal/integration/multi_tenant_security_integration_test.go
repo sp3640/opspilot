@@ -395,6 +395,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 		dashboardHandler,
 		nil,
 		nil,
+		nil,
 		healthHandler,
 		collector,
 	)

@@ -33,6 +33,14 @@ func (r *TeamMemberRepository) RemoveMember(teamID uuid.UUID, userID uint) error
 	return r.db.Where("team_id = ? AND user_id = ?", teamID, userID).Delete(&models.TeamMember{}).Error
 }
 
+// RemoveAllMembers deletes every membership row for teamID in a single
+// statement, used when a team itself is being deleted - avoids issuing one
+// DELETE per member (TeamService.DeleteTeam previously looped over
+// ListMembers calling RemoveMember once per row).
+func (r *TeamMemberRepository) RemoveAllMembers(teamID uuid.UUID) error {
+	return r.db.Where("team_id = ?", teamID).Delete(&models.TeamMember{}).Error
+}
+
 func (r *TeamMemberRepository) ListMembers(teamID uuid.UUID) ([]models.TeamMember, error) {
 	items := make([]models.TeamMember, 0)
 	if err := r.db.Preload("User").Where("team_id = ?", teamID).Order("created_at ASC").Find(&items).Error; err != nil {

@@ -201,6 +201,7 @@ func run() error {
 	alertService.WithNotificationService(notificationService)
 	sreMetricsService := services.NewSREMetricsService(applicationRepo, incidentRepo, applicationSLORepo).
 		WithAuditService(auditService)
+	rcaService := services.NewRCAService(incidentRepo, alertRepo, metricRepo, deploymentRepo, auditRepo, applicationRepo)
 	podService := k8spods.NewPodService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesLogRuntime := k8slogs.NewLogService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesConfigMapRuntime := k8sconfigmaps.NewConfigMapService(applicationRepo, clusterRepo, clusterCredentialCipher)
@@ -217,6 +218,10 @@ func run() error {
 	kubernetesServiceRuntime := k8sservices.NewServiceService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesIngressRuntime := k8singresses.NewIngressService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesEventRuntime := k8sevents.NewEventService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	rcaService.
+		WithPodService(podService).
+		WithEventService(kubernetesEventRuntime).
+		WithLogService(kubernetesLogRuntime)
 	kubernetesNodeRuntime := k8snodes.NewNodeService(clusterRepo, clusterCredentialCipher)
 	kubernetesNamespaceRuntime := k8snamespaces.NewNamespaceService(clusterRepo, clusterCredentialCipher)
 	clusterService := services.NewClusterService(clusterRepo, auditService, clusterCredentialCipher)
@@ -292,6 +297,7 @@ func run() error {
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	sreHandler := handlers.NewSREHandler(sreMetricsService)
+	rcaHandler := handlers.NewRCAHandler(rcaService)
 	healthHandler := handlers.NewHealthHandler(cfg, startedAt, database.Ping)
 	collector := metrics.NewCollector()
 
@@ -380,6 +386,7 @@ func run() error {
 		dashboardHandler,
 		notificationHandler,
 		sreHandler,
+		rcaHandler,
 		healthHandler,
 		collector,
 	)

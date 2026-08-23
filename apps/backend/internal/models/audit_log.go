@@ -30,19 +30,24 @@ const (
 )
 
 type AuditLog struct {
-	ID             uint        `json:"id" gorm:"primaryKey"`
-	OrganizationID uuid.UUID   `json:"organization_id" gorm:"type:uuid;not null;index"`
-	UserID         uint        `json:"user_id" gorm:"not null;index"`
-	ProjectID      *uuid.UUID  `json:"project_id,omitempty" gorm:"type:uuid;index"`
-	ApplicationID  *uuid.UUID  `json:"application_id,omitempty" gorm:"type:uuid;index"`
-	IncidentID     *uint       `json:"incident_id,omitempty" gorm:"index"`
-	EntityType     string      `json:"entity_type" gorm:"size:50;not null;index"`
-	EntityID       string      `json:"entity_id" gorm:"size:36;not null;index"`
-	Action         AuditAction `json:"action" gorm:"size:20;not null;index"`
-	Result         AuditResult `json:"result" gorm:"size:20;not null;default:SUCCESS;index"`
-	FieldName      string      `json:"field_name" gorm:"size:100"`
-	OldValue       string      `json:"old_value" gorm:"type:text"`
-	NewValue       string      `json:"new_value" gorm:"type:text"`
+	ID             uint       `json:"id" gorm:"primaryKey"`
+	OrganizationID uuid.UUID  `json:"organization_id" gorm:"type:uuid;not null;index;index:idx_audit_logs_entity,priority:3"`
+	UserID         uint       `json:"user_id" gorm:"not null;index"`
+	ProjectID      *uuid.UUID `json:"project_id,omitempty" gorm:"type:uuid;index"`
+	ApplicationID  *uuid.UUID `json:"application_id,omitempty" gorm:"type:uuid;index"`
+	IncidentID     *uint      `json:"incident_id,omitempty" gorm:"index"`
+	// EntityType/EntityID additionally anchor a composite index alongside
+	// OrganizationID, matching AuditRepository.ListByEntity's
+	// "entity_type = ? AND entity_id = ? AND organization_id = ?" query -
+	// the most common "view this entity's history" lookup - more precisely
+	// than the two independent single-column indexes below could.
+	EntityType string      `json:"entity_type" gorm:"size:50;not null;index;index:idx_audit_logs_entity,priority:1"`
+	EntityID   string      `json:"entity_id" gorm:"size:36;not null;index;index:idx_audit_logs_entity,priority:2"`
+	Action     AuditAction `json:"action" gorm:"size:20;not null;index"`
+	Result     AuditResult `json:"result" gorm:"size:20;not null;default:SUCCESS;index"`
+	FieldName  string      `json:"field_name" gorm:"size:100"`
+	OldValue   string      `json:"old_value" gorm:"type:text"`
+	NewValue   string      `json:"new_value" gorm:"type:text"`
 	// BeforeState/AfterState hold an optional JSON snapshot for actions that
 	// don't reduce to a single changed field (e.g. a resource's full state
 	// at creation/deletion). Callers are responsible for excluding secrets

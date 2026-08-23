@@ -3,7 +3,14 @@ package metrics
 import (
 	"context"
 	"sync"
+	"time"
 )
+
+// collectorTimeout bounds a single collector's Supports+Collect call. Without
+// this, one unreachable/slow cluster would block CollectAll's sequential
+// loop indefinitely, delaying metric persistence and alert reconciliation
+// for every other cluster behind it in the same tick.
+const collectorTimeout = 30 * time.Second
 
 type Registry struct {
 	mu         sync.RWMutex
@@ -52,11 +59,11 @@ func (r *Registry) CollectAll(ctx context.Context) ([]CollectedMetrics, []error)
 	errs := make([]error, 0)
 
 	for _, collector := range collectors {
-		if collector == nil || !collector.Supports(ctx) {
+		if collector == nil {
 			continue
 		}
 
-		metrics, err := collector.Collect(ctx)
+		metrics, err := collectOne(ctx, collector)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -69,4 +76,18 @@ func (r *Registry) CollectAll(ctx context.Context) ([]CollectedMetrics, []error)
 	}
 
 	return results, errs
+}
+
+// collectOne runs one collector's Supports+Collect pair under a bounded
+// timeout so a single hung/unreachable cluster can never stall the rest of
+// CollectAll's batch.
+func collectOne(ctx context.Context, collector MetricsCollector) (*CollectedMetrics, error) {
+	collectCtx, cancel := context.WithTimeout(ctx, collectorTimeout)
+	defer cancel()
+
+	if !collector.Supports(collectCtx) {
+		return nil, nil
+	}
+
+	return collector.Collect(collectCtx)
 }

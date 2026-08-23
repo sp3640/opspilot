@@ -182,9 +182,23 @@ func (m *MetricsBootstrap) collectLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			m.collectAndQueue(ctx)
+			m.collectAndQueueSafely(ctx)
 		}
 	}
+}
+
+// collectAndQueueSafely isolates one tick's collection from a panic deep in
+// a Kubernetes client call - without this, a single malformed API response
+// would crash the whole process, taking down every other in-flight HTTP
+// request on this replica along with it, not just this background job.
+func (m *MetricsBootstrap) collectAndQueueSafely(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error(ctx, "metrics collection panicked", slog.Any("panic", r))
+		}
+	}()
+
+	m.collectAndQueue(ctx)
 }
 
 func (m *MetricsBootstrap) persistLoop(ctx context.Context) {
@@ -193,18 +207,30 @@ func (m *MetricsBootstrap) persistLoop(ctx context.Context) {
 	for {
 		select {
 		case snapshot := <-m.queue:
-			m.persistSnapshot(ctx, snapshot)
+			m.persistSnapshotSafely(ctx, snapshot)
 		case <-ctx.Done():
 			for {
 				select {
 				case snapshot := <-m.queue:
-					m.persistSnapshot(context.Background(), snapshot)
+					m.persistSnapshotSafely(context.Background(), snapshot)
 				default:
 					return
 				}
 			}
 		}
 	}
+}
+
+// persistSnapshotSafely isolates one snapshot's persistence from a panic,
+// for the same reason as collectAndQueueSafely above.
+func (m *MetricsBootstrap) persistSnapshotSafely(ctx context.Context, snapshot metricSnapshot) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error(ctx, "metric snapshot persistence panicked", slog.Any("panic", r))
+		}
+	}()
+
+	m.persistSnapshot(ctx, snapshot)
 }
 
 func (m *MetricsBootstrap) collectAndQueue(ctx context.Context) {

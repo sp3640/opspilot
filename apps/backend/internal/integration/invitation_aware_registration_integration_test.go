@@ -18,13 +18,16 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// TestInvitationAwareRegistrationIntegration covers UserService.Register's
-// two explicit paths: joining an invited organization with the invited role,
-// or — for every uninvited registrant, first or not — creating a brand new
-// workspace and becoming its Platform Admin. There is no hidden "attach to
-// an existing organization" fallback. Subtests run in sequence against a
-// single isolated database because the first subtest depends on being the
-// very first user ever registered.
+// TestInvitationAwareRegistrationIntegration covers UserService.Register:
+// every registrant, invited or not, first or not, always creates their own
+// new workspace and becomes its Platform Admin. Registration alone never
+// proves the registrant controls the email address, so a pending invitation
+// must never be enough to grant membership in someone else's organization -
+// that requires the token-verified InvitationService.AcceptInvitation flow
+// instead (see registration_workspace_integration_test.go for the full
+// register-then-accept round trip over HTTP). Subtests run in sequence
+// against a single isolated database because the first subtest depends on
+// being the very first user ever registered.
 func TestInvitationAwareRegistrationIntegration(t *testing.T) {
 	db := setupSQLiteInvitationAwareRegistrationDB(t)
 
@@ -95,7 +98,7 @@ func TestInvitationAwareRegistrationIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Registration with a valid pending invitation joins the invited org and role", func(t *testing.T) {
+	t.Run("Registration with a valid pending invitation still creates its own workspace, not the invited org", func(t *testing.T) {
 		admin, err := userRepo.GetByEmail("alice-first@opspilot.dev")
 		if err != nil {
 			t.Fatalf("load admin: %v", err)
@@ -110,7 +113,7 @@ func TestInvitationAwareRegistrationIntegration(t *testing.T) {
 			t.Fatalf("create invitation: %v", err)
 		}
 
-		if err := userService.Register("Carol Invited", "carol-invited@opspilot.dev", "password123", "Ignored Workspace Name"); err != nil {
+		if err := userService.Register("Carol Invited", "carol-invited@opspilot.dev", "password123", "Carol's Workspace"); err != nil {
 			t.Fatalf("register invited user: %v", err)
 		}
 
@@ -119,24 +122,27 @@ func TestInvitationAwareRegistrationIntegration(t *testing.T) {
 			t.Fatalf("load invited user: %v", err)
 		}
 		if user.Role != models.RolePlatformAdmin {
-			t.Fatalf("expected invited role Platform Admin, got %s", user.Role)
+			t.Fatalf("expected fallback to Platform Admin role, got %s", user.Role)
 		}
-		if user.OrganizationID == nil || *user.OrganizationID != invitedOrgID {
-			t.Fatalf("expected invited user to join the invited organization, not create a new one")
+		// A pending invitation must never be enough, by itself, to join its
+		// organization at registration time - registration alone doesn't
+		// prove the registrant controls the invited email address. Only the
+		// token-verified accept-invitation flow may grant that membership.
+		if user.OrganizationID == nil || *user.OrganizationID == invitedOrgID || *user.OrganizationID == firstOrgID {
+			t.Fatalf("expected registration to create its own workspace, not join the invited organization via email match alone")
 		}
 
-		// An organizationName supplied alongside a valid invitation must be
-		// ignored — the invitation always determines the organization.
-		var ignoredNameCount int64
-		if err := db.Model(&models.Organization{}).Where("name = ?", "Ignored Workspace Name").Count(&ignoredNameCount).Error; err != nil {
-			t.Fatalf("count organizations named 'Ignored Workspace Name': %v", err)
+		organization, err := organizationRepo.GetByID(*user.OrganizationID)
+		if err != nil {
+			t.Fatalf("load invited user's new workspace: %v", err)
 		}
-		if ignoredNameCount != 0 {
-			t.Fatalf("expected organizationName to be ignored during invited registration, but a matching organization was created")
+		if organization.Name != "Carol's Workspace" {
+			t.Fatalf("expected requested organization name to be honored, got %q", organization.Name)
 		}
 
 		// Registration must not itself consume the invitation — acceptance
-		// remains the responsibility of the existing accept flow.
+		// remains the responsibility of the existing, token-verified accept
+		// flow (InvitationService.AcceptInvitation).
 		invitationID, err := uuid.Parse(invitation.ID)
 		if err != nil {
 			t.Fatalf("parse invitation id: %v", err)

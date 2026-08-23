@@ -150,15 +150,8 @@ func (s *TeamService) DeleteTeam(actorID uint, id, organizationID uuid.UUID) err
 		return err
 	}
 
-	members, err := s.teamMemberRepo.ListMembers(team.ID)
-	if err != nil {
+	if err := s.teamMemberRepo.RemoveAllMembers(team.ID); err != nil {
 		return err
-	}
-
-	for _, member := range members {
-		if err := s.teamMemberRepo.RemoveMember(team.ID, member.UserID); err != nil {
-			return err
-		}
 	}
 
 	if err := s.teamRepo.Delete(team.ID); err != nil {

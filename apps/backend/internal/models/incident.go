@@ -7,12 +7,17 @@ import (
 )
 
 type Incident struct {
-	ID             uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	OrganizationID uuid.UUID `gorm:"type:uuid;not null;index" json:"organization_id"`
+	ID uint `gorm:"primaryKey;autoIncrement" json:"id"`
+	// OrganizationID additionally anchors two composite indexes
+	// (organization_id, status) and (organization_id, severity) - matching
+	// IncidentRepository.ListByOrganizationID and DashboardRepository's
+	// per-user status/severity filtering, both of which filter on
+	// organization_id plus one of these columns together.
+	OrganizationID uuid.UUID `gorm:"type:uuid;not null;index;index:idx_incidents_org_status,priority:1;index:idx_incidents_org_severity,priority:1" json:"organization_id"`
 	Title          string    `gorm:"size:255;not null" json:"title"`
 	Description    string    `gorm:"type:text" json:"description"`
-	Severity       string    `gorm:"size:20;not null" json:"severity"`
-	Status         string    `gorm:"size:20;not null" json:"status"`
+	Severity       string    `gorm:"size:20;not null;index:idx_incidents_org_severity,priority:2" json:"severity"`
+	Status         string    `gorm:"size:20;not null;index:idx_incidents_org_status,priority:2" json:"status"`
 
 	ProjectID uuid.UUID `gorm:"type:uuid;not null;index" json:"project_id"`
 

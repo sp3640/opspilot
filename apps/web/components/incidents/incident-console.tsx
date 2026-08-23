@@ -22,6 +22,7 @@ import { IncidentCombinedTimeline } from "./incident-combined-timeline";
 import { IncidentComments } from "./incident-comments";
 import { IncidentContextChain } from "./incident-context-chain";
 import { IncidentDeploymentsPanel } from "./incident-deployments-panel";
+import { IncidentIntelligence } from "./incident-intelligence";
 import { IncidentK8sEventsPanel } from "./incident-k8s-events-panel";
 import { IncidentLogsPanel } from "./incident-logs-panel";
 import { IncidentMetricsPanel } from "./incident-metrics-panel";
@@ -118,6 +119,13 @@ export function IncidentConsole({ incidentID }: { incidentID: number }) {
           applicationName={applicationName}
           ownerTeamName={ownerTeamName}
         />
+      </SectionCard>
+
+      <SectionCard
+        title="Incident Intelligence"
+        description="Deterministic evidence and correlation across alerts, metrics, logs, deployments, Kubernetes, and config changes. Findings are possible causes, not confirmed root causes - a human engineer remains responsible for approving remediation."
+      >
+        <IncidentIntelligence incident={incident} />
       </SectionCard>
 
       <SectionCard title="Assignment" description="Who owns this incident, and whether it has been acknowledged.">

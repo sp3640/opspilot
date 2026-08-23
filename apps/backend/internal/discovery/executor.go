@@ -3,16 +3,28 @@ package discovery
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/sp3640/opspilot/backend/internal/logger"
 )
 
 var (
 	ErrDiscoveryAlreadyRunning = errors.New("discovery already running for cluster")
 	ErrDiscoveryExecutorClosed = errors.New("discovery executor is stopped")
 )
+
+// jobTimeout bounds a single cluster's discovery run. Without this, a
+// cluster whose kubeconfig points somewhere that TCP-hangs (firewalled, no
+// RST) rather than fails fast would hold its semaphore slot forever -
+// wedging discovery for every other cluster behind it once maxConcurrent
+// slots are all stuck this way (with the default maxConcurrent=1, a single
+// hung cluster is enough to wedge all of them).
+const jobTimeout = 2 * time.Minute
 
 type ExecutionStatus string
 
@@ -114,7 +126,24 @@ func (e *DiscoveryExecutor) run(ctx context.Context, record *ExecutionRecord, ex
 	record.Status = ExecutionStatusRunning
 	e.mu.Unlock()
 
-	err := execute(ctx, record.ClusterID)
+	// A panic here (e.g. a malformed API response deep in a Kubernetes
+	// client call) must not take down the whole process - only every other
+	// in-flight HTTP request would be affected too, since nothing else
+	// recovers panics outside the Gin middleware chain.
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error(ctx, "discovery job panicked",
+				slog.String("cluster_id", record.ClusterID.String()),
+				slog.Any("panic", r),
+			)
+			e.finish(record.ClusterID, ExecutionStatusFailed, fmt.Errorf("discovery job panicked: %v", r))
+		}
+	}()
+
+	runCtx, cancel := context.WithTimeout(ctx, jobTimeout)
+	defer cancel()
+
+	err := execute(runCtx, record.ClusterID)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			e.finish(record.ClusterID, ExecutionStatusCanceled, err)

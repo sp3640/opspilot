@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/sp3640/opspilot/backend/internal/config"
 	"github.com/sp3640/opspilot/backend/internal/models"
@@ -15,6 +16,19 @@ import (
 var (
 	DB   *gorm.DB
 	dbMu sync.RWMutex
+)
+
+// Connection pool bounds. Without these, database/sql's defaults apply
+// (MaxOpenConns unlimited, MaxIdleConns=2, ConnMaxLifetime unlimited) - an
+// unlimited MaxOpenConns lets a traffic spike open enough connections to
+// exhaust Postgres's own max_connections (shared across every replica of
+// this service), and MaxIdleConns=2 means most requests pay full
+// connection-setup cost instead of reusing a pooled one.
+const (
+	maxOpenConns    = 25
+	maxIdleConns    = 10
+	connMaxLifetime = 30 * time.Minute
+	connMaxIdleTime = 5 * time.Minute
 )
 
 // Connect opens PostgreSQL, verifies the connection, migrates the schema, and
@@ -35,6 +49,12 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get PostgreSQL connection pool: %w", err)
 	}
+
+	sqlDB.SetMaxOpenConns(maxOpenConns)
+	sqlDB.SetMaxIdleConns(maxIdleConns)
+	sqlDB.SetConnMaxLifetime(connMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(connMaxIdleTime)
+
 	if err := sqlDB.PingContext(context.Background()); err != nil {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("ping PostgreSQL: %w", err)

@@ -45,6 +45,7 @@ func RegisterRoutes(
 	dashboardHandler *handlers.DashboardHandler,
 	notificationHandler *handlers.NotificationHandler,
 	sreHandler *handlers.SREHandler,
+	rcaHandler *handlers.RCAHandler,
 	healthHandler *handlers.HealthHandler,
 	collector *metrics.Collector,
 ) {
@@ -291,6 +292,9 @@ func RegisterRoutes(
 			incidents.POST("/:id/comments", commentHandler.Create)
 			incidents.GET("/:id/comments", commentHandler.List)
 			incidents.GET("/:id/audit-logs", auditHandler.GetIncidentAuditLogs)
+			if rcaHandler != nil {
+				incidents.GET("/:id/rca", rcaHandler.GetRootCauseAnalysis)
+			}
 		}
 
 		alerts := api.Group("/alerts")

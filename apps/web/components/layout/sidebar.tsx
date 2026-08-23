@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import { X } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { navigationGroups } from "@/constants/navigation";
 import { Logo } from "./logo";
@@ -15,7 +17,14 @@ const organizationListParams = {
   order: "desc" as const,
 };
 
-export function Sidebar() {
+type SidebarProps = {
+  /** Whether the mobile off-canvas drawer is open. Ignored at the `lg:`
+   * breakpoint and above, where the sidebar is always shown inline. */
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+};
+
+export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const { data } = useOrganizations(organizationListParams);
 
   const organizationName = useMemo(() => {
@@ -23,26 +32,60 @@ export function Sidebar() {
   }, [data]);
 
   return (
-    <aside
-      className="
-      flex
-      h-screen
-      w-72
-      flex-col
+    <>
+      {mobileOpen ? (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          aria-hidden="true"
+          onClick={onMobileClose}
+        />
+      ) : null}
 
-      border-r
+      <aside
+        className={cn(
+          `
+          fixed
+          inset-y-0
+          left-0
+          z-50
+          flex
+          h-screen
+          w-72
+          flex-col
 
-      px-4
-      py-6
-      "
-      style={{
-        background: "#0d1117",
-        borderColor: "var(--border)",
-      }}
-    >
-      <Logo />
+          border-r
 
-      <nav className="mt-8 flex-1 space-y-8">
+          px-4
+          py-6
+
+          transition-transform
+          duration-200
+
+          lg:sticky
+          lg:top-0
+          lg:translate-x-0
+          `,
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        style={{
+          background: "#0d1117",
+          borderColor: "var(--border)",
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <Logo />
+
+          <button
+            type="button"
+            onClick={onMobileClose}
+            aria-label="Close navigation menu"
+            className="rounded-lg p-1.5 text-zinc-400 hover:text-white lg:hidden"
+          >
+            <X aria-hidden="true" className="h-5 w-5" />
+          </button>
+        </div>
+
+        <nav className="mt-8 flex-1 space-y-8 overflow-y-auto">
         {navigationGroups.map((group) => (
           <SidebarGroup
             key={group.title}
@@ -79,6 +122,7 @@ export function Sidebar() {
 
         <p className="mt-2 text-xs text-zinc-400">Workspace: {organizationName}</p>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
