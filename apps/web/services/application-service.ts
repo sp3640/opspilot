@@ -14,6 +14,11 @@ type APIResponse<T> = {
 };
 
 export const applicationService = {
+  async listApplications(params: ApplicationQueryParams): Promise<ApplicationListResponse> {
+    const response = await api.get<APIResponse<ApplicationListResponse>>("/applications", { params });
+    return response.data.data;
+  },
+
   async listApplicationsByProject(
     projectId: string,
     params: ApplicationQueryParams

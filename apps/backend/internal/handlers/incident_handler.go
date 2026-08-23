@@ -157,6 +157,64 @@ func (h *IncidentHandler) Update(c *gin.Context) {
 	response.OK(c, "Incident updated successfully", incident)
 }
 
+func (h *IncidentHandler) Assign(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionIncidentManage) {
+		return
+	}
+
+	actorID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	incidentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid incident id")
+		return
+	}
+
+	var req dto.AssignIncidentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	incident, err := h.service.AssignIncident(c.Request.Context(), uint(incidentID), actorID, organizationID, req.AssigneeUserID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Incident assigned successfully", incident)
+}
+
+func (h *IncidentHandler) Acknowledge(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionIncidentManage) {
+		return
+	}
+
+	actorID := c.MustGet("userID").(uint)
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	incidentID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid incident id")
+		return
+	}
+
+	incident, err := h.service.AcknowledgeIncident(c.Request.Context(), uint(incidentID), actorID, organizationID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Incident acknowledged successfully", incident)
+}
+
 func (h *IncidentHandler) Delete(c *gin.Context) {
 	if !authorization.RequireOrganizationMember(c) || !authorization.RequirePermission(c, rbac.PermissionIncidentManage) {
 		return
@@ -191,7 +249,7 @@ func (h *IncidentHandler) handleServiceError(c *gin.Context, err error) {
 		response.Error(c, http.StatusForbidden, err.Error())
 	case apperrors.ErrInvalidSeverity, apperrors.ErrInvalidStatus:
 		response.Error(c, http.StatusBadRequest, err.Error())
-	case apperrors.ErrIncidentApplicationNotFound, apperrors.ErrIncidentOwnerTeamNotFound:
+	case apperrors.ErrIncidentApplicationNotFound, apperrors.ErrIncidentOwnerTeamNotFound, apperrors.ErrIncidentAssigneeNotFound:
 		response.Error(c, http.StatusBadRequest, err.Error())
 	case apperrors.ErrIncidentApplicationMismatch:
 		response.Error(c, http.StatusBadRequest, err.Error())

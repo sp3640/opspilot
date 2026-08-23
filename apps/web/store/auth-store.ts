@@ -88,7 +88,9 @@ export type Permission =
   | "deployment:manage"
   | "incident:manage"
   | "incident:comment"
-  | "alert:manage";
+  | "alert:manage"
+  | "notification:manage"
+  | "slo:manage";
 
 const ROLE_PERMISSIONS: Record<UserRole, ReadonlyArray<Permission>> = {
   "Platform Admin": [
@@ -103,8 +105,19 @@ const ROLE_PERMISSIONS: Record<UserRole, ReadonlyArray<Permission>> = {
     "incident:manage",
     "incident:comment",
     "alert:manage",
+    "notification:manage",
+    "slo:manage",
   ],
-  "DevOps Engineer": ["cluster:manage", "application:manage", "deployment:manage", "incident:manage", "incident:comment", "alert:manage"],
+  "DevOps Engineer": [
+    "cluster:manage",
+    "application:manage",
+    "deployment:manage",
+    "incident:manage",
+    "incident:comment",
+    "alert:manage",
+    "notification:manage",
+    "slo:manage",
+  ],
   Developer: ["incident:manage", "incident:comment", "alert:manage"],
   Viewer: [],
 };

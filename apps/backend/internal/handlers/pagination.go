@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -34,6 +35,21 @@ func parseOptionalUUID(c *gin.Context, key string) (uuid.UUID, bool) {
 	}
 
 	return parsed, true
+}
+
+func parseOptionalUint(c *gin.Context, key string) (uint, bool) {
+	rawValue, provided := c.GetQuery(key)
+	if !provided || strings.TrimSpace(rawValue) == "" {
+		return 0, true
+	}
+
+	parsed, err := strconv.ParseUint(strings.TrimSpace(rawValue), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid "+key)
+		return 0, false
+	}
+
+	return uint(parsed), true
 }
 
 func parseOrganizationIDFromContext(c *gin.Context) (uuid.UUID, bool) {

@@ -7,9 +7,15 @@ export type IncidentResponse = {
   projectId: string;
   applicationId?: string;
   ownerTeamId?: string;
+  assigneeId?: number;
+  acknowledgedAt?: string;
   resolvedAt?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AssignIncidentRequest = {
+  assignee_user_id: number;
 };
 
 export type IncidentListResponse = {

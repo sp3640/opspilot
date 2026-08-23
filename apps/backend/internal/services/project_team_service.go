@@ -16,6 +16,7 @@ type ProjectTeamService struct {
 	projectTeamRepo *repository.ProjectTeamRepository
 	projectRepo     *repository.ProjectRepository
 	teamRepo        *repository.TeamRepository
+	auditService    *AuditService
 }
 
 func NewProjectTeamService(
@@ -30,7 +31,12 @@ func NewProjectTeamService(
 	}
 }
 
-func (s *ProjectTeamService) AssignTeam(actorRole string, organizationID, projectID, teamID uuid.UUID) (*dto.ProjectTeamResponse, error) {
+func (s *ProjectTeamService) WithAuditService(auditService *AuditService) *ProjectTeamService {
+	s.auditService = auditService
+	return s
+}
+
+func (s *ProjectTeamService) AssignTeam(actorRole string, actorID uint, organizationID, projectID, teamID uuid.UUID) (*dto.ProjectTeamResponse, error) {
 	if !isProjectTeamPlatformAdminRole(actorRole) {
 		return nil, apperrors.ErrProjectForbidden
 	}
@@ -72,11 +78,15 @@ func (s *ProjectTeamService) AssignTeam(actorRole string, organizationID, projec
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		_ = s.auditService.LogCreate(actorID, organizationID, "project_team", mapping.ID.String(), &projectID, nil)
+	}
+
 	response := mapProjectTeamResponse(*mapping)
 	return &response, nil
 }
 
-func (s *ProjectTeamService) RemoveTeam(actorRole string, organizationID, projectID, teamID uuid.UUID) error {
+func (s *ProjectTeamService) RemoveTeam(actorRole string, actorID uint, organizationID, projectID, teamID uuid.UUID) error {
 	if !isProjectTeamPlatformAdminRole(actorRole) {
 		return apperrors.ErrProjectForbidden
 	}
@@ -99,7 +109,23 @@ func (s *ProjectTeamService) RemoveTeam(actorRole string, organizationID, projec
 		return apperrors.ErrProjectForbidden
 	}
 
-	return s.projectTeamRepo.RemoveTeam(projectID, teamID, organizationID)
+	if err := s.projectTeamRepo.RemoveTeam(projectID, teamID, organizationID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         actorID,
+			OrganizationID: organizationID,
+			ProjectID:      &projectID,
+			EntityType:     "project_team",
+			EntityID:       projectID.String(),
+			Action:         models.AuditActionDelete,
+			BeforeState:    marshalAuditState(map[string]any{"projectId": projectID.String(), "teamId": teamID.String()}),
+		})
+	}
+
+	return nil
 }
 
 func (s *ProjectTeamService) ListProjectTeams(actorRole string, organizationID, projectID uuid.UUID) (*dto.ProjectTeamListResponse, error) {

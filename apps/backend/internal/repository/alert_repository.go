@@ -188,6 +188,22 @@ func (r *AlertRepository) ListBySource(projectID, organizationID uuid.UUID, sour
 	return alerts, nil
 }
 
+// ListByProject returns every alert for a project, unpaginated (mirroring
+// ListBySource) - used by the application health scoring service, which
+// needs the full set to filter by each alert's own applicationId metadata
+// (Alert has no applicationId column) and count how many are active.
+func (r *AlertRepository) ListByProject(projectID, organizationID uuid.UUID) ([]models.Alert, error) {
+	var alerts []models.Alert
+	err := r.db.
+		Where("project_id = ? AND organization_id = ?", projectID, organizationID).
+		Find(&alerts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return alerts, nil
+}
+
 // GetProjectOrganizationID resolves the organization a project belongs to,
 // used by engine-driven flows that only know a projectID (mirroring
 // MetricRepository's method of the same name).

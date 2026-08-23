@@ -101,7 +101,7 @@ func TestUserOrganizationRelationshipIntegration(t *testing.T) {
 		t.Fatalf("expected exactly 2 organizations, got %d", organizationCount)
 	}
 
-	token, err := userService.Login("bob@opspilot.dev", "password123")
+	token, err := userService.Login("bob@opspilot.dev", "password123", "", "")
 	if err != nil {
 		t.Fatalf("login second user: %v", err)
 	}

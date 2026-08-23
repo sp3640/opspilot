@@ -17,6 +17,8 @@ var allPermissions = []Permission{
 	PermissionAuditRead,
 	PermissionOrganizationRead, PermissionOrganizationManage,
 	PermissionUserManage,
+	PermissionNotificationRead, PermissionNotificationManage,
+	PermissionSLORead, PermissionSLOManage,
 }
 
 // rolePermissions is the authoritative role→permission matrix. Platform Admin
@@ -39,6 +41,8 @@ var rolePermissions = map[Role]map[Permission]bool{
 		PermissionKubernetesRead, PermissionKubernetesOperate,
 		PermissionAuditRead,
 		PermissionOrganizationRead,
+		PermissionNotificationRead, PermissionNotificationManage,
+		PermissionSLORead, PermissionSLOManage,
 	}),
 
 	RoleDeveloper: toSet([]Permission{
@@ -54,6 +58,8 @@ var rolePermissions = map[Role]map[Permission]bool{
 		PermissionKubernetesRead,
 		PermissionAuditRead,
 		PermissionOrganizationRead,
+		PermissionNotificationRead,
+		PermissionSLORead,
 	}),
 
 	RoleViewer: toSet([]Permission{
@@ -69,6 +75,8 @@ var rolePermissions = map[Role]map[Permission]bool{
 		PermissionKubernetesRead,
 		PermissionAuditRead,
 		PermissionOrganizationRead,
+		PermissionNotificationRead,
+		PermissionSLORead,
 	}),
 }
 

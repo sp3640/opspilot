@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
@@ -35,6 +37,41 @@ func (r *IncidentRepository) GetByIDAndOrganizationID(id uint, organizationID uu
 	}
 
 	return &incident, nil
+}
+
+// ListByApplicationID returns every incident scoped to the given
+// application, unpaginated (mirroring AlertRepository.ListBySource) - used
+// by the application health scoring service, which needs the full set to
+// count how many are currently active. Incident.ApplicationID is a real,
+// precise column (not a best-effort metadata match).
+func (r *IncidentRepository) ListByApplicationID(applicationID, organizationID uuid.UUID) ([]models.Incident, error) {
+	var incidents []models.Incident
+	err := r.db.
+		Where("application_id = ? AND organization_id = ?", applicationID, organizationID).
+		Find(&incidents).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return incidents, nil
+}
+
+// ListByApplicationForWindow returns every incident for applicationID whose
+// lifetime overlaps [windowStart, now] at all - i.e. it was created before
+// now AND is either still unresolved or was resolved at/after windowStart.
+// This is the exact input set SRE metrics needs (see SREMetricsService):
+// an incident that started before the window but is still ongoing, or one
+// resolved right at the boundary, must not be missed.
+func (r *IncidentRepository) ListByApplicationForWindow(applicationID, organizationID uuid.UUID, windowStart time.Time) ([]models.Incident, error) {
+	var incidents []models.Incident
+	err := r.db.
+		Where("application_id = ? AND organization_id = ? AND (resolved_at IS NULL OR resolved_at >= ?)", applicationID, organizationID, windowStart).
+		Order("created_at ASC").
+		Find(&incidents).Error
+	if err != nil {
+		return nil, err
+	}
+	return incidents, nil
 }
 
 func (r *IncidentRepository) ListByOrganizationID(req *models.PaginationRequest, organizationID uuid.UUID) ([]models.Incident, int64, error) {

@@ -29,6 +29,17 @@ type Incident struct {
 
 	UserID uint `gorm:"not null;index" json:"user_id"`
 
+	// AssigneeID is the user responsible for driving this specific incident,
+	// distinct from OwnerTeamID (which team) and UserID (who created it).
+	// Optional - unassigned until explicitly set via AssignIncident.
+	AssigneeID *uint `gorm:"index" json:"assignee_id,omitempty"`
+
+	// AcknowledgedAt is set the first time AcknowledgeIncident is called and
+	// never cleared thereafter (acknowledgement is a one-time event, unlike
+	// ResolvedAt which tracks current status). It is the source data for the
+	// MTTA (Mean Time To Acknowledge) SRE metric.
+	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
+
 	// ResolvedAt is set when Status transitions to RESOLVED and cleared if
 	// the incident is reopened to any other status.
 	ResolvedAt *time.Time `json:"resolved_at,omitempty"`

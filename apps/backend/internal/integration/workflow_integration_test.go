@@ -92,7 +92,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	if err := userService.Register("Ops Owner", "owner@opspilot.dev", "password123", ""); err != nil {
 		t.Fatalf("register user: %v", err)
 	}
-	token, err := userService.Login("owner@opspilot.dev", "password123")
+	token, err := userService.Login("owner@opspilot.dev", "password123", "", "")
 	if err != nil {
 		t.Fatalf("login user: %v", err)
 	}
@@ -430,6 +430,8 @@ func migrateIntegrationSchema(t *testing.T, db *gorm.DB) {
 		&models.Metric{},
 		&models.Comment{},
 		&models.AuditLog{},
+		&models.NotificationChannel{},
+		&models.ApplicationSLO{},
 	)
 	if err != nil {
 		t.Fatalf("auto migrate schema: %v", err)

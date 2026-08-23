@@ -59,4 +59,5 @@ export type ApplicationQueryParams = {
   search?: string;
   sort?: "name" | "slug" | "runtime" | "status" | "created_at" | "updated_at";
   order?: "asc" | "desc";
+  projectId?: string;
 };

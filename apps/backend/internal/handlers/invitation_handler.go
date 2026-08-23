@@ -144,7 +144,8 @@ func (h *InvitationHandler) Revoke(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.RevokeInvitation(invitationID, role, organizationID); err != nil {
+	userID := c.MustGet("userID").(uint)
+	if err := h.service.RevokeInvitation(invitationID, role, userID, organizationID); err != nil {
 		h.handleServiceError(c, err)
 		return
 	}

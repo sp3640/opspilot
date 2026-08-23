@@ -54,6 +54,20 @@ var (
 	ErrIncidentApplicationNotFound = errors.New("application not found")
 	ErrIncidentApplicationMismatch = errors.New("application does not belong to this project")
 	ErrIncidentOwnerTeamNotFound   = errors.New("owner team not found")
+	ErrIncidentAssigneeNotFound    = errors.New("assignee not found in this organization")
+
+	// Notification errors
+	ErrNotificationChannelNotFound     = errors.New("notification channel not found")
+	ErrInvalidNotificationChannelType  = errors.New("invalid notification channel type")
+	ErrInvalidNotificationChannelName  = errors.New("notification channel name is required")
+	ErrInvalidNotificationEvent        = errors.New("at least one valid notification event is required")
+	ErrInvalidNotificationTarget       = errors.New("invalid notification target for this channel type")
+	ErrNotificationChannelTeamMismatch = errors.New("team does not belong to this organization")
+
+	// SRE / SLO errors
+	ErrSLONotConfigured = errors.New("SLO has not been configured for this application")
+	ErrInvalidSLOTarget = errors.New("SLO target percentage must be between 1 and 100")
+	ErrInvalidSLOWindow = errors.New("SLO window must be between 1 and 365 days")
 
 	// Alert errors
 	ErrAlertNotFound            = errors.New("alert not found")

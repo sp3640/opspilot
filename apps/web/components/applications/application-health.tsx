@@ -6,51 +6,36 @@ import { Boxes, Rocket } from "lucide-react";
 
 import { ClusterStatusBadge } from "@/components/clusters/cluster-status";
 import { EmptyState, ErrorState, ListSkeleton, StatusBadge } from "@/components/common";
-import { useAlerts } from "@/hooks/use-alerts";
-import { useApplicationHealthMetrics } from "@/hooks/use-application-health-metrics";
 import { useCluster } from "@/hooks/use-clusters";
 import { useLatestDeployment } from "@/hooks/use-deployments";
-import { useIncidents } from "@/hooks/use-incidents";
 import { usePodsByApplication } from "@/hooks/use-pods";
 import { useRuntimeDeploymentsByApplication } from "@/hooks/use-runtime-deployments";
-import { PAGINATION_MAX_PAGE_SIZE } from "@/lib/constants/pagination";
 import { matchRuntimeDeployment } from "@/lib/deployment-replica-state";
 import type { PodResponse } from "@/types/pod-api";
 
-const ACTIVE_INCIDENT_STATUSES = ["OPEN", "INVESTIGATING"];
-const ACTIVE_ALERT_STATUSES = ["OPEN", "ACKNOWLEDGED", "INVESTIGATING"];
-
-const HEALTH_METRIC_FIELDS: ReadonlyArray<{ key: "availability" | "errorRate" | "latency" | "cpu" | "memory"; label: string }> = [
-  { key: "availability", label: "Availability" },
-  { key: "errorRate", label: "Error rate" },
-  { key: "latency", label: "Latency" },
-  { key: "cpu", label: "CPU" },
-  { key: "memory", label: "Memory" },
-];
+import { ApplicationHealthScore } from "./application-health-score";
 
 /**
- * The primary "is this application healthy" summary: Status, Pod health,
- * Deployment status, and active Alerts/Incidents come from real data the
- * backend already provides. Availability/Error rate/Latency/CPU/Memory have
- * no data source yet (no Prometheus integration) — they render "Not
- * available" via `useApplicationHealthMetrics`, a placeholder hook shaped
- * exactly like the real one will be, so wiring up real metrics later never
- * requires touching this component.
+ * The primary "is this application healthy" summary. The unified health
+ * score (Phase 21) - real, deterministic, and documented per-factor - has
+ * replaced the earlier ad-hoc client-side approximation that lived here
+ * (manually re-deriving deployment/pod/alert/incident state, plus an
+ * always-empty Prometheus-metrics placeholder). See
+ * components/applications/application-health-score.tsx and the backend's
+ * internal/health package for how it's computed.
  *
- * Below the health summary, "Runtime" connects the chain this data comes
- * from: Application -> Deployment -> Cluster -> Namespace -> Pods, plus
- * real replica state (ready/available) matched from the live k8s Deployment
+ * Below the score, "Runtime" connects the chain this data comes from:
+ * Application -> Deployment -> Cluster -> Namespace -> Pods, plus real
+ * replica state (ready/available) matched from the live k8s Deployment
  * object via matchRuntimeDeployment - "Not available" when no confident
  * match exists, never a guess.
  */
 export function ApplicationHealth({
   applicationId,
-  projectId,
   status,
   environment,
 }: {
   applicationId: string;
-  projectId: string;
   status: string;
   environment: string;
 }) {
@@ -69,29 +54,10 @@ export function ApplicationHealth({
   const podsParams = useMemo(() => ({ namespace: deployment?.namespace ?? "" }), [deployment?.namespace]);
   const {
     data: podsData,
-    isError: isPodsError,
     isLoading: isPodsLoading,
   } = usePodsByApplication(applicationId, podsParams, Boolean(deployment?.namespace));
   const pods = useMemo(() => podsData?.items ?? [], [podsData]);
   const podHealth = useMemo(() => summarizePodHealth(pods), [pods]);
-
-  const {
-    data: alertsData,
-    isError: isAlertsError,
-    isLoading: isAlertsLoading,
-  } = useAlerts({ page: 1, limit: PAGINATION_MAX_PAGE_SIZE, projectId });
-  const activeAlertCount = (alertsData?.items ?? []).filter((alert) => ACTIVE_ALERT_STATUSES.includes(alert.status)).length;
-
-  const {
-    data: incidentsData,
-    isError: isIncidentsError,
-    isLoading: isIncidentsLoading,
-  } = useIncidents({ page: 1, limit: PAGINATION_MAX_PAGE_SIZE, projectId });
-  const activeIncidentCount = (incidentsData?.items ?? []).filter((incident) =>
-    ACTIVE_INCIDENT_STATUSES.includes(incident.status)
-  ).length;
-
-  const { data: healthMetrics } = useApplicationHealthMetrics(applicationId);
 
   const { data: runtimeData } = useRuntimeDeploymentsByApplication(
     applicationId,
@@ -104,9 +70,10 @@ export function ApplicationHealth({
     <div className="space-y-6">
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-          Environment
+          Overview
         </h3>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap gap-2">
+          <StatusBadge variant={getApplicationStatusVariant(status)}>{status}</StatusBadge>
           {environment ? (
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
@@ -124,83 +91,10 @@ export function ApplicationHealth({
 
       <section>
         <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-          Health
+          Health Score
         </h3>
-        <dl className="mt-3 grid grid-cols-2 gap-3">
-          <HealthStat label="Status">
-            <StatusBadge variant={getApplicationStatusVariant(status)}>{status}</StatusBadge>
-          </HealthStat>
-
-          <HealthStat label="Deployment status">
-            {isDeploymentLoading ? (
-              <Loading />
-            ) : notDeployedYet ? (
-              <NotAvailable label="Not deployed yet" />
-            ) : isDeploymentError ? (
-              <NotAvailable label="Unable to load" />
-            ) : deployment ? (
-              <StatusBadge variant={getDeploymentStatusVariant(deployment.status)}>{deployment.status}</StatusBadge>
-            ) : null}
-          </HealthStat>
-
-          <HealthStat label="Pod health">
-            {isDeploymentLoading || (Boolean(deployment?.namespace) && isPodsLoading) ? (
-              <Loading />
-            ) : notDeployedYet ? (
-              <NotAvailable label="Not deployed yet" />
-            ) : isPodsError ? (
-              <NotAvailable label="Unable to load" />
-            ) : pods.length === 0 ? (
-              <NotAvailable label="No pods found" />
-            ) : (
-              <div className="flex items-center gap-2">
-                <StatusBadge variant={podHealth.variant}>{podHealth.label}</StatusBadge>
-              </div>
-            )}
-          </HealthStat>
-
-          <HealthStat label="Active alerts">
-            {isAlertsLoading ? (
-              <Loading />
-            ) : isAlertsError ? (
-              <NotAvailable label="Unable to load" />
-            ) : (
-              <span className="font-semibold">{activeAlertCount}</span>
-            )}
-          </HealthStat>
-
-          <HealthStat label="Active incidents">
-            {isIncidentsLoading ? (
-              <Loading />
-            ) : isIncidentsError ? (
-              <NotAvailable label="Unable to load" />
-            ) : (
-              <span className="font-semibold">{activeIncidentCount}</span>
-            )}
-          </HealthStat>
-        </dl>
-
-        <div className="mt-4">
-          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            Metrics below require a Prometheus integration that is not connected yet.
-          </p>
-          <dl className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {HEALTH_METRIC_FIELDS.map(({ key, label }) => {
-              const metric = healthMetrics[key];
-              return (
-                <HealthStat key={key} label={label}>
-                  {metric.value === null ? (
-                    <NotAvailable label="Not available" />
-                  ) : (
-                    <span className="font-semibold">
-                      {metric.value}
-                      {metric.unit ? ` ${metric.unit}` : ""}
-                    </span>
-                  )}
-                </HealthStat>
-              );
-            })}
-          </dl>
+        <div className="mt-3">
+          <ApplicationHealthScore applicationId={applicationId} />
         </div>
       </section>
 
@@ -301,11 +195,7 @@ function NotAvailable({ label }: { label: string }) {
   return <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>{label}</span>;
 }
 
-function summarizePodHealth(pods: PodResponse[]): {
-  variant: "success" | "warning" | "critical" | "info";
-  label: string;
-  breakdown: string;
-} {
+function summarizePodHealth(pods: PodResponse[]): { breakdown: string } {
   let healthy = 0;
   let degraded = 0;
   let unhealthy = 0;
@@ -321,16 +211,7 @@ function summarizePodHealth(pods: PodResponse[]): {
     }
   }
 
-  const total = pods.length;
-  const breakdown = `${healthy} healthy, ${degraded} degraded, ${unhealthy} unhealthy`;
-
-  if (unhealthy > 0) {
-    return { variant: "critical", label: `${unhealthy}/${total} unhealthy`, breakdown };
-  }
-  if (degraded > 0) {
-    return { variant: "warning", label: `${degraded}/${total} degraded`, breakdown };
-  }
-  return { variant: "success", label: `${healthy}/${total} healthy`, breakdown };
+  return { breakdown: `${healthy} healthy, ${degraded} degraded, ${unhealthy} unhealthy` };
 }
 
 function getApplicationStatusVariant(status: string): "success" | "info" | "archived" {

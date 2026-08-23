@@ -75,6 +75,22 @@ func (r *DeploymentRepository) GetLatestDeployment(applicationID, organizationID
 	return &deployment, nil
 }
 
+// GetPreviousDeployment returns the most recent deployment for
+// applicationID that was created strictly before before, excluding
+// excludeID itself - used to detect a "recovered" deployment (this one
+// succeeded and the previous attempt for the same application had failed).
+func (r *DeploymentRepository) GetPreviousDeployment(applicationID, organizationID, excludeID uuid.UUID, before time.Time) (*models.Deployment, error) {
+	var deployment models.Deployment
+	err := r.db.
+		Where("organization_id = ? AND application_id = ? AND id <> ? AND created_at < ?", organizationID, applicationID, excludeID, before).
+		Order("created_at DESC").
+		First(&deployment).Error
+	if err != nil {
+		return nil, err
+	}
+	return &deployment, nil
+}
+
 func (r *DeploymentRepository) UpdateStatus(id, organizationID uuid.UUID, status string, startedAt, completedAt *time.Time, updatedBy uint) error {
 	updates := map[string]any{
 		"status":     status,

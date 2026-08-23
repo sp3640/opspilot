@@ -21,7 +21,7 @@ export function useAuditLogs(
 ) {
   return useQuery<AuditLogListResponse>({
     queryKey: auditKeys.list(scope, scopeID, params),
-    queryFn: () => auditService.listAuditLogs(scope, scopeID as string | number, params),
-    enabled: scopeID !== null,
+    queryFn: () => auditService.listAuditLogs(scope, scopeID, params),
+    enabled: scope === "organization" || scopeID !== null,
   });
 }

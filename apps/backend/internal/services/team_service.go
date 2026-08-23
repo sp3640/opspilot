@@ -17,6 +17,7 @@ type TeamService struct {
 	teamRepo       *repository.TeamRepository
 	teamMemberRepo *repository.TeamMemberRepository
 	userRepo       *repository.UserRepository
+	auditService   *AuditService
 }
 
 func NewTeamService(
@@ -31,7 +32,12 @@ func NewTeamService(
 	}
 }
 
-func (s *TeamService) CreateTeam(organizationID uuid.UUID, req dto.CreateTeamRequest) (*dto.TeamResponse, error) {
+func (s *TeamService) WithAuditService(auditService *AuditService) *TeamService {
+	s.auditService = auditService
+	return s
+}
+
+func (s *TeamService) CreateTeam(userID uint, organizationID uuid.UUID, req dto.CreateTeamRequest) (*dto.TeamResponse, error) {
 	name, description, err := normalizeTeamInput(req.Name, req.Description)
 	if err != nil {
 		return nil, err
@@ -53,6 +59,10 @@ func (s *TeamService) CreateTeam(organizationID uuid.UUID, req dto.CreateTeamReq
 
 	if err := s.teamRepo.Create(team); err != nil {
 		return nil, err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.LogCreate(userID, organizationID, "team", team.ID.String(), nil, nil)
 	}
 
 	response := mapTeamResponse(*team)
@@ -91,7 +101,7 @@ func (s *TeamService) GetTeamByID(id, organizationID uuid.UUID) (*dto.TeamRespon
 	return &response, nil
 }
 
-func (s *TeamService) UpdateTeam(id, organizationID uuid.UUID, req dto.UpdateTeamRequest) (*dto.TeamResponse, error) {
+func (s *TeamService) UpdateTeam(actorID uint, id, organizationID uuid.UUID, req dto.UpdateTeamRequest) (*dto.TeamResponse, error) {
 	team, err := s.getOwnedTeam(id, organizationID)
 	if err != nil {
 		return nil, err
@@ -112,6 +122,8 @@ func (s *TeamService) UpdateTeam(id, organizationID uuid.UUID, req dto.UpdateTea
 		}
 	}
 
+	previousName := team.Name
+	previousDescription := team.Description
 	team.Name = name
 	team.Description = description
 
@@ -119,11 +131,20 @@ func (s *TeamService) UpdateTeam(id, organizationID uuid.UUID, req dto.UpdateTea
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		if previousName != name {
+			_ = s.auditService.LogUpdate(actorID, organizationID, "team", team.ID.String(), nil, nil, "name", previousName, name)
+		}
+		if previousDescription != description {
+			_ = s.auditService.LogUpdate(actorID, organizationID, "team", team.ID.String(), nil, nil, "description", previousDescription, description)
+		}
+	}
+
 	response := mapTeamResponse(*team)
 	return &response, nil
 }
 
-func (s *TeamService) DeleteTeam(id, organizationID uuid.UUID) error {
+func (s *TeamService) DeleteTeam(actorID uint, id, organizationID uuid.UUID) error {
 	team, err := s.getOwnedTeam(id, organizationID)
 	if err != nil {
 		return err
@@ -140,10 +161,18 @@ func (s *TeamService) DeleteTeam(id, organizationID uuid.UUID) error {
 		}
 	}
 
-	return s.teamRepo.Delete(team.ID)
+	if err := s.teamRepo.Delete(team.ID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.LogDelete(actorID, organizationID, "team", team.ID.String(), nil, nil)
+	}
+
+	return nil
 }
 
-func (s *TeamService) AddMember(teamID, organizationID uuid.UUID, userID uint) (*dto.TeamMemberResponse, error) {
+func (s *TeamService) AddMember(actorID uint, teamID, organizationID uuid.UUID, userID uint) (*dto.TeamMemberResponse, error) {
 	team, err := s.getOwnedTeam(teamID, organizationID)
 	if err != nil {
 		return nil, err
@@ -177,6 +206,17 @@ func (s *TeamService) AddMember(teamID, organizationID uuid.UUID, userID uint) (
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         actorID,
+			OrganizationID: organizationID,
+			EntityType:     "team_member",
+			EntityID:       member.ID.String(),
+			Action:         models.AuditActionCreate,
+			AfterState:     marshalAuditState(map[string]any{"teamId": team.ID.String(), "userId": user.ID, "email": user.Email}),
+		})
+	}
+
 	response := dto.TeamMemberResponse{
 		ID:        member.ID.String(),
 		TeamID:    member.TeamID.String(),
@@ -189,7 +229,7 @@ func (s *TeamService) AddMember(teamID, organizationID uuid.UUID, userID uint) (
 	return &response, nil
 }
 
-func (s *TeamService) RemoveMember(teamID, organizationID uuid.UUID, userID uint) error {
+func (s *TeamService) RemoveMember(actorID uint, teamID, organizationID uuid.UUID, userID uint) error {
 	team, err := s.getOwnedTeam(teamID, organizationID)
 	if err != nil {
 		return err
@@ -203,7 +243,22 @@ func (s *TeamService) RemoveMember(teamID, organizationID uuid.UUID, userID uint
 		return apperrors.ErrTeamMemberNotFound
 	}
 
-	return s.teamMemberRepo.RemoveMember(team.ID, userID)
+	if err := s.teamMemberRepo.RemoveMember(team.ID, userID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         actorID,
+			OrganizationID: organizationID,
+			EntityType:     "team_member",
+			EntityID:       team.ID.String(),
+			Action:         models.AuditActionDelete,
+			BeforeState:    marshalAuditState(map[string]any{"teamId": team.ID.String(), "userId": userID}),
+		})
+	}
+
+	return nil
 }
 
 func (s *TeamService) ListMembers(teamID, organizationID uuid.UUID) (*dto.TeamMemberListResponse, error) {

@@ -17,15 +17,36 @@ import (
 )
 
 type ApplicationService struct {
-	repo        *repository.ApplicationRepository
-	projectRepo *repository.ProjectRepository
+	repo         *repository.ApplicationRepository
+	projectRepo  *repository.ProjectRepository
+	auditService *AuditService
 }
 
 func NewApplicationService(repo *repository.ApplicationRepository, projectRepo *repository.ProjectRepository) *ApplicationService {
 	return &ApplicationService{repo: repo, projectRepo: projectRepo}
 }
 
-func (s *ApplicationService) CreateApplication(ctx context.Context, projectID uuid.UUID, organizationID uuid.UUID, req dto.CreateApplicationRequest) (*dto.ApplicationResponse, error) {
+func (s *ApplicationService) WithAuditService(auditService *AuditService) *ApplicationService {
+	s.auditService = auditService
+	return s
+}
+
+// applicationAuditSnapshot builds the safe (no secrets - Application has
+// none anyway) subset of fields worth recording in an audit before/after
+// state, reused by Create/Update/Delete so all three describe the record
+// identically.
+func applicationAuditSnapshot(application *models.Application) map[string]any {
+	return map[string]any{
+		"name":        application.Name,
+		"slug":        application.Slug,
+		"runtime":     application.Runtime,
+		"status":      application.Status,
+		"environment": application.Environment,
+		"port":        application.Port,
+	}
+}
+
+func (s *ApplicationService) CreateApplication(ctx context.Context, projectID uuid.UUID, organizationID uuid.UUID, userID uint, req dto.CreateApplicationRequest) (*dto.ApplicationResponse, error) {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		return nil, apperrors.ErrInvalidApplicationName
@@ -103,17 +124,31 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, projectID uu
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         userID,
+			OrganizationID: organizationID,
+			ProjectID:      &application.ProjectID,
+			ApplicationID:  &application.ID,
+			EntityType:     "application",
+			EntityID:       application.ID.String(),
+			Action:         models.AuditActionCreate,
+			AfterState:     marshalAuditState(applicationAuditSnapshot(application)),
+		})
+	}
+
 	response := mapper.MapApplication(*application)
 	return &response, nil
 }
 
-func (s *ApplicationService) UpdateApplication(ctx context.Context, id uuid.UUID, organizationID uuid.UUID, req dto.UpdateApplicationRequest) (*dto.ApplicationResponse, error) {
+func (s *ApplicationService) UpdateApplication(ctx context.Context, id uuid.UUID, organizationID uuid.UUID, userID uint, req dto.UpdateApplicationRequest) (*dto.ApplicationResponse, error) {
 	application, err := s.getOwnedApplication(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
 
 	previousSlug := application.Slug
+	beforeState := applicationAuditSnapshot(application)
 
 	if name := strings.TrimSpace(req.Name); name != "" {
 		application.Name = name
@@ -186,17 +221,48 @@ func (s *ApplicationService) UpdateApplication(ctx context.Context, id uuid.UUID
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         userID,
+			OrganizationID: organizationID,
+			ProjectID:      &application.ProjectID,
+			ApplicationID:  &application.ID,
+			EntityType:     "application",
+			EntityID:       application.ID.String(),
+			Action:         models.AuditActionUpdate,
+			BeforeState:    marshalAuditState(beforeState),
+			AfterState:     marshalAuditState(applicationAuditSnapshot(application)),
+		})
+	}
+
 	response := mapper.MapApplication(*application)
 	return &response, nil
 }
 
-func (s *ApplicationService) DeleteApplication(ctx context.Context, id uuid.UUID, organizationID uuid.UUID) error {
+func (s *ApplicationService) DeleteApplication(ctx context.Context, id uuid.UUID, organizationID uuid.UUID, userID uint) error {
 	application, err := s.getOwnedApplication(id, organizationID)
 	if err != nil {
 		return err
 	}
 
-	return s.repo.DeleteApplication(application.ID, organizationID)
+	if err := s.repo.DeleteApplication(application.ID, organizationID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         userID,
+			OrganizationID: organizationID,
+			ProjectID:      &application.ProjectID,
+			ApplicationID:  &application.ID,
+			EntityType:     "application",
+			EntityID:       application.ID.String(),
+			Action:         models.AuditActionDelete,
+			BeforeState:    marshalAuditState(applicationAuditSnapshot(application)),
+		})
+	}
+
+	return nil
 }
 
 func (s *ApplicationService) GetApplication(id uuid.UUID, organizationID uuid.UUID) (*dto.ApplicationResponse, error) {
@@ -215,6 +281,26 @@ func (s *ApplicationService) ListApplicationsByProject(projectID uuid.UUID, orga
 	}
 
 	applications, total, err := s.repo.ListApplicationsByProject(projectID, organizationID, req)
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := int((total + int64(req.Limit) - 1) / int64(req.Limit))
+	return &dto.ApplicationListResponse{
+		Items:      mapper.MapApplications(applications),
+		Page:       req.Page,
+		Limit:      req.Limit,
+		Total:      total,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// ListApplications returns every application in the organization, optionally
+// narrowed to one project - the org-wide dashboard uses this without a
+// projectId; ListApplicationsByProject remains the dedicated per-project
+// listing used elsewhere.
+func (s *ApplicationService) ListApplications(organizationID uuid.UUID, req *models.PaginationRequest) (*dto.ApplicationListResponse, error) {
+	applications, total, err := s.repo.ListApplicationsByOrganization(organizationID, req)
 	if err != nil {
 		return nil, err
 	}

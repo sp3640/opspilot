@@ -1,8 +1,6 @@
-export { DashboardHero } from "./dashboard-hero";
-export { HealthItem } from "./health-item";
-export { MetricBadge } from "./metric-badge";
-export { MetricsGrid } from "./metrics-grid";
-export { QuickActions } from "./quick-actions";
-export { RecentActivity } from "./recent-activity";
+export { DashboardHealthBanner } from "./dashboard-health-banner";
+export { DashboardProblems } from "./dashboard-problems";
+export { DashboardRecentActivity } from "./dashboard-recent-activity";
+export { DashboardStatGrid } from "./dashboard-stat-grid";
+export { DashboardWorkspace } from "./dashboard-workspace";
 export { SectionCard } from "./section-card";
-export { SystemHealth } from "./system-health";

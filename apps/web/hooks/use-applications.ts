@@ -14,10 +14,21 @@ import type {
 
 const applicationKeys = {
   all: ["applications"] as const,
+  orgList: (params: ApplicationQueryParams) => ["applications", "org-list", params] as const,
   list: (projectId: string, params: ApplicationQueryParams) =>
     ["applications", "list", projectId, params] as const,
   detail: (id: string) => ["applications", "detail", id] as const,
 };
+
+export function useApplications(params: ApplicationQueryParams, queryEnabled = true) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  return useQuery({
+    queryKey: applicationKeys.orgList(params),
+    queryFn: () => applicationService.listApplications(params),
+    enabled: queryEnabled && Boolean(accessToken),
+  });
+}
 
 export function useApplicationsByProject(
   projectId: string | null,

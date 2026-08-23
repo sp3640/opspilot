@@ -35,17 +35,25 @@ type UpdateIncidentRequest struct {
 // IncidentResponse is the canonical API representation of an incident.
 // It never exposes internal database fields such as UserID or raw foreign keys.
 type IncidentResponse struct {
-	ID            uint       `json:"id"`
-	Title         string     `json:"title"`
-	Description   string     `json:"description"`
-	Severity      string     `json:"severity"`
-	Status        string     `json:"status"`
-	ProjectID     string     `json:"projectId"`
-	ApplicationID *string    `json:"applicationId,omitempty"`
-	OwnerTeamID   *string    `json:"ownerTeamId,omitempty"`
-	ResolvedAt    *time.Time `json:"resolvedAt,omitempty"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	UpdatedAt     time.Time  `json:"updatedAt"`
+	ID             uint       `json:"id"`
+	Title          string     `json:"title"`
+	Description    string     `json:"description"`
+	Severity       string     `json:"severity"`
+	Status         string     `json:"status"`
+	ProjectID      string     `json:"projectId"`
+	ApplicationID  *string    `json:"applicationId,omitempty"`
+	OwnerTeamID    *string    `json:"ownerTeamId,omitempty"`
+	AssigneeID     *uint      `json:"assigneeId,omitempty"`
+	AcknowledgedAt *time.Time `json:"acknowledgedAt,omitempty"`
+	ResolvedAt     *time.Time `json:"resolvedAt,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+}
+
+// AssignIncidentRequest is the validated input for assigning an incident to
+// a specific user (distinct from OwnerTeamID, which assigns a whole team).
+type AssignIncidentRequest struct {
+	AssigneeUserID uint `json:"assignee_user_id" binding:"required"`
 }
 
 // IncidentSummaryResponse is a lightweight representation used in list contexts

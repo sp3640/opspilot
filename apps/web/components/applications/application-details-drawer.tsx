@@ -14,6 +14,7 @@ import {
   ScrollText,
   Server,
   ShieldCheck,
+  Target,
   Users,
   type LucideIcon,
   X,
@@ -30,6 +31,7 @@ import { ApplicationDeployments } from "./application-deployments";
 import { ApplicationEvents } from "./application-events";
 import { ApplicationHealth } from "./application-health";
 import { ApplicationIngresses } from "./application-ingresses";
+import { ApplicationSLO } from "./application-slo";
 import { ApplicationLogs } from "./application-logs";
 import { ApplicationMetricsDashboard } from "./application-metrics-dashboard";
 import { ApplicationPods } from "./application-pods";
@@ -55,6 +57,7 @@ const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Runtime Deployments", icon: Server },
   { label: "Events", icon: Cpu },
   { label: "Teams", icon: Users },
+  { label: "SLO", icon: Target },
 ];
 
 /** Right-side application context. Only Overview renders real content today. */
@@ -224,7 +227,6 @@ export function ApplicationDetailsDrawer({
             <div className="space-y-6">
               <ApplicationHealth
                 applicationId={application.id}
-                projectId={application.projectId}
                 status={application.status}
                 environment={application.environment}
               />
@@ -301,6 +303,8 @@ export function ApplicationDetailsDrawer({
             <ApplicationRuntimeDeployments applicationId={application.id} />
           ) : activeTab === "Events" ? (
             <ApplicationEvents applicationId={application.id} />
+          ) : activeTab === "SLO" ? (
+            <ApplicationSLO applicationId={application.id} />
           ) : (
             <div
               className="flex min-h-56 items-center justify-center rounded-2xl border p-6 text-center text-sm"

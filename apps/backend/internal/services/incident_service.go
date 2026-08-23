@@ -17,12 +17,14 @@ import (
 )
 
 type IncidentService struct {
-	repo            *repository.IncidentRepository
-	commentRepo     *repository.CommentRepository
-	auditStorage    *repository.AuditRepository
-	auditRepo       *AuditService
-	applicationRepo *repository.ApplicationRepository
-	teamRepo        *repository.TeamRepository
+	repo                *repository.IncidentRepository
+	commentRepo         *repository.CommentRepository
+	auditStorage        *repository.AuditRepository
+	auditRepo           *AuditService
+	applicationRepo     *repository.ApplicationRepository
+	teamRepo            *repository.TeamRepository
+	userRepo            *repository.UserRepository
+	notificationService *NotificationService
 }
 
 func NewIncidentService(
@@ -50,6 +52,21 @@ func (s *IncidentService) WithApplicationRepo(applicationRepo *repository.Applic
 // WithTeamRepo enables validating/resolving Incident.OwnerTeamID.
 func (s *IncidentService) WithTeamRepo(teamRepo *repository.TeamRepository) *IncidentService {
 	s.teamRepo = teamRepo
+	return s
+}
+
+// WithUserRepo enables validating that an AssignIncident target belongs to
+// the incident's organization. Without it, assignment is unavailable.
+func (s *IncidentService) WithUserRepo(userRepo *repository.UserRepository) *IncidentService {
+	s.userRepo = userRepo
+	return s
+}
+
+// WithNotificationService enables firing SEV1_INCIDENT and
+// INCIDENT_ASSIGNED notifications. Optional: without it, incidents are
+// still created/updated/assigned normally, just without notification fan-out.
+func (s *IncidentService) WithNotificationService(notificationService *NotificationService) *IncidentService {
+	s.notificationService = notificationService
 	return s
 }
 
@@ -154,6 +171,10 @@ func (s *IncidentService) CreateIncident(ctx context.Context, title, description
 		if err := s.auditRepo.LogCreate(userID, organizationID, "incident", strconv.FormatUint(uint64(incident.ID), 10), &projectID, nil); err != nil {
 			logAuditFailure(ctx, "create", "incident", incident.ID, err)
 		}
+	}
+
+	if s.notificationService != nil && incident.Severity == constants.SeverityP0 {
+		s.notificationService.NotifySev1Incident(ctx, incident, userID)
 	}
 
 	response := mapper.MapIncident(*incident)
@@ -295,6 +316,97 @@ func (s *IncidentService) UpdateIncident(ctx context.Context, id, userID uint, o
 			if err := s.auditRepo.LogUpdate(userID, organizationID, "incident", entityIDStr, &projectID, nil, "owner_team_id", uuidPointerString(previousOwnerTeamID), uuidPointerString(ownerTeamID)); err != nil {
 				logAuditFailure(ctx, "update", "incident", incident.ID, err)
 			}
+		}
+	}
+
+	if s.notificationService != nil && severity == constants.SeverityP0 && previousSeverity != constants.SeverityP0 {
+		s.notificationService.NotifySev1Incident(ctx, incident, userID)
+	}
+
+	response := mapper.MapIncident(*incident)
+	return &response, nil
+}
+
+// AssignIncident sets the user responsible for driving this incident to
+// resolution (distinct from OwnerTeamID, which team) and fires an
+// INCIDENT_ASSIGNED notification.
+func (s *IncidentService) AssignIncident(ctx context.Context, id, actorID uint, organizationID uuid.UUID, assigneeUserID uint) (*dto.IncidentResponse, error) {
+	incident, err := s.repo.GetByIDAndOrganizationID(id, organizationID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrProjectForbidden) {
+			return nil, apperrors.ErrProjectForbidden
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrIncidentNotFound
+		}
+		return nil, err
+	}
+
+	if s.userRepo == nil {
+		return nil, apperrors.ErrIncidentAssigneeNotFound
+	}
+	assignee, err := s.userRepo.GetByID(assigneeUserID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrIncidentAssigneeNotFound
+		}
+		return nil, err
+	}
+	if assignee.OrganizationID == nil || *assignee.OrganizationID != organizationID {
+		return nil, apperrors.ErrIncidentAssigneeNotFound
+	}
+
+	previousAssigneeID := incident.AssigneeID
+	incident.AssigneeID = &assigneeUserID
+	if err := s.repo.Update(incident); err != nil {
+		return nil, err
+	}
+
+	if s.auditRepo != nil {
+		entityIDStr := strconv.FormatUint(uint64(incident.ID), 10)
+		if err := s.auditRepo.LogUpdate(actorID, organizationID, "incident", entityIDStr, &incident.ProjectID, nil, "assignee_id", uintPointerString(previousAssigneeID), strconv.FormatUint(uint64(assigneeUserID), 10)); err != nil {
+			logAuditFailure(ctx, "assign", "incident", incident.ID, err)
+		}
+	}
+
+	if s.notificationService != nil {
+		s.notificationService.NotifyIncidentAssigned(ctx, incident, assigneeUserID, actorID)
+	}
+
+	response := mapper.MapIncident(*incident)
+	return &response, nil
+}
+
+// AcknowledgeIncident records the first time an incident is acknowledged -
+// the source data for the MTTA SRE metric. Idempotent: acknowledging an
+// already-acknowledged incident is a no-op that returns its current state.
+func (s *IncidentService) AcknowledgeIncident(ctx context.Context, id, actorID uint, organizationID uuid.UUID) (*dto.IncidentResponse, error) {
+	incident, err := s.repo.GetByIDAndOrganizationID(id, organizationID)
+	if err != nil {
+		if errors.Is(err, apperrors.ErrProjectForbidden) {
+			return nil, apperrors.ErrProjectForbidden
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.ErrIncidentNotFound
+		}
+		return nil, err
+	}
+
+	if incident.AcknowledgedAt != nil {
+		response := mapper.MapIncident(*incident)
+		return &response, nil
+	}
+
+	now := time.Now().UTC()
+	incident.AcknowledgedAt = &now
+	if err := s.repo.Update(incident); err != nil {
+		return nil, err
+	}
+
+	if s.auditRepo != nil {
+		entityIDStr := strconv.FormatUint(uint64(incident.ID), 10)
+		if err := s.auditRepo.LogUpdate(actorID, organizationID, "incident", entityIDStr, &incident.ProjectID, nil, "acknowledged_at", "", now.Format(time.RFC3339)); err != nil {
+			logAuditFailure(ctx, "acknowledge", "incident", incident.ID, err)
 		}
 	}
 

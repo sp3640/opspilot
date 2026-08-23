@@ -21,17 +21,19 @@ func MapIncident(i models.Incident) dto.IncidentResponse {
 	}
 
 	return dto.IncidentResponse{
-		ID:            i.ID,
-		Title:         i.Title,
-		Description:   i.Description,
-		Severity:      i.Severity,
-		Status:        i.Status,
-		ProjectID:     i.ProjectID.String(),
-		ApplicationID: applicationID,
-		OwnerTeamID:   ownerTeamID,
-		ResolvedAt:    i.ResolvedAt,
-		CreatedAt:     i.CreatedAt,
-		UpdatedAt:     i.UpdatedAt,
+		ID:             i.ID,
+		Title:          i.Title,
+		Description:    i.Description,
+		Severity:       i.Severity,
+		Status:         i.Status,
+		ProjectID:      i.ProjectID.String(),
+		ApplicationID:  applicationID,
+		OwnerTeamID:    ownerTeamID,
+		AssigneeID:     i.AssigneeID,
+		AcknowledgedAt: i.AcknowledgedAt,
+		ResolvedAt:     i.ResolvedAt,
+		CreatedAt:      i.CreatedAt,
+		UpdatedAt:      i.UpdatedAt,
 	}
 }
 

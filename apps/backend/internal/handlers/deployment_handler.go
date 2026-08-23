@@ -194,7 +194,8 @@ func (h *DeploymentHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.DeleteDeployment(c.Request.Context(), id, organizationID); err != nil {
+	userID := c.MustGet("userID").(uint)
+	if err := h.service.DeleteDeployment(c.Request.Context(), id, organizationID, userID); err != nil {
 		handleDeploymentServiceError(c, err)
 		return
 	}

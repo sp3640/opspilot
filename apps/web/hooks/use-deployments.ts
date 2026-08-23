@@ -12,6 +12,7 @@ import type { CreateDeploymentRequest, DeploymentQueryParams, UpdateDeploymentRe
 const deploymentKeys = {
   all: ["deployments"] as const,
   detail: (id: string) => ["deployments", "detail", id] as const,
+  orgList: (params: DeploymentQueryParams) => ["deployments", "org-list", params] as const,
   list: (applicationId: string, params: DeploymentQueryParams) =>
     ["deployments", "list", applicationId, params] as const,
   latest: (applicationId: string) => ["deployments", "latest", applicationId] as const,
@@ -19,6 +20,16 @@ const deploymentKeys = {
   historyRevision: (deploymentId: string, revision: number) =>
     ["deployments", "history", deploymentId, revision] as const,
 };
+
+export function useDeployments(params: DeploymentQueryParams, queryEnabled = true) {
+  const accessToken = useAuthStore((state) => state.accessToken);
+
+  return useQuery({
+    queryKey: deploymentKeys.orgList(params),
+    queryFn: () => deploymentService.listDeployments(params),
+    enabled: queryEnabled && Boolean(accessToken),
+  });
+}
 
 export function useDeployment(id: string | null, queryEnabled = true) {
   const accessToken = useAuthStore((state) => state.accessToken);

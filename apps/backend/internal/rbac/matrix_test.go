@@ -83,6 +83,7 @@ func TestViewerPermissions(t *testing.T) {
 	for _, permission := range []Permission{
 		PermissionProjectRead, PermissionTeamRead, PermissionClusterRead, PermissionApplicationRead,
 		PermissionDeploymentRead, PermissionIncidentRead, PermissionAlertRead, PermissionAuditRead, PermissionOrganizationRead,
+		PermissionNotificationRead, PermissionSLORead,
 	} {
 		if !HasPermission(role, permission) {
 			t.Fatalf("expected Viewer to hold read permission %q", permission)
@@ -93,7 +94,8 @@ func TestViewerPermissions(t *testing.T) {
 		if permission == PermissionProjectRead || permission == PermissionTeamRead || permission == PermissionClusterRead ||
 			permission == PermissionApplicationRead || permission == PermissionDeploymentRead || permission == PermissionIncidentRead ||
 			permission == PermissionAlertRead || permission == PermissionAuditRead || permission == PermissionOrganizationRead ||
-			permission == PermissionKubernetesRead || permission == PermissionProjectTeamRead || permission == PermissionApplicationTeamRead {
+			permission == PermissionKubernetesRead || permission == PermissionProjectTeamRead || permission == PermissionApplicationTeamRead ||
+			permission == PermissionNotificationRead || permission == PermissionSLORead {
 			continue
 		}
 		if HasPermission(role, permission) {

@@ -23,6 +23,7 @@ type InvitationService struct {
 	repo             *repository.InvitationRepository
 	userRepo         *repository.UserRepository
 	organizationRepo *repository.OrganizationRepository
+	auditService     *AuditService
 }
 
 func NewInvitationService(
@@ -31,6 +32,11 @@ func NewInvitationService(
 	organizationRepo *repository.OrganizationRepository,
 ) *InvitationService {
 	return &InvitationService{repo: repo, userRepo: userRepo, organizationRepo: organizationRepo}
+}
+
+func (s *InvitationService) WithAuditService(auditService *AuditService) *InvitationService {
+	s.auditService = auditService
+	return s
 }
 
 func (s *InvitationService) InviteUser(invitedBy uint, inviterRole string, organizationID uuid.UUID, req dto.InviteRequest) (*dto.InvitationResponse, error) {
@@ -82,6 +88,20 @@ func (s *InvitationService) InviteUser(invitedBy uint, inviterRole string, organ
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		// AfterState deliberately excludes invitation.Token - it is a
+		// bearer credential for accepting the invite and must never appear
+		// in an audit record.
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         invitedBy,
+			OrganizationID: organizationID,
+			EntityType:     "invitation",
+			EntityID:       invitation.ID.String(),
+			Action:         models.AuditActionCreate,
+			AfterState:     marshalAuditState(map[string]string{"email": invitation.Email, "role": invitation.Role}),
+		})
+	}
+
 	response := mapInvitationResponse(*invitation)
 	return &response, nil
 }
@@ -109,10 +129,15 @@ func (s *InvitationService) AcceptInvitation(userID uint, userEmail string, req 
 	}
 
 	now := time.Now().UTC()
+	previousStatus := invitation.Status
 	invitation.Status = models.InvitationStatusAccepted
 	invitation.AcceptedAt = &now
 	if err := s.repo.Update(invitation); err != nil {
 		return nil, err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.LogUpdate(userID, invitation.OrganizationID, "invitation", invitation.ID.String(), nil, nil, "status", string(previousStatus), string(invitation.Status))
 	}
 
 	response := mapInvitationResponse(*invitation)
@@ -195,7 +220,7 @@ func (s *InvitationService) resolveValidInvitation(token, userEmail string) (*mo
 	return invitation, nil
 }
 
-func (s *InvitationService) RevokeInvitation(invitationID uuid.UUID, actorRole string, organizationID uuid.UUID) error {
+func (s *InvitationService) RevokeInvitation(invitationID uuid.UUID, actorRole string, userID uint, organizationID uuid.UUID) error {
 	if !isPlatformAdminRole(actorRole) {
 		return apperrors.ErrInvitationForbidden
 	}
@@ -228,8 +253,17 @@ func (s *InvitationService) RevokeInvitation(invitationID uuid.UUID, actorRole s
 		return apperrors.ErrInvitationExpired
 	}
 
+	previousStatus := invitation.Status
 	invitation.Status = models.InvitationStatusRevoked
-	return s.repo.Update(invitation)
+	if err := s.repo.Update(invitation); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.LogUpdate(userID, organizationID, "invitation", invitation.ID.String(), nil, nil, "status", string(previousStatus), string(invitation.Status))
+	}
+
+	return nil
 }
 
 func (s *InvitationService) ListInvitations(actorRole string, organizationID uuid.UUID, req *models.PaginationRequest) (*dto.InvitationListResponse, error) {

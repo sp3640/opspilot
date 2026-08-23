@@ -17,6 +17,7 @@ import { useHasPermission } from "@/store/auth-store";
 import { DeleteIncidentDialog } from "./delete-incident-dialog";
 import { EditIncidentModal } from "./edit-incident-modal";
 import { IncidentAlerts } from "./incident-alerts";
+import { IncidentAssignment } from "./incident-assignment";
 import { IncidentCombinedTimeline } from "./incident-combined-timeline";
 import { IncidentComments } from "./incident-comments";
 import { IncidentContextChain } from "./incident-context-chain";
@@ -117,6 +118,10 @@ export function IncidentConsole({ incidentID }: { incidentID: number }) {
           applicationName={applicationName}
           ownerTeamName={ownerTeamName}
         />
+      </SectionCard>
+
+      <SectionCard title="Assignment" description="Who owns this incident, and whether it has been acknowledged.">
+        <IncidentAssignment incident={incident} />
       </SectionCard>
 
       <SectionCard title="Affected Services" description="Application, deployment, cluster, and namespace connected to this incident.">

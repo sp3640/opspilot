@@ -43,6 +43,11 @@ export const deploymentService = {
     return response.data.data;
   },
 
+  async listDeployments(params: DeploymentQueryParams): Promise<DeploymentListResponse> {
+    const response = await api.get<APIResponse<DeploymentListResponse>>("/deployments", { params });
+    return response.data.data;
+  },
+
   async listDeploymentsByApplication(
     applicationId: string,
     params: DeploymentQueryParams

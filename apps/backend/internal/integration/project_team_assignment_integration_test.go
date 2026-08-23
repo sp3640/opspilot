@@ -48,7 +48,7 @@ func TestProjectTeamAssignmentIntegration(t *testing.T) {
 	teamB := mustCreateTeamForOrg(t, teamRepo, orgB, "Gamma Team")
 
 	t.Run("Assign Team", func(t *testing.T) {
-		assigned, err := service.AssignTeam(models.RolePlatformAdmin, orgA, projectA.ID, teamA.ID)
+		assigned, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, projectA.ID, teamA.ID)
 		if err != nil {
 			t.Fatalf("assign team: %v", err)
 		}
@@ -61,28 +61,28 @@ func TestProjectTeamAssignmentIntegration(t *testing.T) {
 	})
 
 	t.Run("Duplicate assignment rejected", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RolePlatformAdmin, orgA, projectA.ID, teamA.ID)
+		_, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, projectA.ID, teamA.ID)
 		if !errors.Is(err, apperrors.ErrProjectTeamAlreadyAssigned) {
 			t.Fatalf("expected ErrProjectTeamAlreadyAssigned, got %v", err)
 		}
 	})
 
 	t.Run("Cross-organization assignment rejected", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RolePlatformAdmin, orgA, projectA.ID, teamB.ID)
+		_, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, projectA.ID, teamB.ID)
 		if !errors.Is(err, apperrors.ErrProjectForbidden) {
 			t.Fatalf("expected ErrProjectForbidden, got %v", err)
 		}
 	})
 
 	t.Run("Viewer forbidden to assign", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RoleViewer, orgA, projectA.ID, teamA2.ID)
+		_, err := service.AssignTeam(models.RoleViewer, userA.ID, orgA, projectA.ID, teamA2.ID)
 		if !errors.Is(err, apperrors.ErrProjectForbidden) {
 			t.Fatalf("expected ErrProjectForbidden, got %v", err)
 		}
 	})
 
 	t.Run("Admin allowed", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RolePlatformAdmin, orgA, projectA.ID, teamA2.ID)
+		_, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, projectA.ID, teamA2.ID)
 		if err != nil {
 			t.Fatalf("admin assign should succeed: %v", err)
 		}
@@ -119,7 +119,7 @@ func TestProjectTeamAssignmentIntegration(t *testing.T) {
 	})
 
 	t.Run("Remove assignment", func(t *testing.T) {
-		if err := service.RemoveTeam(models.RolePlatformAdmin, orgA, projectA.ID, teamA2.ID); err != nil {
+		if err := service.RemoveTeam(models.RolePlatformAdmin, adminA.ID, orgA, projectA.ID, teamA2.ID); err != nil {
 			t.Fatalf("remove team assignment: %v", err)
 		}
 

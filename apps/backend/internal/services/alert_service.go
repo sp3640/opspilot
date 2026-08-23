@@ -24,9 +24,10 @@ import (
 )
 
 type AlertService struct {
-	repo         *repository.AlertRepository
-	incidentRepo *repository.IncidentRepository
-	auditRepo    *AuditService
+	repo                *repository.AlertRepository
+	incidentRepo        *repository.IncidentRepository
+	auditRepo           *AuditService
+	notificationService *NotificationService
 }
 
 func NewAlertService(repo *repository.AlertRepository, incidentRepo *repository.IncidentRepository, auditService *AuditService) *AlertService {
@@ -35,6 +36,15 @@ func NewAlertService(repo *repository.AlertRepository, incidentRepo *repository.
 		incidentRepo: incidentRepo,
 		auditRepo:    auditService,
 	}
+}
+
+// WithNotificationService enables firing a CRITICAL_ALERT notification the
+// moment a new critical alert is created, or an existing alert escalates to
+// critical severity. Optional: without it, alerts are still created/updated
+// normally, just without any notification fan-out.
+func (s *AlertService) WithNotificationService(notificationService *NotificationService) *AlertService {
+	s.notificationService = notificationService
+	return s
 }
 
 func GenerateFingerprint(projectID uuid.UUID, resourceType, resourceID, severity, title string) string {
@@ -169,6 +179,10 @@ func (s *AlertService) CreateAlert(
 		}
 	}
 
+	if s.notificationService != nil && alert.Severity == constants.AlertSeverityCritical {
+		s.notificationService.NotifyCriticalAlert(ctx, alert, userID)
+	}
+
 	response := mapper.MapAlert(*alert)
 	return &response, nil
 }
@@ -291,6 +305,10 @@ func (s *AlertService) UpdateAlert(
 				logAuditFailure(ctx, "update", "alert", alert.ID, err)
 			}
 		}
+	}
+
+	if s.notificationService != nil && alert.Severity == constants.AlertSeverityCritical && previousSeverity != constants.AlertSeverityCritical {
+		s.notificationService.NotifyCriticalAlert(ctx, alert, userID)
 	}
 
 	response := mapper.MapAlert(*alert)

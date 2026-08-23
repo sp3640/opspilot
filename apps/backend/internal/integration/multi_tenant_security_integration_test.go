@@ -377,6 +377,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 		nil,
 		nil,
 		nil,
+		nil,
 		deploymentHandler,
 		deploymentHistoryHandler,
 		teamHandler,
@@ -392,6 +393,8 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 		commentHandler,
 		auditHandler,
 		dashboardHandler,
+		nil,
+		nil,
 		healthHandler,
 		collector,
 	)

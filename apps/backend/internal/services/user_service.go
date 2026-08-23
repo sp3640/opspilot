@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ type UserService struct {
 	organizationRepo *repository.OrganizationRepository
 	invitationRepo   *repository.InvitationRepository
 	cfg              *config.Config
+	auditService     *AuditService
 }
 
 func NewUserService(
@@ -37,6 +39,11 @@ func NewUserService(
 		invitationRepo:   invitationRepo,
 		cfg:              cfg,
 	}
+}
+
+func (s *UserService) WithAuditService(auditService *AuditService) *UserService {
+	s.auditService = auditService
+	return s
 }
 
 // Register creates a new user through exactly one of two explicit paths:
@@ -156,14 +163,22 @@ func (s *UserService) findValidPendingInvitation(email string) (*models.Invitati
 	return invitation, nil
 }
 
-// Login authenticates a user and returns a JWT token
-func (s *UserService) Login(email, password string) (string, error) {
+// Login authenticates a user and returns a JWT token. ipAddress/userAgent
+// are captured on a best-effort basis from the originating request purely
+// for the audit trail (Phase 23) - an empty value is recorded as-is, never
+// fabricated.
+func (s *UserService) Login(email, password, ipAddress, userAgent string) (string, error) {
 
 	// Normalize email before searching
 	email = strings.TrimSpace(strings.ToLower(email))
 
 	user, err := s.repo.GetByEmail(email)
 	if err != nil {
+		// No user record exists for this email, so there is no organization
+		// to attach an audit entry to (AuditLog.OrganizationID is required,
+		// and inventing one would violate organization isolation) - this
+		// attempt is therefore not audited, unlike a failed attempt against
+		// a real account below.
 		return "", apperrors.ErrInvalidCredentials
 	}
 
@@ -172,6 +187,7 @@ func (s *UserService) Login(email, password string) (string, error) {
 		[]byte(password),
 	)
 	if err != nil {
+		s.logLoginAttempt(user, models.AuditResultFailure, ipAddress, userAgent)
 		return "", apperrors.ErrInvalidCredentials
 	}
 
@@ -186,8 +202,33 @@ func (s *UserService) Login(email, password string) (string, error) {
 		return "", err
 	}
 
+	s.logLoginAttempt(user, models.AuditResultSuccess, ipAddress, userAgent)
+
 	return token, nil
 }
+
+// logLoginAttempt records a login success/failure for a KNOWN user account
+// (one that exists and therefore has a real organization to scope the entry
+// to). Best-effort: a write failure never fails the login itself.
+func (s *UserService) logLoginAttempt(user *models.User, result models.AuditResult, ipAddress, userAgent string) {
+	if s.auditService == nil || user.OrganizationID == nil {
+		return
+	}
+
+	_ = s.auditService.LogEvent(AuditEventInput{
+		UserID:         user.ID,
+		OrganizationID: *user.OrganizationID,
+		EntityType:     "auth",
+		EntityID:       strconv.FormatUint(uint64(user.ID), 10),
+		Action:         models.AuditActionLogin,
+		Result:         result,
+		FieldName:      "email",
+		NewValue:       user.Email,
+		IPAddress:      ipAddress,
+		UserAgent:      userAgent,
+	})
+}
+
 func (s *UserService) GetCurrentUser(id uint) (*models.User, error) {
 
 	user, err := s.repo.GetByIDWithOrganization(id)

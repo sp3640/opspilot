@@ -16,6 +16,7 @@ type ApplicationTeamService struct {
 	applicationTeamRepo *repository.ApplicationTeamRepository
 	applicationRepo     *repository.ApplicationRepository
 	teamRepo            *repository.TeamRepository
+	auditService        *AuditService
 }
 
 func NewApplicationTeamService(
@@ -30,7 +31,12 @@ func NewApplicationTeamService(
 	}
 }
 
-func (s *ApplicationTeamService) AssignTeam(actorRole string, organizationID, applicationID, teamID uuid.UUID) (*dto.ApplicationTeamResponse, error) {
+func (s *ApplicationTeamService) WithAuditService(auditService *AuditService) *ApplicationTeamService {
+	s.auditService = auditService
+	return s
+}
+
+func (s *ApplicationTeamService) AssignTeam(actorRole string, actorID uint, organizationID, applicationID, teamID uuid.UUID) (*dto.ApplicationTeamResponse, error) {
 	if !isApplicationTeamPlatformAdminRole(actorRole) {
 		return nil, apperrors.ErrApplicationForbidden
 	}
@@ -72,11 +78,23 @@ func (s *ApplicationTeamService) AssignTeam(actorRole string, organizationID, ap
 		return nil, err
 	}
 
+	if s.auditService != nil {
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         actorID,
+			OrganizationID: organizationID,
+			ApplicationID:  &applicationID,
+			EntityType:     "application_team",
+			EntityID:       mapping.ID.String(),
+			Action:         models.AuditActionCreate,
+			AfterState:     marshalAuditState(map[string]any{"applicationId": applicationID.String(), "teamId": teamID.String()}),
+		})
+	}
+
 	response := mapApplicationTeamResponse(*mapping)
 	return &response, nil
 }
 
-func (s *ApplicationTeamService) RemoveTeam(actorRole string, organizationID, applicationID, teamID uuid.UUID) error {
+func (s *ApplicationTeamService) RemoveTeam(actorRole string, actorID uint, organizationID, applicationID, teamID uuid.UUID) error {
 	if !isApplicationTeamPlatformAdminRole(actorRole) {
 		return apperrors.ErrApplicationForbidden
 	}
@@ -99,7 +117,23 @@ func (s *ApplicationTeamService) RemoveTeam(actorRole string, organizationID, ap
 		return apperrors.ErrApplicationForbidden
 	}
 
-	return s.applicationTeamRepo.RemoveTeam(applicationID, teamID, organizationID)
+	if err := s.applicationTeamRepo.RemoveTeam(applicationID, teamID, organizationID); err != nil {
+		return err
+	}
+
+	if s.auditService != nil {
+		_ = s.auditService.LogEvent(AuditEventInput{
+			UserID:         actorID,
+			OrganizationID: organizationID,
+			ApplicationID:  &applicationID,
+			EntityType:     "application_team",
+			EntityID:       applicationID.String(),
+			Action:         models.AuditActionDelete,
+			BeforeState:    marshalAuditState(map[string]any{"applicationId": applicationID.String(), "teamId": teamID.String()}),
+		})
+	}
+
+	return nil
 }
 
 func (s *ApplicationTeamService) ListApplicationTeams(actorRole string, organizationID, applicationID uuid.UUID) (*dto.ApplicationTeamListResponse, error) {

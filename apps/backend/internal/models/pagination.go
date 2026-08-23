@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -31,6 +32,15 @@ type PaginationRequest struct {
 	IncidentID uint      `json:"incident_id"`
 	Action     string    `json:"action"`
 	EntityType string    `json:"entity_type"`
+	// Audit-log filters (Phase 23). UserID/ApplicationID/DateFrom/DateTo are
+	// set directly by handlers (mirroring how ProjectID/IncidentID already
+	// work) rather than parsed generically here, since only audit endpoints
+	// use them.
+	UserID        uint       `json:"user_id"`
+	ApplicationID uuid.UUID  `json:"application_id"`
+	Result        string     `json:"result"`
+	DateFrom      *time.Time `json:"date_from"`
+	DateTo        *time.Time `json:"date_to"`
 }
 
 func (p *PaginationRequest) Normalize() {
@@ -60,6 +70,7 @@ func (p *PaginationRequest) Normalize() {
 	p.Source = strings.TrimSpace(strings.ToUpper(p.Source))
 	p.Action = strings.TrimSpace(strings.ToUpper(p.Action))
 	p.EntityType = strings.TrimSpace(strings.ToLower(p.EntityType))
+	p.Result = strings.TrimSpace(strings.ToUpper(p.Result))
 }
 
 // Validate normalizes defaults and rejects values that could cause inefficient
@@ -106,6 +117,7 @@ func ParsePagination(values url.Values, allowedSortFields ...string) (*Paginatio
 		Source:     values.Get("source"),
 		Action:     values.Get("action"),
 		EntityType: values.Get("entityType"),
+		Result:     values.Get("result"),
 	}
 
 	var err error

@@ -149,6 +149,7 @@ func (s *DeploymentService) CreateDeployment(ctx context.Context, organizationID
 	if err := s.historyService.CreateHistoryFromDeployment(deployment, "Deployment created", userID); err != nil {
 		return nil, err
 	}
+	s.logAuditEvent(ctx, deployment, userID, models.AuditActionCreate, "", deploymentAuditSnapshot(deployment))
 
 	if s.executor != nil {
 		executedDeployment, err := s.executor.ExecuteDeployment(ctx, deployment.ID, organizationID, userID)
@@ -163,11 +164,11 @@ func (s *DeploymentService) CreateDeployment(ctx context.Context, organizationID
 }
 
 func (s *DeploymentService) UpdateDeployment(ctx context.Context, id, organizationID uuid.UUID, userID uint, req dto.UpdateDeploymentRequest) (*dto.DeploymentResponse, error) {
-	_ = ctx
 	deployment, err := s.getOwnedDeployment(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
+	beforeState := deploymentAuditSnapshot(deployment)
 
 	if req.Image != nil {
 		image := strings.TrimSpace(*req.Image)
@@ -233,6 +234,7 @@ func (s *DeploymentService) UpdateDeployment(ctx context.Context, id, organizati
 	if err := s.historyService.CreateHistoryFromDeployment(deployment, "Deployment updated", userID); err != nil {
 		return nil, err
 	}
+	s.logAuditEvent(ctx, deployment, userID, models.AuditActionUpdate, beforeState, deploymentAuditSnapshot(deployment))
 
 	response := mapper.MapDeployment(*deployment)
 	return &response, nil
@@ -265,14 +267,19 @@ func (s *DeploymentService) CancelDeployment(ctx context.Context, id, organizati
 	return &response, nil
 }
 
-func (s *DeploymentService) DeleteDeployment(ctx context.Context, id, organizationID uuid.UUID) error {
-	_ = ctx
+func (s *DeploymentService) DeleteDeployment(ctx context.Context, id, organizationID uuid.UUID, userID uint) error {
 	deployment, err := s.getOwnedDeployment(id, organizationID)
 	if err != nil {
 		return err
 	}
 
-	return s.repo.Delete(deployment.ID, organizationID)
+	if err := s.repo.Delete(deployment.ID, organizationID); err != nil {
+		return err
+	}
+
+	s.logAuditEvent(ctx, deployment, userID, models.AuditActionDelete, deploymentAuditSnapshot(deployment), "")
+
+	return nil
 }
 
 func (s *DeploymentService) GetDeployment(id, organizationID uuid.UUID) (*dto.DeploymentResponse, error) {
@@ -327,11 +334,11 @@ func (s *DeploymentService) ListProjectDeployments(projectID, organizationID uui
 }
 
 func (s *DeploymentService) UpdateDeploymentStatus(ctx context.Context, id, organizationID uuid.UUID, userID uint, status string) (*dto.DeploymentResponse, error) {
-	_ = ctx
 	deployment, err := s.getOwnedDeployment(id, organizationID)
 	if err != nil {
 		return nil, err
 	}
+	previousStatus := deployment.Status
 
 	normalizedStatus, ok := constants.NormalizeDeploymentStatus(status)
 	if !ok {
@@ -371,6 +378,9 @@ func (s *DeploymentService) UpdateDeploymentStatus(ctx context.Context, id, orga
 		if err := s.historyService.CreateHistoryFromDeployment(deployment, "Deployment status changed to "+normalizedStatus, userID); err != nil {
 			return nil, err
 		}
+	}
+	if previousStatus != normalizedStatus {
+		s.logAuditBestEffort(ctx, deployment, userID, "status", previousStatus, normalizedStatus)
 	}
 
 	response := mapper.MapDeployment(*deployment)
@@ -551,6 +561,54 @@ func (s *DeploymentService) logAuditBestEffort(ctx context.Context, deployment *
 			slog.Any("error", err),
 		)
 	}
+}
+
+// logAuditEvent records a create/update/delete against a deployment,
+// including the ApplicationID cross-reference (so the Organization/Project
+// Audit views can filter "everything touching this application") and an
+// optional before/after snapshot. Best-effort, matching logAuditBestEffort.
+func (s *DeploymentService) logAuditEvent(ctx context.Context, deployment *models.Deployment, userID uint, action models.AuditAction, beforeState, afterState string) {
+	if s.auditService == nil {
+		return
+	}
+
+	if err := s.auditService.LogEvent(AuditEventInput{
+		UserID:         userID,
+		OrganizationID: deployment.OrganizationID,
+		ProjectID:      &deployment.ProjectID,
+		ApplicationID:  &deployment.ApplicationID,
+		EntityType:     "deployment",
+		EntityID:       deployment.ID.String(),
+		Action:         action,
+		BeforeState:    beforeState,
+		AfterState:     afterState,
+	}); err != nil {
+		logger.Error(
+			ctx,
+			"audit logging failed",
+			slog.String("operation", string(action)),
+			slog.String("entity_type", "deployment"),
+			slog.String("entity_id", deployment.ID.String()),
+			slog.Any("error", err),
+		)
+	}
+}
+
+// deploymentAuditSnapshot builds the safe subset of fields worth recording
+// in a deployment's audit before/after state. Excludes nothing sensitive -
+// deployments carry no secrets - but stays limited to fields a reviewer
+// would actually care about, not the full row.
+func deploymentAuditSnapshot(deployment *models.Deployment) string {
+	return marshalAuditState(map[string]any{
+		"image":              deployment.Image,
+		"imageTag":           deployment.ImageTag,
+		"environment":        deployment.Environment,
+		"namespace":          deployment.Namespace,
+		"replicaCount":       deployment.ReplicaCount,
+		"status":             deployment.Status,
+		"deploymentStrategy": deployment.DeploymentStrategy,
+		"targetClusterId":    deployment.TargetClusterID,
+	})
 }
 
 func toDeploymentListResponse(items []models.Deployment, total int64, req *models.PaginationRequest) *dto.DeploymentListResponse {

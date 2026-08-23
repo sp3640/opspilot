@@ -41,7 +41,7 @@ func TestTeamManagementFoundationIntegration(t *testing.T) {
 	var coreTeamID uuid.UUID
 
 	t.Run("Create Team", func(t *testing.T) {
-		created, err := teamService.CreateTeam(orgA, dto.CreateTeamRequest{
+		created, err := teamService.CreateTeam(ownerA.ID, orgA, dto.CreateTeamRequest{
 			Name:        "Platform",
 			Description: "Core platform team",
 		})
@@ -63,7 +63,7 @@ func TestTeamManagementFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Duplicate Team Name Same Organization", func(t *testing.T) {
-		_, err := teamService.CreateTeam(orgA, dto.CreateTeamRequest{
+		_, err := teamService.CreateTeam(ownerA.ID, orgA, dto.CreateTeamRequest{
 			Name:        "Platform",
 			Description: "Duplicate name",
 		})
@@ -73,7 +73,7 @@ func TestTeamManagementFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Same Team Name Different Organization", func(t *testing.T) {
-		created, err := teamService.CreateTeam(orgB, dto.CreateTeamRequest{
+		created, err := teamService.CreateTeam(ownerB.ID, orgB, dto.CreateTeamRequest{
 			Name:        "Platform",
 			Description: "Allowed in different org",
 		})
@@ -86,7 +86,7 @@ func TestTeamManagementFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Update Team", func(t *testing.T) {
-		updated, err := teamService.UpdateTeam(coreTeamID, orgA, dto.UpdateTeamRequest{
+		updated, err := teamService.UpdateTeam(ownerA.ID, coreTeamID, orgA, dto.UpdateTeamRequest{
 			Name:        "Platform Engineering",
 			Description: "Updated description",
 		})
@@ -99,7 +99,7 @@ func TestTeamManagementFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Add Member", func(t *testing.T) {
-		member, err := teamService.AddMember(coreTeamID, orgA, memberA.ID)
+		member, err := teamService.AddMember(ownerA.ID, coreTeamID, orgA, memberA.ID)
 		if err != nil {
 			t.Fatalf("add member: %v", err)
 		}
@@ -109,21 +109,21 @@ func TestTeamManagementFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Prevent Duplicate Membership", func(t *testing.T) {
-		_, err := teamService.AddMember(coreTeamID, orgA, memberA.ID)
+		_, err := teamService.AddMember(ownerA.ID, coreTeamID, orgA, memberA.ID)
 		if !errors.Is(err, apperrors.ErrTeamMemberAlreadyExists) {
 			t.Fatalf("expected ErrTeamMemberAlreadyExists, got %v", err)
 		}
 	})
 
 	t.Run("Prevent Cross-Organization Membership", func(t *testing.T) {
-		_, err := teamService.AddMember(coreTeamID, orgA, memberB.ID)
+		_, err := teamService.AddMember(ownerA.ID, coreTeamID, orgA, memberB.ID)
 		if !errors.Is(err, apperrors.ErrTeamForbidden) {
 			t.Fatalf("expected ErrTeamForbidden, got %v", err)
 		}
 	})
 
 	t.Run("List Members", func(t *testing.T) {
-		if _, err := teamService.AddMember(coreTeamID, orgA, memberA2.ID); err != nil {
+		if _, err := teamService.AddMember(ownerA.ID, coreTeamID, orgA, memberA2.ID); err != nil {
 			t.Fatalf("add second member: %v", err)
 		}
 
@@ -137,7 +137,7 @@ func TestTeamManagementFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Remove Member", func(t *testing.T) {
-		if err := teamService.RemoveMember(coreTeamID, orgA, memberA.ID); err != nil {
+		if err := teamService.RemoveMember(ownerA.ID, coreTeamID, orgA, memberA.ID); err != nil {
 			t.Fatalf("remove member: %v", err)
 		}
 		isMember, err := teamMemberRepo.IsMember(coreTeamID, memberA.ID)
@@ -150,7 +150,7 @@ func TestTeamManagementFoundationIntegration(t *testing.T) {
 	})
 
 	t.Run("Delete Team", func(t *testing.T) {
-		if err := teamService.DeleteTeam(coreTeamID, orgA); err != nil {
+		if err := teamService.DeleteTeam(ownerA.ID, coreTeamID, orgA); err != nil {
 			t.Fatalf("delete team: %v", err)
 		}
 

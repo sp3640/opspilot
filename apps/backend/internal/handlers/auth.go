@@ -79,6 +79,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	token, err := h.userService.Login(
 		req.Email,
 		req.Password,
+		c.ClientIP(),
+		c.Request.UserAgent(),
 	)
 
 	if err != nil {

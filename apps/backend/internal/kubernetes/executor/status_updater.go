@@ -22,10 +22,20 @@ type auditLogger interface {
 	LogUpdate(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint, fieldName string, oldValue string, newValue string) error
 }
 
+// deploymentNotifier fires the DEPLOYMENT_FAILED / DEPLOYMENT_RECOVERED
+// notification events. Both methods are best-effort by contract (they never
+// return an error) since a notification failure must never affect the
+// deployment's actual status update.
+type deploymentNotifier interface {
+	NotifyDeploymentFailed(ctx context.Context, deployment *models.Deployment, userID uint, reason string)
+	NotifyDeploymentOutcomeSucceeded(ctx context.Context, deployment *models.Deployment, userID uint)
+}
+
 type DeploymentStatusUpdater struct {
 	deploymentRepo *repository.DeploymentRepository
 	historyWriter  deploymentHistoryWriter
 	auditLogger    auditLogger
+	notifier       deploymentNotifier
 }
 
 func NewDeploymentStatusUpdater(
@@ -38,6 +48,14 @@ func NewDeploymentStatusUpdater(
 		historyWriter:  historyWriter,
 		auditLogger:    auditLogger,
 	}
+}
+
+// WithNotifier enables firing deployment failure/recovery notifications.
+// Optional: without it, deployment status is still tracked normally, just
+// without notification fan-out.
+func (u *DeploymentStatusUpdater) WithNotifier(notifier deploymentNotifier) *DeploymentStatusUpdater {
+	u.notifier = notifier
+	return u
 }
 
 func (u *DeploymentStatusUpdater) MarkRunning(ctx context.Context, deployment *models.Deployment, userID uint) error {
@@ -82,6 +100,9 @@ func (u *DeploymentStatusUpdater) MarkSucceeded(ctx context.Context, deployment 
 	}
 
 	u.logStatusAuditBestEffort(ctx, deployment, userID, previousStatus, constants.DeploymentStatusSucceeded)
+	if u.notifier != nil {
+		u.notifier.NotifyDeploymentOutcomeSucceeded(ctx, deployment, userID)
+	}
 	return nil
 }
 
@@ -108,6 +129,9 @@ func (u *DeploymentStatusUpdater) MarkFailed(ctx context.Context, deployment *mo
 	}
 
 	u.logStatusAuditBestEffort(ctx, deployment, userID, previousStatus, constants.DeploymentStatusFailed)
+	if u.notifier != nil {
+		u.notifier.NotifyDeploymentFailed(ctx, deployment, userID, reason)
+	}
 	return nil
 }
 

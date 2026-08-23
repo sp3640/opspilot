@@ -51,7 +51,8 @@ func (h *ProjectTeamHandler) AssignTeam(c *gin.Context) {
 		return
 	}
 
-	assigned, err := h.service.AssignTeam(c.GetString("role"), organizationID, projectID, teamID)
+	actorID := c.MustGet("userID").(uint)
+	assigned, err := h.service.AssignTeam(c.GetString("role"), actorID, organizationID, projectID, teamID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -82,7 +83,8 @@ func (h *ProjectTeamHandler) RemoveTeam(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.RemoveTeam(c.GetString("role"), organizationID, projectID, teamID); err != nil {
+	actorID := c.MustGet("userID").(uint)
+	if err := h.service.RemoveTeam(c.GetString("role"), actorID, organizationID, projectID, teamID); err != nil {
 		h.handleServiceError(c, err)
 		return
 	}

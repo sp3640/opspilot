@@ -5,6 +5,7 @@ import { ClipboardList, Search, X } from "lucide-react";
 import { useAuditLogs } from "@/hooks/use-audit";
 import { useIncidents } from "@/hooks/use-incidents";
 import { useProjects } from "@/hooks/use-projects";
+import { useApplications } from "@/hooks/use-applications";
 import {
   PAGINATION_DEFAULT_PAGE,
   PAGINATION_DEFAULT_PAGE_SIZE,
@@ -18,26 +19,48 @@ import type {
   AuditAction,
   AuditLogResponse,
   AuditQueryParams,
+  AuditResult,
   AuditScope,
 } from "@/types/audit-api";
 
+type ViewScope = Extract<AuditScope, "organization" | "project" | "incident">;
+
 type AuditFilters = {
-  scope: AuditScope;
+  scope: ViewScope;
   action: "all" | AuditAction;
+  result: "all" | AuditResult;
   entityType: string;
+  applicationId: string;
+  userId: string;
+  dateFrom: string;
+  dateTo: string;
   search: string;
   sort: "created_at" | "entity_type" | "action";
   order: "asc" | "desc";
 };
 
 const initialFilters: AuditFilters = {
-  scope: "project",
+  scope: "organization",
   action: "all",
+  result: "all",
   entityType: "",
+  applicationId: "",
+  userId: "",
+  dateFrom: "",
+  dateTo: "",
   search: "",
   sort: "created_at",
   order: SORT_ORDERS.DESC,
 };
+
+// Local <input type="datetime-local"> values have no timezone; the audit
+// API expects RFC3339, so treat the picker value as local time and convert.
+function toRFC3339(localDateTime: string): string | undefined {
+  if (!localDateTime) return undefined;
+  const parsed = new Date(localDateTime);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString();
+}
 
 export function AuditWorkspace() {
   const [filters, setFilters] = useState(initialFilters);
@@ -60,22 +83,31 @@ export function AuditWorkspace() {
     order: "desc",
   });
 
+  const { data: applicationsData, isLoading: isApplicationsLoading } = useApplications({
+    page: PROJECT_LOOKUP_QUERY.page,
+    limit: PROJECT_LOOKUP_QUERY.limit,
+    sort: "name",
+    order: SORT_ORDERS.ASC,
+  });
+
   const projects = useMemo(() => projectsData?.items ?? [], [projectsData?.items]);
   const incidents = useMemo(() => incidentsData?.items ?? [], [incidentsData?.items]);
+  const applications = useMemo(() => applicationsData?.items ?? [], [applicationsData?.items]);
 
   useEffect(() => {
-    if (!selectedProjectId && projects.length > 0) {
+    if (filters.scope === "project" && !selectedProjectId && projects.length > 0) {
       setSelectedProjectId(projects[0]?.id ?? null);
     }
-  }, [projects, selectedProjectId]);
+  }, [filters.scope, projects, selectedProjectId]);
 
   useEffect(() => {
-    if (selectedIncidentId === null && incidents.length > 0) {
+    if (filters.scope === "incident" && selectedIncidentId === null && incidents.length > 0) {
       setSelectedIncidentId(incidents[0]?.id ?? null);
     }
-  }, [incidents, selectedIncidentId]);
+  }, [filters.scope, incidents, selectedIncidentId]);
 
-  const scopeID = filters.scope === "project" ? selectedProjectId : selectedIncidentId;
+  const scopeID =
+    filters.scope === "project" ? selectedProjectId : filters.scope === "incident" ? selectedIncidentId : null;
 
   const queryParams: AuditQueryParams = useMemo(
     () => ({
@@ -85,9 +117,26 @@ export function AuditWorkspace() {
       sort: filters.sort,
       order: filters.order,
       action: filters.action === "all" ? undefined : filters.action,
+      result: filters.result === "all" ? undefined : filters.result,
       entityType: filters.entityType.trim() || undefined,
+      applicationId: filters.applicationId || undefined,
+      userId: filters.userId.trim() ? Number(filters.userId.trim()) : undefined,
+      dateFrom: toRFC3339(filters.dateFrom),
+      dateTo: toRFC3339(filters.dateTo),
     }),
-    [filters.action, filters.entityType, filters.order, filters.search, filters.sort, page]
+    [
+      filters.action,
+      filters.applicationId,
+      filters.dateFrom,
+      filters.dateTo,
+      filters.entityType,
+      filters.order,
+      filters.result,
+      filters.search,
+      filters.sort,
+      filters.userId,
+      page,
+    ]
   );
 
   const {
@@ -107,7 +156,7 @@ export function AuditWorkspace() {
     <div className="mx-auto max-w-[1600px] space-y-6 lg:space-y-8">
       <PageHeader
         title="Audit Logs"
-        description="Trace operational changes across projects and incidents."
+        description="Trace operational and security-relevant actions across your organization, projects, and incidents."
         breadcrumb={[{ label: "Overview", href: "/" }, { label: "Audit Logs" }]}
       />
 
@@ -118,10 +167,11 @@ export function AuditWorkspace() {
               id="audit-scope"
               value={filters.scope}
               onChange={(value) => {
-                setFilters((current) => ({ ...current, scope: value as AuditScope }));
+                setFilters((current) => ({ ...current, scope: value as ViewScope }));
                 resetPage();
               }}
             >
+              <option value="organization">Organization audit</option>
               <option value="project">Project scope</option>
               <option value="incident">Incident scope</option>
             </FilterSelect>
@@ -180,6 +230,37 @@ export function AuditWorkspace() {
               <option value="CREATE">Create</option>
               <option value="UPDATE">Update</option>
               <option value="DELETE">Delete</option>
+              <option value="LOGIN">Login</option>
+            </FilterSelect>
+
+            <FilterSelect
+              id="audit-result"
+              value={filters.result}
+              onChange={(value) => {
+                setFilters((current) => ({ ...current, result: value as AuditFilters["result"] }));
+                resetPage();
+              }}
+            >
+              <option value="all">All results</option>
+              <option value="SUCCESS">Success</option>
+              <option value="FAILURE">Failure</option>
+            </FilterSelect>
+
+            <FilterSelect
+              id="audit-application"
+              value={filters.applicationId}
+              onChange={(value) => {
+                setFilters((current) => ({ ...current, applicationId: value }));
+                resetPage();
+              }}
+              disabled={isApplicationsLoading}
+            >
+              <option value="">All applications</option>
+              {applications.map((application) => (
+                <option key={application.id} value={application.id}>
+                  {application.name}
+                </option>
+              ))}
             </FilterSelect>
 
             <FilterSelect
@@ -245,7 +326,7 @@ export function AuditWorkspace() {
                 setFilters((current) => ({ ...current, entityType: event.target.value }));
                 resetPage();
               }}
-              placeholder="Entity type"
+              placeholder="Resource type"
               className="h-11 w-40 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
               style={{ borderColor: "var(--border)" }}
             />
@@ -262,8 +343,61 @@ export function AuditWorkspace() {
           </div>
         </div>
 
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input
+            value={filters.userId}
+            onChange={(event) => {
+              setFilters((current) => ({ ...current, userId: event.target.value.replace(/\D/g, "") }));
+              resetPage();
+            }}
+            placeholder="User ID"
+            inputMode="numeric"
+            className="h-11 w-28 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+            style={{ borderColor: "var(--border)" }}
+          />
+          <label className="flex items-center gap-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
+            From
+            <input
+              type="datetime-local"
+              value={filters.dateFrom}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, dateFrom: event.target.value }));
+                resetPage();
+              }}
+              className="h-11 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
+              style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
+            To
+            <input
+              type="datetime-local"
+              value={filters.dateTo}
+              onChange={(event) => {
+                setFilters((current) => ({ ...current, dateTo: event.target.value }));
+                resetPage();
+              }}
+              className="h-11 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
+              style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+            />
+          </label>
+          {(filters.userId || filters.dateFrom || filters.dateTo) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilters((current) => ({ ...current, userId: "", dateFrom: "", dateTo: "" }));
+                resetPage();
+              }}
+              className="rounded-lg px-2 py-1 text-xs hover:bg-[var(--muted)]"
+              style={{ color: "var(--muted-foreground)" }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
         <div className="mt-6">
-          {scopeID === null ? (
+          {filters.scope !== "organization" && scopeID === null ? (
             <EmptyState
               icon={ClipboardList}
               title="Scope is required"
@@ -277,7 +411,7 @@ export function AuditWorkspace() {
               }}
             />
           ) : isLoading ? (
-            <TableSkeleton columns={6} rows={6} />
+            <TableSkeleton columns={7} rows={6} />
           ) : items.length === 0 ? (
             <EmptyState
               icon={ClipboardList}
@@ -352,8 +486,9 @@ function AuditTable({
           <tr>
             <th className="px-5 py-3 font-semibold">Time</th>
             <th className="px-5 py-3 font-semibold">Action</th>
-            <th className="px-5 py-3 font-semibold">Entity</th>
-            <th className="px-5 py-3 font-semibold">Entity ID</th>
+            <th className="px-5 py-3 font-semibold">Result</th>
+            <th className="px-5 py-3 font-semibold">Resource</th>
+            <th className="px-5 py-3 font-semibold">Resource ID</th>
             <th className="px-5 py-3 font-semibold">Field</th>
             <th className="px-5 py-3 font-semibold">User</th>
           </tr>
@@ -377,6 +512,9 @@ function AuditTable({
               <td className="px-5 py-4">{new Date(item.created_at).toLocaleString()}</td>
               <td className="px-5 py-4">
                 <StatusBadge variant={badgeVariantForAction(item.action)}>{item.action}</StatusBadge>
+              </td>
+              <td className="px-5 py-4">
+                <StatusBadge variant={item.result === "FAILURE" ? "critical" : "success"}>{item.result}</StatusBadge>
               </td>
               <td className="px-5 py-4">{item.entity_type}</td>
               <td className="px-5 py-4">{item.entity_id}</td>
@@ -475,14 +613,20 @@ function AuditDetailDrawer({
         </header>
         <div className="space-y-4 overflow-y-auto p-5">
           <DetailField label="Action" value={log.action} />
-          <DetailField label="Entity Type" value={log.entity_type} />
-          <DetailField label="Entity ID" value={log.entity_id} />
+          <DetailField label="Result" value={log.result} />
+          <DetailField label="Resource Type" value={log.entity_type} />
+          <DetailField label="Resource ID" value={log.entity_id} />
           <DetailField label="Field" value={log.field_name || "—"} />
           <DetailField label="User ID" value={String(log.user_id)} />
           <DetailField label="Project ID" value={log.project_id || "—"} />
+          <DetailField label="Application ID" value={log.application_id || "—"} />
           <DetailField label="Incident ID" value={log.incident_id ? String(log.incident_id) : "—"} />
           <DetailField label="Old Value" value={log.old_value || "—"} multiline />
           <DetailField label="New Value" value={log.new_value || "—"} multiline />
+          <DetailField label="Before State" value={log.before_state || "—"} multiline />
+          <DetailField label="After State" value={log.after_state || "—"} multiline />
+          <DetailField label="IP Address" value={log.ip_address || "—"} />
+          <DetailField label="User Agent" value={log.user_agent || "—"} multiline />
         </div>
       </aside>
     </div>

@@ -17,6 +17,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 	"github.com/sp3640/opspilot/backend/internal/middleware"
 	"github.com/sp3640/opspilot/backend/internal/models"
+	"github.com/sp3640/opspilot/backend/internal/notification"
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"github.com/sp3640/opspilot/backend/internal/resourcesync"
 	"github.com/sp3640/opspilot/backend/internal/router"
@@ -200,20 +201,28 @@ func TestRBACOrganizationLevelIntegration(t *testing.T) {
 }
 
 type rbacTestApp struct {
-	router                *gin.Engine
-	cfg                   *config.Config
-	userRepo              *repository.UserRepository
-	organizationRepo      *repository.OrganizationRepository
-	invitationRepo        *repository.InvitationRepository
-	applicationRepo       *repository.ApplicationRepository
-	clusterRepo           *repository.ClusterRepository
-	metricRepo            *repository.MetricRepository
-	metricService         *services.MetricService
-	alertRepo             *repository.AlertRepository
-	alertService          *services.AlertService
-	deploymentRepo        *repository.DeploymentRepository
-	deploymentService     *services.DeploymentService
-	deploymentHistoryRepo *repository.DeploymentHistoryRepository
+	db                      *gorm.DB
+	router                  *gin.Engine
+	cfg                     *config.Config
+	userRepo                *repository.UserRepository
+	organizationRepo        *repository.OrganizationRepository
+	invitationRepo          *repository.InvitationRepository
+	applicationRepo         *repository.ApplicationRepository
+	clusterRepo             *repository.ClusterRepository
+	metricRepo              *repository.MetricRepository
+	metricService           *services.MetricService
+	alertRepo               *repository.AlertRepository
+	alertService            *services.AlertService
+	incidentRepo            *repository.IncidentRepository
+	deploymentRepo          *repository.DeploymentRepository
+	deploymentService       *services.DeploymentService
+	deploymentHistoryRepo   *repository.DeploymentHistoryRepository
+	auditRepo               *repository.AuditRepository
+	auditService            *services.AuditService
+	notificationChannelRepo *repository.NotificationChannelRepository
+	notificationService     *services.NotificationService
+	applicationSLORepo      *repository.ApplicationSLORepository
+	sreMetricsService       *services.SREMetricsService
 }
 
 func setupRBACApp(t *testing.T) *rbacTestApp {
@@ -251,21 +260,42 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	commentRepo := repository.NewCommentRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
+	notificationChannelRepo := repository.NewNotificationChannelRepository(db)
+	applicationSLORepo := repository.NewApplicationSLORepository(db)
 
-	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg)
 	organizationService := services.NewOrganizationService(organizationRepo)
-	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg).
+		WithAuditService(auditService)
+	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo).
+		WithAuditService(auditService)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
-	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
+	applicationService := services.NewApplicationService(applicationRepo, projectRepo).
+		WithAuditService(auditService)
 	deploymentHistoryService := services.NewDeploymentHistoryService(deploymentHistoryRepo, deploymentRepo)
 	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo, deploymentHistoryService).
 		WithAuditService(auditService)
-	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
-	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
-	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo)
-	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService).WithApplicationRepo(applicationRepo).WithTeamRepo(teamRepo)
+	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo).
+		WithAuditService(auditService)
+	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo).
+		WithAuditService(auditService)
+	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo).
+		WithAuditService(auditService)
+	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService).WithApplicationRepo(applicationRepo).WithTeamRepo(teamRepo).WithUserRepo(userRepo)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
+	notificationProviders := map[string]notification.Provider{
+		constants.NotificationChannelEmail:   notification.NewEmailProvider(notification.EmailConfig{}),
+		constants.NotificationChannelSlack:   notification.NewSlackProvider(),
+		constants.NotificationChannelTeams:   notification.NewTeamsProvider(),
+		constants.NotificationChannelWebhook: notification.NewWebhookProvider(),
+	}
+	notificationService := services.NewNotificationService(notificationChannelRepo, testClusterCredentialCipher(t), notificationProviders).
+		WithDeploymentRepo(deploymentRepo).
+		WithTeamRepo(teamRepo).
+		WithAuditService(auditService)
+	incidentService.WithNotificationService(notificationService)
+	alertService.WithNotificationService(notificationService)
+	sreMetricsService := services.NewSREMetricsService(applicationRepo, incidentRepo, applicationSLORepo).WithAuditService(auditService)
 	clusterService := services.NewClusterService(clusterRepo, auditService, testClusterCredentialCipher(t))
 	resourceService := services.NewResourceService(resourceRepo, resourcesync.NewSyncEngine(resourceRepo), auditService)
 	metricService := services.NewMetricService(metricRepo, auditService).WithResourceRepo(resourceRepo)
@@ -278,6 +308,8 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	applicationHealthService := services.NewApplicationHealthService(applicationRepo, deploymentRepo, alertRepo, incidentRepo)
+	applicationHealthHandler := handlers.NewApplicationHealthHandler(applicationHealthService)
 	deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
 	deploymentHistoryHandler := handlers.NewDeploymentHistoryHandler(deploymentHistoryService)
 	teamHandler := handlers.NewTeamHandler(teamService)
@@ -291,6 +323,8 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	resourceHandler := handlers.NewResourceHandler(resourceService, clusterService, nil)
 	commentHandler := handlers.NewCommentHandler(commentService)
 	auditHandler := handlers.NewAuditHandler(auditService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	sreHandler := handlers.NewSREHandler(sreMetricsService)
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 	healthHandler := handlers.NewHealthHandler(cfg, time.Now(), func(_ context.Context) error { return nil })
 	collector := metrics.NewCollector()
@@ -321,6 +355,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		invitationHandler,
 		projectHandler,
 		applicationHandler,
+		applicationHealthHandler,
 		nil,
 		nil,
 		nil,
@@ -345,24 +380,34 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		commentHandler,
 		auditHandler,
 		dashboardHandler,
+		notificationHandler,
+		sreHandler,
 		healthHandler,
 		collector,
 	)
 
 	return &rbacTestApp{
-		router:                r,
-		cfg:                   cfg,
-		userRepo:              userRepo,
-		organizationRepo:      organizationRepo,
-		invitationRepo:        invitationRepo,
-		applicationRepo:       applicationRepo,
-		clusterRepo:           clusterRepo,
-		metricService:         metricService,
-		alertRepo:             alertRepo,
-		alertService:          alertService,
-		deploymentRepo:        deploymentRepo,
-		deploymentService:     deploymentService,
-		deploymentHistoryRepo: deploymentHistoryRepo,
+		db:                      db,
+		router:                  r,
+		cfg:                     cfg,
+		userRepo:                userRepo,
+		organizationRepo:        organizationRepo,
+		invitationRepo:          invitationRepo,
+		applicationRepo:         applicationRepo,
+		clusterRepo:             clusterRepo,
+		metricService:           metricService,
+		alertRepo:               alertRepo,
+		alertService:            alertService,
+		incidentRepo:            incidentRepo,
+		deploymentRepo:          deploymentRepo,
+		deploymentService:       deploymentService,
+		deploymentHistoryRepo:   deploymentHistoryRepo,
+		auditRepo:               auditRepo,
+		auditService:            auditService,
+		notificationChannelRepo: notificationChannelRepo,
+		notificationService:     notificationService,
+		applicationSLORepo:      applicationSLORepo,
+		sreMetricsService:       sreMetricsService,
 	}
 }
 

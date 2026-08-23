@@ -52,7 +52,7 @@ func TestApplicationTeamAssignmentIntegration(t *testing.T) {
 	teamB := mustCreateTeamForOrg(t, teamRepo, orgB, "App Gamma Team")
 
 	t.Run("Assign Team", func(t *testing.T) {
-		assigned, err := service.AssignTeam(models.RolePlatformAdmin, orgA, appA.ID, teamA.ID)
+		assigned, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, appA.ID, teamA.ID)
 		if err != nil {
 			t.Fatalf("assign team: %v", err)
 		}
@@ -65,49 +65,49 @@ func TestApplicationTeamAssignmentIntegration(t *testing.T) {
 	})
 
 	t.Run("Duplicate assignment rejected", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RolePlatformAdmin, orgA, appA.ID, teamA.ID)
+		_, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, appA.ID, teamA.ID)
 		if !errors.Is(err, apperrors.ErrApplicationTeamAlreadyAssigned) {
 			t.Fatalf("expected ErrApplicationTeamAlreadyAssigned, got %v", err)
 		}
 	})
 
 	t.Run("Cross-organization assignment rejected", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RolePlatformAdmin, orgA, appA.ID, teamB.ID)
+		_, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, appA.ID, teamB.ID)
 		if !errors.Is(err, apperrors.ErrApplicationForbidden) {
 			t.Fatalf("expected ErrApplicationForbidden, got %v", err)
 		}
 	})
 
 	t.Run("Cross-organization application id rejected", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RolePlatformAdmin, orgA, appB.ID, teamA.ID)
+		_, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, appB.ID, teamA.ID)
 		if !errors.Is(err, apperrors.ErrApplicationNotFound) {
 			t.Fatalf("expected ErrApplicationNotFound, got %v", err)
 		}
 	})
 
 	t.Run("Viewer forbidden to assign", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RoleViewer, orgA, appA.ID, teamA2.ID)
+		_, err := service.AssignTeam(models.RoleViewer, userA.ID, orgA, appA.ID, teamA2.ID)
 		if !errors.Is(err, apperrors.ErrApplicationForbidden) {
 			t.Fatalf("expected ErrApplicationForbidden, got %v", err)
 		}
 	})
 
 	t.Run("Developer forbidden to assign", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RoleDeveloper, orgA, appA.ID, teamA2.ID)
+		_, err := service.AssignTeam(models.RoleDeveloper, userA.ID, orgA, appA.ID, teamA2.ID)
 		if !errors.Is(err, apperrors.ErrApplicationForbidden) {
 			t.Fatalf("expected ErrApplicationForbidden, got %v", err)
 		}
 	})
 
 	t.Run("DevOps Engineer forbidden to assign (read only)", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RoleDevOpsEngineer, orgA, appA.ID, teamA2.ID)
+		_, err := service.AssignTeam(models.RoleDevOpsEngineer, userA.ID, orgA, appA.ID, teamA2.ID)
 		if !errors.Is(err, apperrors.ErrApplicationForbidden) {
 			t.Fatalf("expected ErrApplicationForbidden, got %v", err)
 		}
 	})
 
 	t.Run("Admin allowed", func(t *testing.T) {
-		_, err := service.AssignTeam(models.RolePlatformAdmin, orgA, appA.ID, teamA2.ID)
+		_, err := service.AssignTeam(models.RolePlatformAdmin, adminA.ID, orgA, appA.ID, teamA2.ID)
 		if err != nil {
 			t.Fatalf("admin assign should succeed: %v", err)
 		}
@@ -154,7 +154,7 @@ func TestApplicationTeamAssignmentIntegration(t *testing.T) {
 	})
 
 	t.Run("Remove assignment", func(t *testing.T) {
-		if err := service.RemoveTeam(models.RolePlatformAdmin, orgA, appA.ID, teamA2.ID); err != nil {
+		if err := service.RemoveTeam(models.RolePlatformAdmin, adminA.ID, orgA, appA.ID, teamA2.ID); err != nil {
 			t.Fatalf("remove team assignment: %v", err)
 		}
 
@@ -168,7 +168,7 @@ func TestApplicationTeamAssignmentIntegration(t *testing.T) {
 	})
 
 	t.Run("Viewer forbidden to remove", func(t *testing.T) {
-		if err := service.RemoveTeam(models.RoleViewer, orgA, appA.ID, teamA.ID); !errors.Is(err, apperrors.ErrApplicationForbidden) {
+		if err := service.RemoveTeam(models.RoleViewer, userA.ID, orgA, appA.ID, teamA.ID); !errors.Is(err, apperrors.ErrApplicationForbidden) {
 			t.Fatalf("expected ErrApplicationForbidden, got %v", err)
 		}
 	})

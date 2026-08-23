@@ -39,7 +39,8 @@ func (h *TeamHandler) Create(c *gin.Context) {
 		return
 	}
 
-	team, err := h.service.CreateTeam(organizationID, req)
+	userID := c.MustGet("userID").(uint)
+	team, err := h.service.CreateTeam(userID, organizationID, req)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -119,7 +120,8 @@ func (h *TeamHandler) Update(c *gin.Context) {
 		return
 	}
 
-	team, err := h.service.UpdateTeam(teamID, organizationID, req)
+	userID := c.MustGet("userID").(uint)
+	team, err := h.service.UpdateTeam(userID, teamID, organizationID, req)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -144,7 +146,8 @@ func (h *TeamHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.DeleteTeam(teamID, organizationID); err != nil {
+	userID := c.MustGet("userID").(uint)
+	if err := h.service.DeleteTeam(userID, teamID, organizationID); err != nil {
 		h.handleServiceError(c, err)
 		return
 	}
@@ -174,7 +177,8 @@ func (h *TeamHandler) AddMember(c *gin.Context) {
 		return
 	}
 
-	member, err := h.service.AddMember(teamID, organizationID, req.UserID)
+	actorID := c.MustGet("userID").(uint)
+	member, err := h.service.AddMember(actorID, teamID, organizationID, req.UserID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -205,7 +209,8 @@ func (h *TeamHandler) RemoveMember(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.RemoveMember(teamID, organizationID, uint(userID)); err != nil {
+	actorID := c.MustGet("userID").(uint)
+	if err := h.service.RemoveMember(actorID, teamID, organizationID, uint(userID)); err != nil {
 		h.handleServiceError(c, err)
 		return
 	}

@@ -31,6 +31,17 @@ type Config struct {
 	JWTExpiry string
 
 	ClusterCredentialEncryptionKey string
+
+	// SMTP settings for the Email notification provider. All optional: an
+	// unset SMTPHost simply means email notifications are not configured
+	// (the provider reports this plainly rather than failing startup) -
+	// Slack/Teams/Webhook notifications never depend on these. Never
+	// hardcoded: sourced only from environment configuration.
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
 }
 
 // Load reads environment configuration and validates all startup-critical values.
@@ -73,6 +84,12 @@ func Load() (*Config, error) {
 		JWTSecret:                      strings.TrimSpace(getEnv("JWT_SECRET", "")),
 		JWTExpiry:                      getEnv("JWT_EXPIRY", "24h"),
 		ClusterCredentialEncryptionKey: strings.TrimSpace(getEnv("CLUSTER_CREDENTIAL_ENCRYPTION_KEY", "")),
+
+		SMTPHost:     strings.TrimSpace(getEnv("SMTP_HOST", "")),
+		SMTPPort:     strings.TrimSpace(getEnv("SMTP_PORT", "587")),
+		SMTPUsername: strings.TrimSpace(getEnv("SMTP_USERNAME", "")),
+		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
+		SMTPFrom:     strings.TrimSpace(getEnv("SMTP_FROM", "")),
 	}
 
 	if err := cfg.Validate(); err != nil {

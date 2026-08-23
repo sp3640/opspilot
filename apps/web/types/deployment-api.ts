@@ -61,6 +61,8 @@ export type DeploymentQueryParams = {
   search?: string;
   sort?: "created_at" | "updated_at" | "started_at" | "completed_at" | "status";
   order?: "asc" | "desc";
+  projectId?: string;
+  applicationId?: string;
 };
 
 export type DeploymentHistoryResponse = {

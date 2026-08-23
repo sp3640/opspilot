@@ -69,6 +69,8 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&models.Metric{},
 		&models.Comment{},
 		&models.AuditLog{},
+		&models.NotificationChannel{},
+		&models.ApplicationSLO{},
 	)
 	if err != nil {
 		_ = sqlDB.Close()

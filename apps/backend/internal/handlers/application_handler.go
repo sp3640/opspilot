@@ -44,13 +44,54 @@ func (h *ApplicationHandler) Create(c *gin.Context) {
 		return
 	}
 
-	application, err := h.service.CreateApplication(c.Request.Context(), projectID, organizationID, req)
+	userID := c.MustGet("userID").(uint)
+	application, err := h.service.CreateApplication(c.Request.Context(), projectID, organizationID, userID, req)
 	if err != nil {
 		handleApplicationServiceError(c, err)
 		return
 	}
 
 	response.Created(c, "Application created successfully", application)
+}
+
+// List returns applications org-wide (used by the operations dashboard),
+// or narrowed to one project via ?projectId= - ListByProject remains the
+// dedicated path-scoped listing used elsewhere.
+func (h *ApplicationHandler) List(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+
+	req, ok := parsePagination(c, "name", "slug", "runtime", "status", "created_at", "updated_at")
+	if !ok {
+		return
+	}
+
+	projectID, projectOK := parseOptionalUUID(c, "projectId")
+	if !projectOK {
+		return
+	}
+
+	var (
+		result *dto.ApplicationListResponse
+		err    error
+	)
+	if projectID != uuid.Nil {
+		result, err = h.service.ListApplicationsByProject(projectID, organizationID, req)
+	} else {
+		result, err = h.service.ListApplications(organizationID, req)
+	}
+	if err != nil {
+		handleApplicationServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "Applications fetched successfully", result)
 }
 
 func (h *ApplicationHandler) ListByProject(c *gin.Context) {
@@ -130,7 +171,8 @@ func (h *ApplicationHandler) Update(c *gin.Context) {
 		return
 	}
 
-	application, err := h.service.UpdateApplication(c.Request.Context(), applicationID, organizationID, req)
+	userID := c.MustGet("userID").(uint)
+	application, err := h.service.UpdateApplication(c.Request.Context(), applicationID, organizationID, userID, req)
 	if err != nil {
 		handleApplicationServiceError(c, err)
 		return
@@ -155,7 +197,8 @@ func (h *ApplicationHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.DeleteApplication(c.Request.Context(), applicationID, organizationID); err != nil {
+	userID := c.MustGet("userID").(uint)
+	if err := h.service.DeleteApplication(c.Request.Context(), applicationID, organizationID, userID); err != nil {
 		handleApplicationServiceError(c, err)
 		return
 	}

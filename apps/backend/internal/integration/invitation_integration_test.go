@@ -151,7 +151,7 @@ func TestInvitationSystemIntegration(t *testing.T) {
 			t.Fatalf("parse revoked invitation id: %v", err)
 		}
 
-		if err := invitationService.RevokeInvitation(revokedID, models.RolePlatformAdmin, orgA); err != nil {
+		if err := invitationService.RevokeInvitation(revokedID, models.RolePlatformAdmin, admin.ID, orgA); err != nil {
 			t.Fatalf("revoke invitation: %v", err)
 		}
 

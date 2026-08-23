@@ -18,6 +18,7 @@ func RegisterRoutes(
 	invitationHandler *handlers.InvitationHandler,
 	projectHandler *handlers.ProjectHandler,
 	applicationHandler *handlers.ApplicationHandler,
+	applicationHealthHandler *handlers.ApplicationHealthHandler,
 	podHandler *handlers.PodHandler,
 	kubernetesLogHandler *handlers.KubernetesLogHandler,
 	kubernetesConfigMapHandler *handlers.KubernetesConfigMapHandler,
@@ -42,6 +43,8 @@ func RegisterRoutes(
 	commentHandler *handlers.CommentHandler,
 	auditHandler *handlers.AuditHandler,
 	dashboardHandler *handlers.DashboardHandler,
+	notificationHandler *handlers.NotificationHandler,
+	sreHandler *handlers.SREHandler,
 	healthHandler *handlers.HealthHandler,
 	collector *metrics.Collector,
 ) {
@@ -129,11 +132,20 @@ func RegisterRoutes(
 		applications := api.Group("/applications")
 		applications.Use(middleware.AuthMiddleware(cfg))
 		{
+			applications.GET("", applicationHandler.List)
 			applications.GET("/:id", applicationHandler.GetByID)
 			applications.PUT("/:id", applicationHandler.Update)
 			applications.DELETE("/:id", applicationHandler.Delete)
 			applications.GET("/:id/deployments", deploymentHandler.ListByApplication)
 			applications.GET("/:id/deployments/latest", deploymentHandler.GetLatestByApplication)
+			if applicationHealthHandler != nil {
+				applications.GET("/:id/health", applicationHealthHandler.GetByApplication)
+			}
+			if sreHandler != nil {
+				applications.GET("/:id/slo", sreHandler.GetSLO)
+				applications.PUT("/:id/slo", sreHandler.ConfigureSLO)
+				applications.GET("/:id/slo/metrics", sreHandler.GetMetrics)
+			}
 			applications.POST("/:id/teams", applicationTeamHandler.AssignTeam)
 			applications.GET("/:id/teams", applicationTeamHandler.ListApplicationTeams)
 			applications.DELETE("/:id/teams/:teamId", applicationTeamHandler.RemoveTeam)
@@ -274,6 +286,8 @@ func RegisterRoutes(
 			incidents.GET("/:id", incidentHandler.GetByID)
 			incidents.PUT("/:id", incidentHandler.Update)
 			incidents.DELETE("/:id", incidentHandler.Delete)
+			incidents.PATCH("/:id/assign", incidentHandler.Assign)
+			incidents.PATCH("/:id/acknowledge", incidentHandler.Acknowledge)
 			incidents.POST("/:id/comments", commentHandler.Create)
 			incidents.GET("/:id/comments", commentHandler.List)
 			incidents.GET("/:id/audit-logs", auditHandler.GetIncidentAuditLogs)
@@ -292,6 +306,28 @@ func RegisterRoutes(
 			alerts.POST("/:id/reopen", alertHandler.Reopen)
 			alerts.POST("/:id/incident", alertHandler.AttachIncident)
 			alerts.GET("/:id/audit-logs", alertHandler.GetAuditLogs)
+		}
+
+		auditRoutes := api.Group("/audit-logs")
+		auditRoutes.Use(middleware.AuthMiddleware(cfg))
+		{
+			// Organization Audit view (Phase 23): every audit log in the
+			// caller's own organization, derived from their JWT exactly like
+			// the other org-wide list endpoints (/applications, /deployments).
+			auditRoutes.GET("", auditHandler.GetOrganizationAuditLogs)
+		}
+
+		if notificationHandler != nil {
+			notificationRoutes := api.Group("/notification-channels")
+			notificationRoutes.Use(middleware.AuthMiddleware(cfg))
+			{
+				notificationRoutes.POST("", notificationHandler.Create)
+				notificationRoutes.GET("", notificationHandler.List)
+				notificationRoutes.GET("/:id", notificationHandler.GetByID)
+				notificationRoutes.PUT("/:id", notificationHandler.Update)
+				notificationRoutes.DELETE("/:id", notificationHandler.Delete)
+				notificationRoutes.POST("/:id/test", notificationHandler.Test)
+			}
 		}
 
 		metricsRoutes := api.Group("/metrics")

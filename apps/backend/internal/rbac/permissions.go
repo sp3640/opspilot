@@ -61,6 +61,12 @@ const (
 	PermissionOrganizationRead   Permission = "organization:read"
 	PermissionOrganizationManage Permission = "organization:manage"
 
+	PermissionNotificationRead   Permission = "notification:read"
+	PermissionNotificationManage Permission = "notification:manage"
+
+	PermissionSLORead   Permission = "slo:read"
+	PermissionSLOManage Permission = "slo:manage"
+
 	// PermissionUserManage is defined for forward-compatibility but is not
 	// currently wired to any endpoint: the backend exposes no user
 	// management capability beyond GET /users/me today.

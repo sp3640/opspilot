@@ -205,7 +205,7 @@ func TestInvitationAwareRegistrationIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse invitation id: %v", err)
 		}
-		if err := invitationService.RevokeInvitation(invitationID, models.RolePlatformAdmin, revokedOrgID); err != nil {
+		if err := invitationService.RevokeInvitation(invitationID, models.RolePlatformAdmin, admin.ID, revokedOrgID); err != nil {
 			t.Fatalf("revoke invitation: %v", err)
 		}
 

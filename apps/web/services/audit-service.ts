@@ -14,17 +14,19 @@ type APIResponse<T> = {
 export const auditService = {
   async listAuditLogs(
     scope: AuditScope,
-    scopeID: string | number,
+    scopeID: string | number | null,
     params: AuditQueryParams
   ): Promise<AuditLogListResponse> {
     const endpoint =
-      scope === "project"
-        ? `/projects/${scopeID}/audit-logs`
-        : scope === "incident"
-          ? `/incidents/${scopeID}/audit-logs`
-          : scope === "alert"
-            ? `/alerts/${scopeID}/audit-logs`
-            : `/deployments/${scopeID}/audit-logs`;
+      scope === "organization"
+        ? "/audit-logs"
+        : scope === "project"
+          ? `/projects/${scopeID}/audit-logs`
+          : scope === "incident"
+            ? `/incidents/${scopeID}/audit-logs`
+            : scope === "alert"
+              ? `/alerts/${scopeID}/audit-logs`
+              : `/deployments/${scopeID}/audit-logs`;
 
     const response = await api.get<APIResponse<AuditLogListResponse>>(endpoint, {
       params,

@@ -18,6 +18,7 @@ import (
 
 	"github.com/sp3640/opspilot/backend/internal/bootstrap"
 	"github.com/sp3640/opspilot/backend/internal/config"
+	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/database"
 	"github.com/sp3640/opspilot/backend/internal/discovery"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
@@ -37,6 +38,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 	"github.com/sp3640/opspilot/backend/internal/middleware"
 	"github.com/sp3640/opspilot/backend/internal/models"
+	"github.com/sp3640/opspilot/backend/internal/notification"
 	"github.com/sp3640/opspilot/backend/internal/repository"
 	"github.com/sp3640/opspilot/backend/internal/resourcesync"
 	"github.com/sp3640/opspilot/backend/internal/router"
@@ -147,29 +149,58 @@ func run() error {
 	commentRepo := repository.NewCommentRepository(database.DB)
 	auditRepo := repository.NewAuditRepository(database.DB)
 	dashboardRepo := repository.NewDashboardRepository(database.DB)
+	notificationChannelRepo := repository.NewNotificationChannelRepository(database.DB)
+	applicationSLORepo := repository.NewApplicationSLORepository(database.DB)
 
-	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg)
 	organizationService := services.NewOrganizationService(organizationRepo)
-	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 	auditService := services.NewAuditService(auditRepo).
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg).
+		WithAuditService(auditService)
+	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo).
+		WithAuditService(auditService)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
-	applicationService := services.NewApplicationService(applicationRepo, projectRepo)
+	applicationService := services.NewApplicationService(applicationRepo, projectRepo).
+		WithAuditService(auditService)
 	deploymentHistoryService := services.NewDeploymentHistoryService(deploymentHistoryRepo, deploymentRepo)
 	deploymentService := services.NewDeploymentService(deploymentRepo, applicationRepo, projectRepo, clusterRepo, deploymentHistoryService).
 		WithAuditService(auditService)
-	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo)
-	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo)
-	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo)
+	teamService := services.NewTeamService(teamRepo, teamMemberRepo, userRepo).
+		WithAuditService(auditService)
+	projectTeamService := services.NewProjectTeamService(projectTeamRepo, projectRepo, teamRepo).
+		WithAuditService(auditService)
+	applicationTeamService := services.NewApplicationTeamService(applicationTeamRepo, applicationRepo, teamRepo).
+		WithAuditService(auditService)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService).
 		WithApplicationRepo(applicationRepo).
-		WithTeamRepo(teamRepo)
+		WithTeamRepo(teamRepo).
+		WithUserRepo(userRepo)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
 	clusterCredentialCipher, err := security.NewClusterCredentialCipher(cfg.ClusterCredentialEncryptionKey)
 	if err != nil {
 		return fmt.Errorf("initialize cluster credential cipher: %w", err)
 	}
+	notificationProviders := map[string]notification.Provider{
+		constants.NotificationChannelEmail: notification.NewEmailProvider(notification.EmailConfig{
+			Host:     cfg.SMTPHost,
+			Port:     cfg.SMTPPort,
+			Username: cfg.SMTPUsername,
+			Password: cfg.SMTPPassword,
+			From:     cfg.SMTPFrom,
+		}),
+		constants.NotificationChannelSlack:   notification.NewSlackProvider(),
+		constants.NotificationChannelTeams:   notification.NewTeamsProvider(),
+		constants.NotificationChannelWebhook: notification.NewWebhookProvider(),
+	}
+	notificationService := services.NewNotificationService(notificationChannelRepo, clusterCredentialCipher, notificationProviders).
+		WithDeploymentRepo(deploymentRepo).
+		WithTeamRepo(teamRepo).
+		WithAuditService(auditService)
+	incidentService.WithNotificationService(notificationService)
+	alertService.WithNotificationService(notificationService)
+	sreMetricsService := services.NewSREMetricsService(applicationRepo, incidentRepo, applicationSLORepo).
+		WithAuditService(auditService)
 	podService := k8spods.NewPodService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesLogRuntime := k8slogs.NewLogService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesConfigMapRuntime := k8sconfigmaps.NewConfigMapService(applicationRepo, clusterRepo, clusterCredentialCipher)
@@ -180,13 +211,17 @@ func run() error {
 		clusterCredentialCipher,
 	)
 	kubernetesRuntimeDeploymentRuntime := k8sruntimedeployments.NewDeploymentRuntimeService(applicationRepo, clusterRepo, clusterCredentialCipher)
+	applicationHealthService := services.NewApplicationHealthService(applicationRepo, deploymentRepo, alertRepo, incidentRepo).
+		WithPodService(podService).
+		WithRuntimeDeploymentService(kubernetesRuntimeDeploymentRuntime)
 	kubernetesServiceRuntime := k8sservices.NewServiceService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesIngressRuntime := k8singresses.NewIngressService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesEventRuntime := k8sevents.NewEventService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesNodeRuntime := k8snodes.NewNodeService(clusterRepo, clusterCredentialCipher)
 	kubernetesNamespaceRuntime := k8snamespaces.NewNamespaceService(clusterRepo, clusterCredentialCipher)
 	clusterService := services.NewClusterService(clusterRepo, auditService, clusterCredentialCipher)
-	deploymentStatusUpdater := k8sexecutor.NewDeploymentStatusUpdater(deploymentRepo, deploymentHistoryService, auditService)
+	deploymentStatusUpdater := k8sexecutor.NewDeploymentStatusUpdater(deploymentRepo, deploymentHistoryService, auditService).
+		WithNotifier(notificationService)
 	deploymentManifestBuilder := k8sexecutor.NewDeploymentManifestBuilder()
 	deploymentExecutor := k8sexecutor.NewDeploymentExecutor(
 		deploymentRepo,
@@ -228,6 +263,7 @@ func run() error {
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	applicationHandler := handlers.NewApplicationHandler(applicationService)
+	applicationHealthHandler := handlers.NewApplicationHealthHandler(applicationHealthService)
 	podHandler := handlers.NewPodHandler(podService)
 	kubernetesLogHandler := handlers.NewKubernetesLogHandler(kubernetesLogRuntime)
 	kubernetesConfigMapHandler := handlers.NewKubernetesConfigMapHandler(kubernetesConfigMapRuntime)
@@ -254,6 +290,8 @@ func run() error {
 	commentHandler := handlers.NewCommentHandler(commentService)
 	auditHandler := handlers.NewAuditHandler(auditService)
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	sreHandler := handlers.NewSREHandler(sreMetricsService)
 	healthHandler := handlers.NewHealthHandler(cfg, startedAt, database.Ping)
 	collector := metrics.NewCollector()
 
@@ -315,6 +353,7 @@ func run() error {
 		invitationHandler,
 		projectHandler,
 		applicationHandler,
+		applicationHealthHandler,
 		podHandler,
 		kubernetesLogHandler,
 		kubernetesConfigMapHandler,
@@ -339,6 +378,8 @@ func run() error {
 		commentHandler,
 		auditHandler,
 		dashboardHandler,
+		notificationHandler,
+		sreHandler,
 		healthHandler,
 		collector,
 	)

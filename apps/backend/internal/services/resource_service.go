@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -502,6 +503,14 @@ func uuidPointerString(value *uuid.UUID) string {
 	}
 
 	return value.String()
+}
+
+func uintPointerString(value *uint) string {
+	if value == nil {
+		return ""
+	}
+
+	return strconv.FormatUint(uint64(*value), 10)
 }
 
 func uuidPointerStringsEqual(left, right *uuid.UUID) bool {

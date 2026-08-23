@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type {
+  AssignIncidentRequest,
   CreateIncidentRequest,
   IncidentListResponse,
   IncidentQueryParams,
@@ -36,5 +37,15 @@ export const incidentService = {
 
   async deleteIncident(id: number): Promise<void> {
     await api.delete<APIResponse<null>>(`/incidents/${id}`);
+  },
+
+  async assignIncident(id: number, payload: AssignIncidentRequest): Promise<IncidentResponse> {
+    const response = await api.patch<APIResponse<IncidentResponse>>(`/incidents/${id}/assign`, payload);
+    return response.data.data;
+  },
+
+  async acknowledgeIncident(id: number): Promise<IncidentResponse> {
+    const response = await api.patch<APIResponse<IncidentResponse>>(`/incidents/${id}/acknowledge`);
+    return response.data.data;
   },
 };

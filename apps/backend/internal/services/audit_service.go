@@ -30,8 +30,66 @@ func (s *AuditService) WithIncidentRepo(incidentRepo *repository.IncidentReposit
 	return s
 }
 
-func (s *AuditService) LogCreate(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
+// AuditEventInput is the general-purpose shape for every audit write.
+// LogCreate/LogUpdate/LogDelete remain as thin, unchanged-signature
+// convenience wrappers around this for the many pre-existing call sites;
+// new call sites (Phase 23: login, invitations, teams, applications,
+// deployments) use LogEvent directly when they need Result, IP/user-agent,
+// an ApplicationID cross-reference, or a before/after snapshot.
+type AuditEventInput struct {
+	UserID         uint
+	OrganizationID uuid.UUID
+	ProjectID      *uuid.UUID
+	ApplicationID  *uuid.UUID
+	IncidentID     *uint
+	EntityType     string
+	EntityID       string
+	Action         models.AuditAction
+	// Result defaults to AuditResultSuccess when left blank.
+	Result      models.AuditResult
+	FieldName   string
+	OldValue    string
+	NewValue    string
+	BeforeState string
+	AfterState  string
+	IPAddress   string
+	UserAgent   string
+}
+
+// LogEvent is the single write path every audit entry ultimately goes
+// through. It is best-effort by convention (callers should never fail their
+// business operation because an audit write failed) - see logAuditFailure
+// for the standard way callers report a write error without propagating it.
+func (s *AuditService) LogEvent(input AuditEventInput) error {
+	result := input.Result
+	if result == "" {
+		result = models.AuditResultSuccess
+	}
+
 	log := &models.AuditLog{
+		UserID:         input.UserID,
+		OrganizationID: input.OrganizationID,
+		ProjectID:      input.ProjectID,
+		ApplicationID:  input.ApplicationID,
+		IncidentID:     input.IncidentID,
+		EntityType:     input.EntityType,
+		EntityID:       input.EntityID,
+		Action:         input.Action,
+		Result:         result,
+		FieldName:      input.FieldName,
+		OldValue:       input.OldValue,
+		NewValue:       input.NewValue,
+		BeforeState:    input.BeforeState,
+		AfterState:     input.AfterState,
+		IPAddress:      input.IPAddress,
+		UserAgent:      input.UserAgent,
+	}
+
+	return s.repo.Create(log)
+}
+
+func (s *AuditService) LogCreate(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
+	return s.LogEvent(AuditEventInput{
 		UserID:         userID,
 		OrganizationID: organizationID,
 		ProjectID:      projectID,
@@ -39,13 +97,11 @@ func (s *AuditService) LogCreate(userID uint, organizationID uuid.UUID, entityTy
 		EntityType:     entityType,
 		EntityID:       entityID,
 		Action:         models.AuditActionCreate,
-	}
-
-	return s.repo.Create(log)
+	})
 }
 
 func (s *AuditService) LogUpdate(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint, fieldName string, oldValue string, newValue string) error {
-	log := &models.AuditLog{
+	return s.LogEvent(AuditEventInput{
 		UserID:         userID,
 		OrganizationID: organizationID,
 		ProjectID:      projectID,
@@ -56,13 +112,11 @@ func (s *AuditService) LogUpdate(userID uint, organizationID uuid.UUID, entityTy
 		FieldName:      fieldName,
 		OldValue:       oldValue,
 		NewValue:       newValue,
-	}
-
-	return s.repo.Create(log)
+	})
 }
 
 func (s *AuditService) LogDelete(userID uint, organizationID uuid.UUID, entityType string, entityID string, projectID *uuid.UUID, incidentID *uint) error {
-	log := &models.AuditLog{
+	return s.LogEvent(AuditEventInput{
 		UserID:         userID,
 		OrganizationID: organizationID,
 		ProjectID:      projectID,
@@ -70,9 +124,7 @@ func (s *AuditService) LogDelete(userID uint, organizationID uuid.UUID, entityTy
 		EntityType:     entityType,
 		EntityID:       entityID,
 		Action:         models.AuditActionDelete,
-	}
-
-	return s.repo.Create(log)
+	})
 }
 
 func (s *AuditService) ListIncidentAuditLogs(userID uint, organizationID uuid.UUID, incidentID uint, req *models.PaginationRequest) (*models.PaginationResponse, error) {
@@ -133,6 +185,26 @@ func (s *AuditService) ListProjectAuditLogs(userID uint, organizationID uuid.UUI
 	}
 
 	items, total, err := s.repo.ListByProjectID(req, projectID, organizationID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.PaginationResponse{
+		Page:       req.Page,
+		Limit:      req.Limit,
+		Total:      total,
+		TotalPages: int((total + int64(req.Limit) - 1) / int64(req.Limit)),
+		Items:      items,
+	}, nil
+}
+
+// ListOrganizationAuditLogs returns every audit log in the organization,
+// unscoped by project/incident/entity - the Organization Audit view (Phase
+// 23). Visibility is organization-membership-based (mirroring every other
+// org-wide list endpoint), not gated by an extra ownership check, since
+// there is no narrower resource to own here.
+func (s *AuditService) ListOrganizationAuditLogs(organizationID uuid.UUID, req *models.PaginationRequest) (*models.PaginationResponse, error) {
+	items, total, err := s.repo.ListByOrganization(req, organizationID)
 	if err != nil {
 		return nil, err
 	}

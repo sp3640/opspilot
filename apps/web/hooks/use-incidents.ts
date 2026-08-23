@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { incidentService } from "@/services/incident-service";
 import type {
+  AssignIncidentRequest,
   CreateIncidentRequest,
   IncidentQueryParams,
   UpdateIncidentRequest,
@@ -75,6 +76,39 @@ export function useDeleteIncident() {
     },
     onError: (error) => {
       toast.error(getMutationErrorMessage(error, "Failed to delete incident."));
+    },
+  });
+}
+
+export function useAssignIncident() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: AssignIncidentRequest }) =>
+      incidentService.assignIncident(id, payload),
+    onSuccess: (incident) => {
+      toast.success("Incident assigned successfully.");
+      queryClient.setQueryData(incidentKeys.detail(incident.id), incident);
+      return queryClient.invalidateQueries({ queryKey: incidentKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getMutationErrorMessage(error, "Failed to assign incident."));
+    },
+  });
+}
+
+export function useAcknowledgeIncident() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => incidentService.acknowledgeIncident(id),
+    onSuccess: (incident) => {
+      toast.success("Incident acknowledged.");
+      queryClient.setQueryData(incidentKeys.detail(incident.id), incident);
+      return queryClient.invalidateQueries({ queryKey: incidentKeys.all });
+    },
+    onError: (error) => {
+      toast.error(getMutationErrorMessage(error, "Failed to acknowledge incident."));
     },
   });
 }
