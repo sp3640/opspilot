@@ -432,6 +432,9 @@ func migrateIntegrationSchema(t *testing.T, db *gorm.DB) {
 		&models.AuditLog{},
 		&models.NotificationChannel{},
 		&models.ApplicationSLO{},
+		&models.Integration{},
+		&models.GitHubRepository{},
+		&models.ApplicationGitHubRepository{},
 	)
 	if err != nil {
 		t.Fatalf("auto migrate schema: %v", err)

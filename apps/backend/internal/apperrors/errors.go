@@ -69,6 +69,28 @@ var (
 	ErrInvalidSLOTarget = errors.New("SLO target percentage must be between 1 and 100")
 	ErrInvalidSLOWindow = errors.New("SLO window must be between 1 and 365 days")
 
+	// Integration errors
+	ErrIntegrationNotFound                = errors.New("integration not found")
+	ErrInvalidIntegrationType             = errors.New("invalid integration type")
+	ErrInvalidIntegrationName             = errors.New("integration name is required")
+	ErrIntegrationAlreadyExists           = errors.New("an integration of this type with this name already exists")
+	ErrIntegrationConnectorNotImplemented = errors.New("connector for this integration type is not implemented yet")
+	ErrIntegrationEncryptionUnavailable   = errors.New("credential encryption is not configured")
+	ErrIntegrationCredentialsRequired     = errors.New("credentials are required to create this integration")
+	ErrIntegrationTypeMismatch            = errors.New("integration is not of the expected type")
+
+	// GitHub errors (Sprint 28)
+	ErrGitHubNotConnected             = errors.New("GitHub integration is not connected")
+	ErrGitHubUnauthorized             = errors.New("GitHub credentials are invalid or have been revoked")
+	ErrGitHubForbidden                = errors.New("GitHub denied access - check integration permissions")
+	ErrGitHubRateLimited              = errors.New("GitHub API rate limit exceeded, please try again later")
+	ErrGitHubUnavailable              = errors.New("GitHub is currently unavailable")
+	ErrGitHubTimeout                  = errors.New("GitHub request timed out")
+	ErrGitHubRepositoryNotFound       = errors.New("GitHub repository not found")
+	ErrGitHubOAuthNotConfigured       = errors.New("GitHub OAuth is not configured")
+	ErrGitHubOAuthStateInvalid        = errors.New("GitHub OAuth state is invalid or expired")
+	ErrApplicationRepositoryNotMapped = errors.New("no GitHub repository is mapped to this application")
+
 	// Alert errors
 	ErrAlertNotFound            = errors.New("alert not found")
 	ErrInvalidAlertSeverity     = errors.New("invalid alert severity")

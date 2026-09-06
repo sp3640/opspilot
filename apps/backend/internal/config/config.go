@@ -42,6 +42,23 @@ type Config struct {
 	SMTPUsername string
 	SMTPPassword string
 	SMTPFrom     string
+
+	// GitHub OAuth App credentials (Sprint 28). All optional: an unset
+	// GitHubClientID/Secret simply means "connect with GitHub" is
+	// unavailable (the OAuth-start endpoint reports this plainly rather
+	// than failing startup) - organizations can still connect GitHub by
+	// pasting a personal access token through the generic Sprint 27
+	// integration-create endpoint. Never hardcoded: sourced only from
+	// environment configuration, and the resulting access token is
+	// encrypted with the same ClusterCredentialEncryptionKey used by every
+	// other integration - no second encryption key is introduced.
+	GitHubClientID         string
+	GitHubClientSecret     string
+	GitHubOAuthRedirectURL string
+	// FrontendBaseURL is where the GitHub OAuth callback redirects the
+	// browser back to after completing the exchange - the same origin
+	// already allow-listed in CORS.
+	FrontendBaseURL string
 }
 
 // Load reads environment configuration and validates all startup-critical values.
@@ -90,6 +107,11 @@ func Load() (*Config, error) {
 		SMTPUsername: strings.TrimSpace(getEnv("SMTP_USERNAME", "")),
 		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
 		SMTPFrom:     strings.TrimSpace(getEnv("SMTP_FROM", "")),
+
+		GitHubClientID:         strings.TrimSpace(getEnv("GITHUB_CLIENT_ID", "")),
+		GitHubClientSecret:     strings.TrimSpace(getEnv("GITHUB_CLIENT_SECRET", "")),
+		GitHubOAuthRedirectURL: strings.TrimSpace(getEnv("GITHUB_OAUTH_REDIRECT_URL", "")),
+		FrontendBaseURL:        strings.TrimSpace(getEnv("FRONTEND_BASE_URL", "http://localhost:3000")),
 	}
 
 	if err := cfg.Validate(); err != nil {

@@ -46,6 +46,8 @@ func RegisterRoutes(
 	notificationHandler *handlers.NotificationHandler,
 	sreHandler *handlers.SREHandler,
 	rcaHandler *handlers.RCAHandler,
+	integrationHandler *handlers.IntegrationHandler,
+	githubHandler *handlers.GitHubHandler,
 	healthHandler *handlers.HealthHandler,
 	collector *metrics.Collector,
 ) {
@@ -174,6 +176,11 @@ func RegisterRoutes(
 			if kubernetesRuntimeDeploymentHandler != nil {
 				applications.GET("/:id/runtime/deployments", kubernetesRuntimeDeploymentHandler.ListByApplication)
 			}
+			if githubHandler != nil {
+				applications.GET("/:id/github/repository", githubHandler.GetApplicationMapping)
+				applications.PUT("/:id/github/repository", githubHandler.MapApplicationRepository)
+				applications.DELETE("/:id/github/repository", githubHandler.UnmapApplicationRepository)
+			}
 		}
 
 		pods := api.Group("/pods")
@@ -259,6 +266,9 @@ func RegisterRoutes(
 			deployments.DELETE("/:id", deploymentHandler.Delete)
 			deployments.PATCH("/:id/cancel", deploymentHandler.Cancel)
 			deployments.POST("/:id/rollback", deploymentHandler.Rollback)
+			if githubHandler != nil {
+				deployments.GET("/:id/github/correlation", githubHandler.GetDeploymentCorrelation)
+			}
 		}
 
 		teams := api.Group("/teams")
@@ -331,6 +341,50 @@ func RegisterRoutes(
 				notificationRoutes.PUT("/:id", notificationHandler.Update)
 				notificationRoutes.DELETE("/:id", notificationHandler.Delete)
 				notificationRoutes.POST("/:id/test", notificationHandler.Test)
+			}
+		}
+
+		if integrationHandler != nil {
+			integrationRoutes := api.Group("/integrations")
+			integrationRoutes.Use(middleware.AuthMiddleware(cfg))
+			{
+				integrationRoutes.POST("", integrationHandler.Create)
+				integrationRoutes.GET("", integrationHandler.List)
+				integrationRoutes.GET("/:id", integrationHandler.GetByID)
+				integrationRoutes.PUT("/:id", integrationHandler.Update)
+				integrationRoutes.DELETE("/:id", integrationHandler.Delete)
+				integrationRoutes.POST("/:id/test", integrationHandler.Test)
+				integrationRoutes.POST("/:id/check", integrationHandler.Check)
+				if githubHandler != nil {
+					integrationRoutes.GET("/:id/github/repositories", githubHandler.ListRepositories)
+					integrationRoutes.POST("/:id/github/repositories/sync", githubHandler.SyncRepositories)
+				}
+			}
+		}
+
+		// =========================
+		// GitHub (Sprint 28) - repository-id-scoped routes and OAuth, kept
+		// under their own top-level /github group (never nested under
+		// /integrations/:id) so a static "/integrations/github/..." segment
+		// can never conflict with the existing "/integrations/:id" wildcard.
+		// The OAuth callback is deliberately outside AuthMiddleware: GitHub
+		// redirects the browser here directly with no Authorization header,
+		// so the signed state token (verified inside GitHubService) is the
+		// entire authorization boundary for that one route.
+		// =========================
+		if githubHandler != nil {
+			githubRoutes := api.Group("/github")
+			{
+				githubRoutes.GET("/oauth/callback", githubHandler.OAuthCallback)
+
+				githubProtected := githubRoutes.Group("")
+				githubProtected.Use(middleware.AuthMiddleware(cfg))
+				{
+					githubProtected.GET("/oauth/start", githubHandler.OAuthStart)
+					githubProtected.GET("/repositories/:repositoryId/commits", githubHandler.ListCommits)
+					githubProtected.GET("/repositories/:repositoryId/pulls", githubHandler.ListPullRequests)
+					githubProtected.PATCH("/repositories/:repositoryId/select", githubHandler.SelectRepository)
+				}
 			}
 		}
 

@@ -18,6 +18,8 @@ import (
 
 	"github.com/sp3640/opspilot/backend/internal/bootstrap"
 	"github.com/sp3640/opspilot/backend/internal/config"
+	"github.com/sp3640/opspilot/backend/internal/connector"
+	githubconnector "github.com/sp3640/opspilot/backend/internal/connector/github"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/database"
 	"github.com/sp3640/opspilot/backend/internal/discovery"
@@ -151,6 +153,9 @@ func run() error {
 	dashboardRepo := repository.NewDashboardRepository(database.DB)
 	notificationChannelRepo := repository.NewNotificationChannelRepository(database.DB)
 	applicationSLORepo := repository.NewApplicationSLORepository(database.DB)
+	integrationRepo := repository.NewIntegrationRepository(database.DB)
+	githubRepositoryRepo := repository.NewGitHubRepositoryRepository(database.DB)
+	applicationGitHubRepositoryRepo := repository.NewApplicationGitHubRepositoryRepository(database.DB)
 
 	organizationService := services.NewOrganizationService(organizationRepo)
 	auditService := services.NewAuditService(auditRepo).
@@ -202,6 +207,29 @@ func run() error {
 	sreMetricsService := services.NewSREMetricsService(applicationRepo, incidentRepo, applicationSLORepo).
 		WithAuditService(auditService)
 	rcaService := services.NewRCAService(incidentRepo, alertRepo, metricRepo, deploymentRepo, auditRepo, applicationRepo)
+	// connectorRegistry has a real GitHub connector registered (Sprint 28) -
+	// every other integration type still resolves to a "not implemented"
+	// connector (see internal/connector) until a future sprint implements
+	// Slack/Email/Prometheus/Loki/OpenTelemetry/Azure. The same
+	// cluster-credential cipher already used for kubeconfigs and
+	// notification channel targets is reused for integration credentials,
+	// per CLUSTER_CREDENTIAL_ENCRYPTION_KEY - no second encryption key.
+	connectorRegistry := connector.NewRegistry()
+	githubClient := githubconnector.NewClient("", nil)
+	connectorRegistry.Register(constants.IntegrationTypeGitHub, githubconnector.NewConnector(githubClient))
+	integrationService := services.NewIntegrationService(integrationRepo, clusterCredentialCipher, connectorRegistry).
+		WithAuditService(auditService)
+	githubOAuthConfig := githubconnector.NewOAuthConfig(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubOAuthRedirectURL)
+	githubService := services.NewGitHubService(
+		integrationService,
+		githubClient,
+		githubOAuthConfig,
+		githubRepositoryRepo,
+		applicationGitHubRepositoryRepo,
+		applicationRepo,
+		deploymentRepo,
+		cfg.JWTSecret,
+	).WithAuditService(auditService)
 	podService := k8spods.NewPodService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesLogRuntime := k8slogs.NewLogService(applicationRepo, clusterRepo, clusterCredentialCipher)
 	kubernetesConfigMapRuntime := k8sconfigmaps.NewConfigMapService(applicationRepo, clusterRepo, clusterCredentialCipher)
@@ -298,6 +326,8 @@ func run() error {
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	sreHandler := handlers.NewSREHandler(sreMetricsService)
 	rcaHandler := handlers.NewRCAHandler(rcaService)
+	integrationHandler := handlers.NewIntegrationHandler(integrationService)
+	githubHandler := handlers.NewGitHubHandler(githubService, cfg)
 	healthHandler := handlers.NewHealthHandler(cfg, startedAt, database.Ping)
 	collector := metrics.NewCollector()
 
@@ -387,6 +417,8 @@ func run() error {
 		notificationHandler,
 		sreHandler,
 		rcaHandler,
+		integrationHandler,
+		githubHandler,
 		healthHandler,
 		collector,
 	)

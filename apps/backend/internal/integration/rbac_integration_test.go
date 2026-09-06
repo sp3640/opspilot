@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/sp3640/opspilot/backend/internal/config"
+	"github.com/sp3640/opspilot/backend/internal/connector"
+	githubconnector "github.com/sp3640/opspilot/backend/internal/connector/github"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
@@ -201,28 +203,36 @@ func TestRBACOrganizationLevelIntegration(t *testing.T) {
 }
 
 type rbacTestApp struct {
-	db                      *gorm.DB
-	router                  *gin.Engine
-	cfg                     *config.Config
-	userRepo                *repository.UserRepository
-	organizationRepo        *repository.OrganizationRepository
-	invitationRepo          *repository.InvitationRepository
-	applicationRepo         *repository.ApplicationRepository
-	clusterRepo             *repository.ClusterRepository
-	metricRepo              *repository.MetricRepository
-	metricService           *services.MetricService
-	alertRepo               *repository.AlertRepository
-	alertService            *services.AlertService
-	incidentRepo            *repository.IncidentRepository
-	deploymentRepo          *repository.DeploymentRepository
-	deploymentService       *services.DeploymentService
-	deploymentHistoryRepo   *repository.DeploymentHistoryRepository
-	auditRepo               *repository.AuditRepository
-	auditService            *services.AuditService
-	notificationChannelRepo *repository.NotificationChannelRepository
-	notificationService     *services.NotificationService
-	applicationSLORepo      *repository.ApplicationSLORepository
-	sreMetricsService       *services.SREMetricsService
+	db                        *gorm.DB
+	router                    *gin.Engine
+	cfg                       *config.Config
+	userRepo                  *repository.UserRepository
+	organizationRepo          *repository.OrganizationRepository
+	invitationRepo            *repository.InvitationRepository
+	applicationRepo           *repository.ApplicationRepository
+	clusterRepo               *repository.ClusterRepository
+	metricRepo                *repository.MetricRepository
+	metricService             *services.MetricService
+	alertRepo                 *repository.AlertRepository
+	alertService              *services.AlertService
+	incidentRepo              *repository.IncidentRepository
+	deploymentRepo            *repository.DeploymentRepository
+	deploymentService         *services.DeploymentService
+	deploymentHistoryRepo     *repository.DeploymentHistoryRepository
+	auditRepo                 *repository.AuditRepository
+	auditService              *services.AuditService
+	notificationChannelRepo   *repository.NotificationChannelRepository
+	notificationService       *services.NotificationService
+	applicationSLORepo        *repository.ApplicationSLORepository
+	sreMetricsService         *services.SREMetricsService
+	integrationRepo           *repository.IntegrationRepository
+	integrationService        *services.IntegrationService
+	connectorRegistry         *connector.Registry
+	githubRepositoryRepo      *repository.GitHubRepositoryRepository
+	applicationGitHubRepoRepo *repository.ApplicationGitHubRepositoryRepository
+	githubService             *services.GitHubService
+	githubClient              *githubconnector.Client
+	githubOAuthConfig         *githubconnector.OAuthConfig
 }
 
 func setupRBACApp(t *testing.T) *rbacTestApp {
@@ -262,6 +272,9 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	dashboardRepo := repository.NewDashboardRepository(db)
 	notificationChannelRepo := repository.NewNotificationChannelRepository(db)
 	applicationSLORepo := repository.NewApplicationSLORepository(db)
+	integrationRepo := repository.NewIntegrationRepository(db)
+	githubRepositoryRepo := repository.NewGitHubRepositoryRepository(db)
+	applicationGitHubRepoRepo := repository.NewApplicationGitHubRepositoryRepository(db)
 
 	organizationService := services.NewOrganizationService(organizationRepo)
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
@@ -296,6 +309,21 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	incidentService.WithNotificationService(notificationService)
 	alertService.WithNotificationService(notificationService)
 	sreMetricsService := services.NewSREMetricsService(applicationRepo, incidentRepo, applicationSLORepo).WithAuditService(auditService)
+	connectorRegistry := connector.NewRegistry()
+	githubClient := githubconnector.NewClient("https://github-not-called.invalid", nil)
+	connectorRegistry.Register(constants.IntegrationTypeGitHub, githubconnector.NewConnector(githubClient))
+	integrationService := services.NewIntegrationService(integrationRepo, testClusterCredentialCipher(t), connectorRegistry).WithAuditService(auditService)
+	githubOAuthConfig := githubconnector.NewOAuthConfig("test-client-id", "test-client-secret", "https://ops.example.test/callback")
+	githubService := services.NewGitHubService(
+		integrationService,
+		githubClient,
+		githubOAuthConfig,
+		githubRepositoryRepo,
+		applicationGitHubRepoRepo,
+		applicationRepo,
+		deploymentRepo,
+		cfg.JWTSecret,
+	).WithAuditService(auditService)
 	clusterService := services.NewClusterService(clusterRepo, auditService, testClusterCredentialCipher(t))
 	resourceService := services.NewResourceService(resourceRepo, resourcesync.NewSyncEngine(resourceRepo), auditService)
 	metricService := services.NewMetricService(metricRepo, auditService).WithResourceRepo(resourceRepo)
@@ -325,6 +353,8 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	auditHandler := handlers.NewAuditHandler(auditService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	sreHandler := handlers.NewSREHandler(sreMetricsService)
+	integrationHandler := handlers.NewIntegrationHandler(integrationService)
+	githubHandler := handlers.NewGitHubHandler(githubService, cfg)
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 	healthHandler := handlers.NewHealthHandler(cfg, time.Now(), func(_ context.Context) error { return nil })
 	collector := metrics.NewCollector()
@@ -383,32 +413,42 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		notificationHandler,
 		sreHandler,
 		nil,
+		integrationHandler,
+		githubHandler,
 		healthHandler,
 		collector,
 	)
 
 	return &rbacTestApp{
-		db:                      db,
-		router:                  r,
-		cfg:                     cfg,
-		userRepo:                userRepo,
-		organizationRepo:        organizationRepo,
-		invitationRepo:          invitationRepo,
-		applicationRepo:         applicationRepo,
-		clusterRepo:             clusterRepo,
-		metricService:           metricService,
-		alertRepo:               alertRepo,
-		alertService:            alertService,
-		incidentRepo:            incidentRepo,
-		deploymentRepo:          deploymentRepo,
-		deploymentService:       deploymentService,
-		deploymentHistoryRepo:   deploymentHistoryRepo,
-		auditRepo:               auditRepo,
-		auditService:            auditService,
-		notificationChannelRepo: notificationChannelRepo,
-		notificationService:     notificationService,
-		applicationSLORepo:      applicationSLORepo,
-		sreMetricsService:       sreMetricsService,
+		db:                        db,
+		router:                    r,
+		cfg:                       cfg,
+		userRepo:                  userRepo,
+		organizationRepo:          organizationRepo,
+		invitationRepo:            invitationRepo,
+		applicationRepo:           applicationRepo,
+		clusterRepo:               clusterRepo,
+		metricService:             metricService,
+		alertRepo:                 alertRepo,
+		alertService:              alertService,
+		incidentRepo:              incidentRepo,
+		deploymentRepo:            deploymentRepo,
+		deploymentService:         deploymentService,
+		deploymentHistoryRepo:     deploymentHistoryRepo,
+		auditRepo:                 auditRepo,
+		auditService:              auditService,
+		notificationChannelRepo:   notificationChannelRepo,
+		notificationService:       notificationService,
+		applicationSLORepo:        applicationSLORepo,
+		sreMetricsService:         sreMetricsService,
+		integrationRepo:           integrationRepo,
+		integrationService:        integrationService,
+		connectorRegistry:         connectorRegistry,
+		githubRepositoryRepo:      githubRepositoryRepo,
+		applicationGitHubRepoRepo: applicationGitHubRepoRepo,
+		githubService:             githubService,
+		githubClient:              githubClient,
+		githubOAuthConfig:         githubOAuthConfig,
 	}
 }
 

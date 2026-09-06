@@ -188,6 +188,8 @@ func setupResourceDiscoveryApp(t *testing.T) *resourceDiscoveryTestApp {
 		nil,
 		nil,
 		nil,
+		nil,
+		nil,
 		healthHandler,
 		collector,
 	)

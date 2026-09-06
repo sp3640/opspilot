@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Cpu,
   Gauge,
+  GitBranch,
   Globe,
   Layers3,
   Network,
@@ -29,6 +30,7 @@ import type { ApplicationResponse } from "@/types/application-api";
 import { ApplicationConfigMaps } from "./application-configmaps";
 import { ApplicationDeployments } from "./application-deployments";
 import { ApplicationEvents } from "./application-events";
+import { ApplicationGitHub } from "./application-github";
 import { ApplicationHealth } from "./application-health";
 import { ApplicationIngresses } from "./application-ingresses";
 import { ApplicationSLO } from "./application-slo";
@@ -58,6 +60,7 @@ const tabs: ReadonlyArray<{ label: string; icon: LucideIcon }> = [
   { label: "Events", icon: Cpu },
   { label: "Teams", icon: Users },
   { label: "SLO", icon: Target },
+  { label: "GitHub", icon: GitBranch },
 ];
 
 /** Right-side application context. Only Overview renders real content today. */
@@ -305,6 +308,8 @@ export function ApplicationDetailsDrawer({
             <ApplicationEvents applicationId={application.id} />
           ) : activeTab === "SLO" ? (
             <ApplicationSLO applicationId={application.id} />
+          ) : activeTab === "GitHub" ? (
+            <ApplicationGitHub applicationId={application.id} />
           ) : (
             <div
               className="flex min-h-56 items-center justify-center rounded-2xl border p-6 text-center text-sm"

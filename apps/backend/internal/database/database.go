@@ -91,6 +91,9 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&models.AuditLog{},
 		&models.NotificationChannel{},
 		&models.ApplicationSLO{},
+		&models.Integration{},
+		&models.GitHubRepository{},
+		&models.ApplicationGitHubRepository{},
 	)
 	if err != nil {
 		_ = sqlDB.Close()

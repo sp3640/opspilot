@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { ErrorState } from "@/components/common";
 import { SectionCard } from "@/components/dashboard";
+import { IntegrationWorkspace } from "@/components/integrations";
 import { InvitationWorkspace } from "@/components/invitations";
 import { NotificationChannelWorkspace } from "@/components/notifications";
 import { type OrganizationFormValues } from "@/lib/validation/organization";
@@ -129,6 +130,8 @@ export function OrganizationWorkspace() {
       {organization && isAdmin ? <InvitationWorkspace /> : null}
 
       {organization ? <NotificationChannelWorkspace /> : null}
+
+      {organization ? <IntegrationWorkspace /> : null}
 
       {organization ? (
         <OrganizationDeleteDialog
