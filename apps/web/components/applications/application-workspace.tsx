@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useApplicationsByProject } from "@/hooks/use-applications";
 import { useHasPermission } from "@/store/auth-store";
 
+import { ApplicationDetailsDrawer } from "./application-details-drawer";
 import { ApplicationGrid } from "./application-grid";
 import { ApplicationTable } from "./application-table";
 import { ApplicationToolbar } from "./application-toolbar";
@@ -38,7 +39,7 @@ export function ApplicationWorkspace({ projectId }: ApplicationWorkspaceProps) {
 
   const { data, error, isError, isLoading, refetch } = useApplicationsByProject(projectId, params);
 
-  const applications = data?.items ?? [];
+  const applications = useMemo(() => data?.items ?? [], [data?.items]);
 
   const editApplication = useMemo(
     () => applications.find((application) => application.id === workspace.editApplicationID) ?? null,
@@ -47,6 +48,10 @@ export function ApplicationWorkspace({ projectId }: ApplicationWorkspaceProps) {
   const deleteApplication = useMemo(
     () => applications.find((application) => application.id === workspace.deleteApplicationID) ?? null,
     [applications, workspace.deleteApplicationID]
+  );
+  const selectedApplication = useMemo(
+    () => applications.find((application) => application.id === workspace.selectedApplicationID) ?? null,
+    [applications, workspace.selectedApplicationID]
   );
 
   const errorMessage = error instanceof Error ? error.message : "Unable to load applications. Please try again.";
@@ -165,6 +170,12 @@ export function ApplicationWorkspace({ projectId }: ApplicationWorkspaceProps) {
         open={workspace.deleteApplicationID !== null}
         application={deleteApplication}
         onClose={workspace.closeDelete}
+      />
+
+      <ApplicationDetailsDrawer
+        open={workspace.selectedApplicationID !== null && selectedApplication !== null}
+        application={selectedApplication}
+        onClose={workspace.closeDetails}
       />
     </div>
   );
