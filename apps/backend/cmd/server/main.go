@@ -19,7 +19,10 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/bootstrap"
 	"github.com/sp3640/opspilot/backend/internal/config"
 	"github.com/sp3640/opspilot/backend/internal/connector"
+	emailconnector "github.com/sp3640/opspilot/backend/internal/connector/email"
 	githubconnector "github.com/sp3640/opspilot/backend/internal/connector/github"
+	prometheusconnector "github.com/sp3640/opspilot/backend/internal/connector/prometheus"
+	slackconnector "github.com/sp3640/opspilot/backend/internal/connector/slack"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/database"
 	"github.com/sp3640/opspilot/backend/internal/discovery"
@@ -217,6 +220,9 @@ func run() error {
 	connectorRegistry := connector.NewRegistry()
 	githubClient := githubconnector.NewClient("", nil)
 	connectorRegistry.Register(constants.IntegrationTypeGitHub, githubconnector.NewConnector(githubClient))
+	connectorRegistry.Register(constants.IntegrationTypeSlack, slackconnector.NewConnector())
+	connectorRegistry.Register(constants.IntegrationTypeEmail, emailconnector.NewConnector())
+	connectorRegistry.Register(constants.IntegrationTypePrometheus, prometheusconnector.NewConnector())
 	integrationService := services.NewIntegrationService(integrationRepo, clusterCredentialCipher, connectorRegistry).
 		WithAuditService(auditService)
 	githubOAuthConfig := githubconnector.NewOAuthConfig(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubOAuthRedirectURL)

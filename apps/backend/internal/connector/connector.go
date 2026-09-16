@@ -11,7 +11,11 @@
 // nothing about persistence, organizations, or audit logging.
 package connector
 
-import "context"
+import (
+	"context"
+
+	"github.com/sp3640/opspilot/backend/internal/notification"
+)
 
 // Config is everything a Connector needs to act, already resolved by the
 // caller (IntegrationService). Credentials are the decrypted secret fields
@@ -51,5 +55,6 @@ type Connector interface {
 	Disconnect(ctx context.Context, cfg Config) error
 	TestConnection(ctx context.Context, cfg Config) (*Result, error)
 	HealthCheck(ctx context.Context, cfg Config) (*Result, error)
+	SendNotification(ctx context.Context, cfg Config, msg notification.Message) error
 	Capabilities() Capabilities
 }

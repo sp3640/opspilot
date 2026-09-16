@@ -11,6 +11,7 @@ import "time"
 // User is the authenticated GitHub identity - the "who did we connect as"
 // fact shown to the organization after connecting.
 type User struct {
+	ID        int64  `json:"id"`
 	Login     string `json:"login"`
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatar_url"`

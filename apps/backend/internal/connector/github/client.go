@@ -72,8 +72,8 @@ func (c *Client) ListRepositories(ctx context.Context, token string, page, perPa
 
 // ListCommits returns recent commits for owner/repo, optionally scoped to a
 // branch/ref. Bounded by perPage - never an unbounded history walk.
-func (c *Client) ListCommits(ctx context.Context, token, owner, repo, branch string, perPage int) ([]Commit, error) {
-	query := url.Values{"per_page": {strconv.Itoa(clampPerPage(perPage))}}
+func (c *Client) ListCommits(ctx context.Context, token, owner, repo, branch string, page, perPage int) ([]Commit, error) {
+	query := url.Values{"per_page": {strconv.Itoa(clampPerPage(perPage))}, "page": {strconv.Itoa(maxInt(page, 1))}}
 	if strings.TrimSpace(branch) != "" {
 		query.Set("sha", branch)
 	}
@@ -98,10 +98,11 @@ func (c *Client) GetCommit(ctx context.Context, token, owner, repo, sha string) 
 
 // ListPullRequests returns recent pull requests (any state) for owner/repo,
 // newest-updated first, bounded by perPage.
-func (c *Client) ListPullRequests(ctx context.Context, token, owner, repo string, perPage int) ([]PullRequest, error) {
+func (c *Client) ListPullRequests(ctx context.Context, token, owner, repo, state string, page, perPage int) ([]PullRequest, error) {
 	query := url.Values{
 		"per_page":  {strconv.Itoa(clampPerPage(perPage))},
-		"state":     {"all"},
+		"page":      {strconv.Itoa(maxInt(page, 1))},
+		"state":     {state},
 		"sort":      {"updated"},
 		"direction": {"desc"},
 	}

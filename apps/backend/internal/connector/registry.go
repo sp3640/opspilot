@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/sp3640/opspilot/backend/internal/notification"
 )
 
 // notImplementedConnector is what Registry.Resolve returns for any
@@ -29,6 +31,10 @@ func (c *notImplementedConnector) TestConnection(_ context.Context, _ Config) (*
 
 func (c *notImplementedConnector) HealthCheck(_ context.Context, _ Config) (*Result, error) {
 	return nil, c.err()
+}
+
+func (c *notImplementedConnector) SendNotification(_ context.Context, _ Config, _ notification.Message) error {
+	return c.err()
 }
 
 func (c *notImplementedConnector) Capabilities() Capabilities {

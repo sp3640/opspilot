@@ -34,7 +34,7 @@ func newFakeGitHubServer(t *testing.T, expectedToken string) *fakeGitHubServer {
 
 		switch {
 		case r.URL.Path == "/user":
-			_ = json.NewEncoder(w).Encode(githubconnector.User{Login: "octocat", Name: "The Octocat"})
+			_ = json.NewEncoder(w).Encode(githubconnector.User{ID: 583231, Login: "octocat", Name: "The Octocat", AvatarURL: "https://avatars.githubusercontent.com/u/583231", HTMLURL: "https://github.com/octocat"})
 		case r.URL.Path == "/user/repos":
 			if r.URL.Query().Get("page") == "1" {
 				repo := githubconnector.Repository{ID: 42, Name: "widgets", FullName: "acme/widgets", HTMLURL: "https://github.com/acme/widgets", DefaultBranch: "main"}
@@ -125,6 +125,9 @@ func TestGitHubDiscoverRepositoriesAndTestConnection(t *testing.T) {
 	listItems, _ := listData["items"].([]any)
 	if len(listItems) != 1 {
 		t.Fatalf("expected the stored repository list to contain 1 item, got %v", listData)
+	}
+	if listData["page"] != float64(1) || listData["limit"] != float64(20) || listData["total"] != float64(1) || listData["totalPages"] != float64(1) {
+		t.Fatalf("expected stored repository pagination metadata, got %v", listData)
 	}
 
 	// Re-syncing must not duplicate the repository row.
@@ -222,23 +225,56 @@ func TestGitHubRepositoryMappingAndCommitsAndPullRequests(t *testing.T) {
 	getMappingRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/applications/"+applicationID+"/github/repository", adminToken, nil)
 	assertStatus(t, getMappingRec, http.StatusOK)
 
-	commitsRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/github/repositories/"+repositoryID+"/commits", adminToken, nil)
+	commitsRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/github/repositories/"+repositoryID+"/commits?page=2&limit=1", adminToken, nil)
 	assertStatus(t, commitsRec, http.StatusOK)
 	commitItems, _ := decodeDataMap(t, commitsRec)["items"].([]any)
 	if len(commitItems) != 1 || commitItems[0].(map[string]any)["sha"] != "abc123" {
 		t.Fatalf("expected 1 commit abc123, got %v", commitItems)
 	}
+	if commits := decodeDataMap(t, commitsRec); commits["page"] != float64(2) || commits["limit"] != float64(1) {
+		t.Fatalf("expected commit pagination metadata, got %v", commits)
+	}
 
-	pullsRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/github/repositories/"+repositoryID+"/pulls", adminToken, nil)
+	pullsRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/github/repositories/"+repositoryID+"/pulls?page=2&limit=1&state=open", adminToken, nil)
 	assertStatus(t, pullsRec, http.StatusOK)
 	pullItems, _ := decodeDataMap(t, pullsRec)["items"].([]any)
 	if len(pullItems) != 1 || pullItems[0].(map[string]any)["number"] != float64(1) {
 		t.Fatalf("expected 1 pull request #1, got %v", pullItems)
 	}
+	if pulls := decodeDataMap(t, pullsRec); pulls["page"] != float64(2) || pulls["limit"] != float64(1) || pulls["state"] != "open" {
+		t.Fatalf("expected pull-request pagination and state metadata, got %v", pulls)
+	}
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/github/repositories/"+repositoryID+"/pulls?state=invalid", adminToken, nil), http.StatusBadRequest)
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/github/repositories/"+repositoryID+"/commits?limit=51", adminToken, nil), http.StatusBadRequest)
 
 	unmapRec := doJSONRequest(t, app.router, http.MethodDelete, "/api/v1/applications/"+applicationID+"/github/repository", adminToken, nil)
 	assertStatus(t, unmapRec, http.StatusOK)
 	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/applications/"+applicationID+"/github/repository", adminToken, nil), http.StatusNotFound)
+}
+
+func TestGitHubIdentityEndpointIsSafeAndOrganizationScoped(t *testing.T) {
+	t.Parallel()
+
+	app := setupRBACApp(t)
+	adminAToken := registerAndLogin(t, app.router, "GitHub Identity Admin A", "github-identity-a@opspilot.dev", "password123")
+	adminBToken := registerAndLogin(t, app.router, "GitHub Identity Admin B", "github-identity-b@opspilot.dev", "password123")
+	fake := newFakeGitHubServer(t, githubSuperSecretTestToken)
+	app.githubClient.BaseURL = fake.server.URL
+	integrationID := createGitHubIntegration(t, app, adminAToken, githubSuperSecretTestToken)
+
+	identityRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/integrations/"+integrationID+"/github/identity", adminAToken, nil)
+	assertStatus(t, identityRec, http.StatusOK)
+	identity := decodeDataMap(t, identityRec)
+	if identity["id"] != float64(583231) || identity["login"] != "octocat" {
+		t.Fatalf("expected safe GitHub identity, got %v", identity)
+	}
+	assertNoSecretLeak(t, identityRec.Body.String())
+	if _, found := identity["access_token"]; found {
+		t.Fatalf("identity response must not include an access token: %v", identity)
+	}
+
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/integrations/"+integrationID+"/github/identity", adminBToken, nil), http.StatusNotFound)
+	assertStatus(t, doJSONRequest(t, app.router, http.MethodGet, "/api/v1/integrations/"+integrationID+"/github/identity", "", nil), http.StatusUnauthorized)
 }
 
 func TestGitHubRepositoryMappingDeniesCrossOrganization(t *testing.T) {

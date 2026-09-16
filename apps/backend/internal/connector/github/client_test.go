@@ -108,19 +108,42 @@ func TestClientTimesOutRatherThanBlockingForever(t *testing.T) {
 }
 
 func TestListCommitsBoundsPerPage(t *testing.T) {
-	var capturedPerPage string
+	var capturedPerPage, capturedPage string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedPerPage = r.URL.Query().Get("per_page")
+		capturedPage = r.URL.Query().Get("page")
 		_ = json.NewEncoder(w).Encode([]Commit{})
 	}))
 	defer server.Close()
 
 	client := NewClient(server.URL, server.Client())
-	if _, err := client.ListCommits(context.Background(), "token", "acme", "widgets", "main", 9999); err != nil {
+	if _, err := client.ListCommits(context.Background(), "token", "acme", "widgets", "main", 3, 9999); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if capturedPerPage != "100" {
 		t.Fatalf("expected per_page to be clamped to 100, got %q", capturedPerPage)
+	}
+	if capturedPage != "3" {
+		t.Fatalf("expected page to be forwarded, got %q", capturedPage)
+	}
+}
+
+func TestListPullRequestsForwardsValidatedPageAndState(t *testing.T) {
+	var capturedPage, capturedState, capturedPerPage string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedPage = r.URL.Query().Get("page")
+		capturedState = r.URL.Query().Get("state")
+		capturedPerPage = r.URL.Query().Get("per_page")
+		_ = json.NewEncoder(w).Encode([]PullRequest{})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, server.Client())
+	if _, err := client.ListPullRequests(context.Background(), "token", "acme", "widgets", "closed", 4, 9999); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedPage != "4" || capturedState != "closed" || capturedPerPage != "100" {
+		t.Fatalf("expected page/state/per_page to be forwarded and bounded, got page=%q state=%q per_page=%q", capturedPage, capturedState, capturedPerPage)
 	}
 }
 

@@ -3,6 +3,8 @@ package connector
 import (
 	"context"
 	"testing"
+
+	"github.com/sp3640/opspilot/backend/internal/notification"
 )
 
 func TestRegistryResolveUnregisteredTypeReturnsNotImplemented(t *testing.T) {
@@ -58,6 +60,7 @@ func (stubConnector) TestConnection(_ context.Context, _ Config) (*Result, error
 func (stubConnector) HealthCheck(_ context.Context, _ Config) (*Result, error) {
 	return &Result{Success: true, Message: "healthy"}, nil
 }
+func (stubConnector) SendNotification(_ context.Context, _ Config, _ notification.Message) error { return nil }
 func (stubConnector) Capabilities() Capabilities {
 	return Capabilities{Implemented: true, SupportsTestConnection: true, SupportsHealthCheck: true, Description: "stub"}
 }

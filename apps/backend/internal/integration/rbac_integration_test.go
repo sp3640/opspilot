@@ -12,7 +12,10 @@ import (
 
 	"github.com/sp3640/opspilot/backend/internal/config"
 	"github.com/sp3640/opspilot/backend/internal/connector"
+	emailconnector "github.com/sp3640/opspilot/backend/internal/connector/email"
 	githubconnector "github.com/sp3640/opspilot/backend/internal/connector/github"
+	prometheusconnector "github.com/sp3640/opspilot/backend/internal/connector/prometheus"
+	slackconnector "github.com/sp3640/opspilot/backend/internal/connector/slack"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
@@ -296,6 +299,12 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 		WithAuditService(auditService)
 	incidentService := services.NewIncidentService(incidentRepo, commentRepo, auditRepo, auditService).WithApplicationRepo(applicationRepo).WithTeamRepo(teamRepo).WithUserRepo(userRepo)
 	alertService := services.NewAlertService(alertRepo, incidentRepo, auditService)
+	connectorRegistry := connector.NewRegistry()
+	githubClient := githubconnector.NewClient("https://github-not-called.invalid", nil)
+	connectorRegistry.Register(constants.IntegrationTypeGitHub, githubconnector.NewConnector(githubClient))
+	connectorRegistry.Register(constants.IntegrationTypeSlack, slackconnector.NewConnector())
+	connectorRegistry.Register(constants.IntegrationTypeEmail, emailconnector.NewConnector())
+	connectorRegistry.Register(constants.IntegrationTypePrometheus, prometheusconnector.NewConnector())
 	notificationProviders := map[string]notification.Provider{
 		constants.NotificationChannelEmail:   notification.NewEmailProvider(notification.EmailConfig{}),
 		constants.NotificationChannelSlack:   notification.NewSlackProvider(),
@@ -305,13 +314,12 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	notificationService := services.NewNotificationService(notificationChannelRepo, testClusterCredentialCipher(t), notificationProviders).
 		WithDeploymentRepo(deploymentRepo).
 		WithTeamRepo(teamRepo).
+		WithIntegrationRepo(integrationRepo).
+		WithConnectorRegistry(connectorRegistry).
 		WithAuditService(auditService)
 	incidentService.WithNotificationService(notificationService)
 	alertService.WithNotificationService(notificationService)
 	sreMetricsService := services.NewSREMetricsService(applicationRepo, incidentRepo, applicationSLORepo).WithAuditService(auditService)
-	connectorRegistry := connector.NewRegistry()
-	githubClient := githubconnector.NewClient("https://github-not-called.invalid", nil)
-	connectorRegistry.Register(constants.IntegrationTypeGitHub, githubconnector.NewConnector(githubClient))
 	integrationService := services.NewIntegrationService(integrationRepo, testClusterCredentialCipher(t), connectorRegistry).WithAuditService(auditService)
 	githubOAuthConfig := githubconnector.NewOAuthConfig("test-client-id", "test-client-secret", "https://ops.example.test/callback")
 	githubService := services.NewGitHubService(

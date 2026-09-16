@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 	"github.com/sp3640/opspilot/backend/internal/authorization"
 	"github.com/sp3640/opspilot/backend/internal/config"
 	"github.com/sp3640/opspilot/backend/internal/dto"
+	"github.com/sp3640/opspilot/backend/internal/models"
 	"github.com/sp3640/opspilot/backend/internal/rbac"
 	"github.com/sp3640/opspilot/backend/internal/response"
 	"github.com/sp3640/opspilot/backend/internal/services"
@@ -82,6 +84,30 @@ func (h *GitHubHandler) OAuthCallback(c *gin.Context) {
 
 // ─── Repository discovery ───────────────────────────────────────────────────
 
+func (h *GitHubHandler) GetIdentity(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+	integrationID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid integration id")
+		return
+	}
+
+	result, err := h.service.GetIdentity(c.Request.Context(), organizationID, integrationID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	response.OK(c, "GitHub identity fetched successfully", result)
+}
+
 func (h *GitHubHandler) ListRepositories(c *gin.Context) {
 	if !authorization.RequireOrganizationMember(c) {
 		return
@@ -97,7 +123,12 @@ func (h *GitHubHandler) ListRepositories(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.ListStoredRepositories(organizationID, integrationID)
+	page, limit, ok := parseGitHubPagination(c, models.MaxLimit)
+	if !ok {
+		return
+	}
+
+	result, err := h.service.ListStoredRepositories(organizationID, integrationID, page, limit)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -179,13 +210,13 @@ func (h *GitHubHandler) ListCommits(c *gin.Context) {
 		return
 	}
 
-	limit, ok := parseOptionalLimit(c)
+	page, limit, ok := parseGitHubPagination(c, 50)
 	if !ok {
 		return
 	}
 	branch := c.Query("branch")
 
-	result, err := h.service.ListCommits(c.Request.Context(), organizationID, repositoryID, branch, limit)
+	result, err := h.service.ListCommits(c.Request.Context(), organizationID, repositoryID, branch, page, limit)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -209,12 +240,18 @@ func (h *GitHubHandler) ListPullRequests(c *gin.Context) {
 		return
 	}
 
-	limit, ok := parseOptionalLimit(c)
+	page, limit, ok := parseGitHubPagination(c, 50)
 	if !ok {
 		return
 	}
 
-	result, err := h.service.ListPullRequests(c.Request.Context(), organizationID, repositoryID, limit)
+	state := strings.ToLower(strings.TrimSpace(c.DefaultQuery("state", "all")))
+	if state != "open" && state != "closed" && state != "all" {
+		response.BadRequest(c, "state must be one of: open, closed, all")
+		return
+	}
+
+	result, err := h.service.ListPullRequests(c.Request.Context(), organizationID, repositoryID, state, page, limit)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -337,17 +374,28 @@ func (h *GitHubHandler) GetDeploymentCorrelation(c *gin.Context) {
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-func parseOptionalLimit(c *gin.Context) (int, bool) {
-	raw := c.Query("limit")
-	if raw == "" {
-		return 0, true
+func parseGitHubPagination(c *gin.Context, maxLimit int) (int, int, bool) {
+	page, limit := models.DefaultPage, models.DefaultLimit
+	if raw := c.Query("page"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < models.DefaultPage {
+			response.BadRequest(c, "page must be at least 1")
+			return 0, 0, false
+		}
+		page = parsed
 	}
-	limit, err := strconv.Atoi(raw)
-	if err != nil || limit < 0 {
-		response.BadRequest(c, "invalid limit")
-		return 0, false
+	if raw := c.Query("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > maxLimit {
+			response.BadRequest(c, "limit must be between 1 and "+strconv.Itoa(maxLimit))
+			return 0, 0, false
+		}
+		limit = parsed
 	}
-	return limit, true
+	if limit > maxLimit {
+		limit = maxLimit
+	}
+	return page, limit, true
 }
 
 func (h *GitHubHandler) handleServiceError(c *gin.Context, err error) {

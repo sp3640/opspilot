@@ -7,6 +7,7 @@ import { EmptyState, StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
 import {
   useGitHubCommits,
+  useGitHubIdentity,
   useGitHubPullRequests,
   useGitHubRepositories,
   useSelectGitHubRepository,
@@ -21,6 +22,7 @@ import type { GitHubRepositoryResponse } from "@/types/github-api";
  * GitHub on its own render.
  */
 export function GitHubRepositoryPanel({ integrationId, canManage }: { integrationId: string; canManage: boolean }) {
+  const { data: identity } = useGitHubIdentity(integrationId);
   const { data, isLoading } = useGitHubRepositories(integrationId);
   const sync = useSyncGitHubRepositories();
   const [expandedRepositoryId, setExpandedRepositoryId] = useState<string | null>(null);
@@ -29,6 +31,19 @@ export function GitHubRepositoryPanel({ integrationId, canManage }: { integratio
 
   return (
     <div className="mt-3 space-y-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+      {identity && (
+        <div className="flex items-center gap-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
+          {identity.avatarUrl && <img src={identity.avatarUrl} alt="" className="h-6 w-6 rounded-full" />}
+          <span>Connected as</span>
+          {identity.profileUrl ? (
+            <a href={identity.profileUrl} target="_blank" rel="noreferrer" className="font-medium" style={{ color: "var(--primary)" }}>
+              {identity.login}
+            </a>
+          ) : (
+            <span className="font-medium">{identity.login}</span>
+          )}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
           Repositories

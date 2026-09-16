@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/sp3640/opspilot/backend/internal/connector"
+	"github.com/sp3640/opspilot/backend/internal/notification"
 )
 
 // tokenKey is the credentials map key IntegrationService/GitHubService use
@@ -72,6 +73,10 @@ func (c *Connector) Capabilities() connector.Capabilities {
 		SupportsHealthCheck:    true,
 		Description:            "Discover repositories and read commit/pull request history via the GitHub REST API. Read-only - no write operations are supported.",
 	}
+}
+
+func (c *Connector) SendNotification(_ context.Context, _ connector.Config, _ notification.Message) error {
+	return fmt.Errorf("github integration does not support outbound notification dispatch")
 }
 
 func extractToken(cfg connector.Config) (string, error) {

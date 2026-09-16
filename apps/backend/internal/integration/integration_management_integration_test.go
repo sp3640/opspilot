@@ -45,8 +45,8 @@ func TestIntegrationCRUDIntegration(t *testing.T) {
 	if created["hasCredentials"] != true {
 		t.Fatalf("expected hasCredentials=true, got %v", created["hasCredentials"])
 	}
-	if created["connectorImplemented"] != false {
-		t.Fatalf("expected connectorImplemented=false (no connector implemented for slack), got %v", created["connectorImplemented"])
+	if created["connectorImplemented"] != true {
+		t.Fatalf("expected connectorImplemented=true for slack, got %v", created["connectorImplemented"])
 	}
 	assertNoSecretLeak(t, createRec.Body.String())
 
@@ -112,57 +112,75 @@ func TestIntegrationRejectsInvalidTypeAndDuplicate(t *testing.T) {
 	assertStatus(t, duplicateRec, http.StatusConflict)
 }
 
-func TestIntegrationTestAndCheckReportUnsupportedConnector(t *testing.T) {
+func TestIntegrationTestAndCheckReportPrometheusSuccess(t *testing.T) {
 	t.Parallel()
 
 	app := setupRBACApp(t)
 	adminToken := registerAndLogin(t, app.router, "Integration Check Admin", "integration-check-admin@opspilot.dev", "password123")
 
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+integrationSuperSecretTestToken {
+			http.Error(w, "missing bearer token", http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Path != "/api/v1/query" {
+			http.Error(w, "unexpected path", http.StatusBadRequest)
+			return
+		}
+		if r.URL.Query().Get("query") != "up" {
+			http.Error(w, "missing query", http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "success",
+			"data": map[string]any{
+				"resultType": "vector",
+				"result":     []any{},
+			},
+		})
+	}))
+	defer server.Close()
+
 	createRec := doJSONRequest(t, app.router, http.MethodPost, "/api/v1/integrations", adminToken, map[string]any{
 		"type": constants.IntegrationTypePrometheus,
 		"name": "Prod Prometheus",
+		"metadata": map[string]any{"api_url": server.URL},
 		"credentials": map[string]any{
-			"apiKey": integrationSuperSecretTestToken,
+			"bearer_token": integrationSuperSecretTestToken,
 		},
 	})
 	assertStatus(t, createRec, http.StatusCreated)
 	integrationID, _ := decodeDataMap(t, createRec)["id"].(string)
 
-	// No connector is implemented for any type this sprint - test/check
-	// must fail honestly, never fabricate a successful connection.
 	testRec := doJSONRequest(t, app.router, http.MethodPost, "/api/v1/integrations/"+integrationID+"/test", adminToken, nil)
 	assertStatus(t, testRec, http.StatusOK)
 	testResult := decodeDataMap(t, testRec)
-	if testResult["success"] != false {
-		t.Fatalf("expected test connection to report success=false for an unimplemented connector, got %v", testResult)
+	if testResult["success"] != true {
+		t.Fatalf("expected test connection to report success=true for Prometheus, got %v", testResult)
 	}
 	assertNoSecretLeak(t, testRec.Body.String())
 
 	checkRec := doJSONRequest(t, app.router, http.MethodPost, "/api/v1/integrations/"+integrationID+"/check", adminToken, nil)
 	assertStatus(t, checkRec, http.StatusOK)
 	checkResult := decodeDataMap(t, checkRec)
-	if checkResult["success"] != false {
-		t.Fatalf("expected health check to report success=false for an unimplemented connector, got %v", checkResult)
+	if checkResult["success"] != true {
+		t.Fatalf("expected health check to report success=true for Prometheus, got %v", checkResult)
 	}
 
 	integrationField, ok := checkResult["integration"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected check response to embed the updated integration, got %v", checkResult)
 	}
-	if integrationField["status"] != constants.IntegrationStatusError {
-		t.Fatalf("expected status ERROR after a failed check, got %v", integrationField["status"])
-	}
-	if integrationField["lastError"] == "" || integrationField["lastError"] == nil {
-		t.Fatalf("expected a non-empty lastError after a failed check")
+	if integrationField["status"] != constants.IntegrationStatusConnected {
+		t.Fatalf("expected status CONNECTED after a successful check, got %v", integrationField["status"])
 	}
 	assertNoSecretLeak(t, checkRec.Body.String())
 
-	// GET must reflect the same persisted status/lastError.
 	getRec := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/integrations/"+integrationID, adminToken, nil)
 	assertStatus(t, getRec, http.StatusOK)
 	getData := decodeDataMap(t, getRec)
-	if getData["status"] != constants.IntegrationStatusError {
-		t.Fatalf("expected persisted status ERROR, got %v", getData["status"])
+	if getData["status"] != constants.IntegrationStatusConnected {
+		t.Fatalf("expected persisted status CONNECTED, got %v", getData["status"])
 	}
 }
 

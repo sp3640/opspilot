@@ -38,6 +38,25 @@ func (r *GitHubRepositoryRepository) ListByIntegration(integrationID, organizati
 	return repos, nil
 }
 
+// ListByIntegrationPaginated returns a stable, organization-scoped page of
+// cached repositories. Full name followed by ID makes paging deterministic
+// even if a repository is renamed between requests.
+func (r *GitHubRepositoryRepository) ListByIntegrationPaginated(integrationID, organizationID uuid.UUID, page, limit int) ([]models.GitHubRepository, int64, error) {
+	query := r.db.Model(&models.GitHubRepository{}).
+		Where("integration_id = ? AND organization_id = ?", integrationID, organizationID)
+
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var repos []models.GitHubRepository
+	if err := query.Order("full_name ASC").Order("id ASC").Limit(limit).Offset((page - 1) * limit).Find(&repos).Error; err != nil {
+		return nil, 0, err
+	}
+	return repos, total, nil
+}
+
 // Upsert inserts repo if no row exists yet for (IntegrationID, GitHubID),
 // otherwise updates the mutable metadata fields in place - the mechanism
 // that keeps repository discovery from ever duplicating a row on repeated

@@ -356,6 +356,7 @@ func RegisterRoutes(
 				integrationRoutes.POST("/:id/test", integrationHandler.Test)
 				integrationRoutes.POST("/:id/check", integrationHandler.Check)
 				if githubHandler != nil {
+					integrationRoutes.GET("/:id/github/identity", githubHandler.GetIdentity)
 					integrationRoutes.GET("/:id/github/repositories", githubHandler.ListRepositories)
 					integrationRoutes.POST("/:id/github/repositories/sync", githubHandler.SyncRepositories)
 				}

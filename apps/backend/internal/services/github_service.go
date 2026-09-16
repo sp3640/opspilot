@@ -200,6 +200,25 @@ func (s *GitHubService) sign(payload string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+// GetIdentity returns the public identity associated with a connected GitHub
+// integration. Credential decryption remains inside IntegrationService; the
+// token is used only for this one API call and is never returned or audited.
+func (s *GitHubService) GetIdentity(ctx context.Context, organizationID, integrationID uuid.UUID) (*dto.GitHubIdentityResponse, error) {
+	_, cfg, err := s.getOwnedGitHubIntegration(organizationID, integrationID)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := s.client.AuthenticatedUser(ctx, cfg.Credentials[githubTokenCredentialKey])
+	if err != nil {
+		return nil, mapGitHubError(err)
+	}
+
+	return &dto.GitHubIdentityResponse{
+		ID: user.ID, Login: user.Login, AvatarURL: user.AvatarURL, ProfileURL: user.HTMLURL,
+	}, nil
+}
+
 // ─── Repository discovery ───────────────────────────────────────────────────
 
 // DiscoverRepositories calls GitHub (bounded to 2 pages / 200 repositories)
@@ -250,15 +269,15 @@ func (s *GitHubService) DiscoverRepositories(ctx context.Context, userID uint, o
 		return nil, err
 	}
 
-	return s.ListStoredRepositories(organizationID, integrationID)
+	return s.ListStoredRepositories(organizationID, integrationID, models.DefaultPage, models.DefaultLimit)
 }
 
 // ListStoredRepositories is a pure database read - no GitHub call - so the
 // frontend can render this cheaply and often without ever hitting GitHub's
 // rate limit; DiscoverRepositories is the explicit, user-initiated action
 // that actually calls GitHub.
-func (s *GitHubService) ListStoredRepositories(organizationID, integrationID uuid.UUID) (*dto.GitHubRepositoryListResponse, error) {
-	repos, err := s.repoRepo.ListByIntegration(integrationID, organizationID)
+func (s *GitHubService) ListStoredRepositories(organizationID, integrationID uuid.UUID, page, limit int) (*dto.GitHubRepositoryListResponse, error) {
+	repos, total, err := s.repoRepo.ListByIntegrationPaginated(integrationID, organizationID, page, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +286,7 @@ func (s *GitHubService) ListStoredRepositories(organizationID, integrationID uui
 	for _, repo := range repos {
 		items = append(items, mapGitHubRepository(repo))
 	}
-	return &dto.GitHubRepositoryListResponse{Items: items, Total: len(items)}, nil
+	return &dto.GitHubRepositoryListResponse{Items: items, Page: page, Limit: limit, Total: total, TotalPages: totalPages(total, limit)}, nil
 }
 
 func (s *GitHubService) SelectRepository(userID uint, organizationID, repositoryID uuid.UUID, selected bool) (*dto.GitHubRepositoryResponse, error) {
@@ -375,7 +394,7 @@ func (s *GitHubService) UnmapApplicationRepository(userID uint, organizationID, 
 
 // ─── Commits / pull requests ────────────────────────────────────────────────
 
-func (s *GitHubService) ListCommits(ctx context.Context, organizationID, repositoryID uuid.UUID, branch string, limit int) (*dto.GitHubCommitListResponse, error) {
+func (s *GitHubService) ListCommits(ctx context.Context, organizationID, repositoryID uuid.UUID, branch string, page, limit int) (*dto.GitHubCommitListResponse, error) {
 	repo, token, err := s.resolveRepositoryToken(organizationID, repositoryID)
 	if err != nil {
 		return nil, err
@@ -384,7 +403,8 @@ func (s *GitHubService) ListCommits(ctx context.Context, organizationID, reposit
 		branch = repo.DefaultBranch
 	}
 
-	commits, err := s.client.ListCommits(ctx, token, repo.Owner, repo.Name, branch, boundLimit(limit, defaultCommitLimit, maxCommitLimit))
+	limit = boundLimit(limit, defaultCommitLimit, maxCommitLimit)
+	commits, err := s.client.ListCommits(ctx, token, repo.Owner, repo.Name, branch, page, limit)
 	if err != nil {
 		return nil, mapGitHubError(err)
 	}
@@ -393,16 +413,17 @@ func (s *GitHubService) ListCommits(ctx context.Context, organizationID, reposit
 	for _, commit := range commits {
 		items = append(items, mapGitHubCommit(commit))
 	}
-	return &dto.GitHubCommitListResponse{Items: items}, nil
+	return &dto.GitHubCommitListResponse{Items: items, Page: page, Limit: limit, HasMore: len(items) == limit}, nil
 }
 
-func (s *GitHubService) ListPullRequests(ctx context.Context, organizationID, repositoryID uuid.UUID, limit int) (*dto.GitHubPullRequestListResponse, error) {
+func (s *GitHubService) ListPullRequests(ctx context.Context, organizationID, repositoryID uuid.UUID, state string, page, limit int) (*dto.GitHubPullRequestListResponse, error) {
 	repo, token, err := s.resolveRepositoryToken(organizationID, repositoryID)
 	if err != nil {
 		return nil, err
 	}
 
-	pulls, err := s.client.ListPullRequests(ctx, token, repo.Owner, repo.Name, boundLimit(limit, defaultPRLimit, maxPRLimit))
+	limit = boundLimit(limit, defaultPRLimit, maxPRLimit)
+	pulls, err := s.client.ListPullRequests(ctx, token, repo.Owner, repo.Name, state, page, limit)
 	if err != nil {
 		return nil, mapGitHubError(err)
 	}
@@ -411,7 +432,7 @@ func (s *GitHubService) ListPullRequests(ctx context.Context, organizationID, re
 	for _, pr := range pulls {
 		items = append(items, mapGitHubPullRequest(pr))
 	}
-	return &dto.GitHubPullRequestListResponse{Items: items}, nil
+	return &dto.GitHubPullRequestListResponse{Items: items, Page: page, Limit: limit, State: state, HasMore: len(items) == limit}, nil
 }
 
 // ─── Deployment correlation ──────────────────────────────────────────────────
@@ -528,6 +549,13 @@ func boundLimit(requested, fallback, max int) int {
 		return max
 	}
 	return requested
+}
+
+func totalPages(total int64, limit int) int {
+	if total == 0 {
+		return 0
+	}
+	return int((total + int64(limit) - 1) / int64(limit))
 }
 
 // mapGitHubError translates this package's connector-level errors into the

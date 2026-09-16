@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/connector"
 	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/logger"
@@ -37,12 +38,14 @@ type channelConfig struct {
 // about channels, encryption, or events - they only know how to send one
 // Message to one already-resolved target.
 type NotificationService struct {
-	repo           *repository.NotificationChannelRepository
-	cipher         security.ClusterCredentialCipher
-	providers      map[string]notification.Provider
-	deploymentRepo *repository.DeploymentRepository
-	teamRepo       *repository.TeamRepository
-	auditService   *AuditService
+	repo              *repository.NotificationChannelRepository
+	integrationRepo   *repository.IntegrationRepository
+	connectorRegistry *connector.Registry
+	cipher            security.ClusterCredentialCipher
+	providers         map[string]notification.Provider
+	deploymentRepo    *repository.DeploymentRepository
+	teamRepo          *repository.TeamRepository
+	auditService      *AuditService
 }
 
 func NewNotificationService(
@@ -59,6 +62,16 @@ func NewNotificationService(
 // of a prior failure).
 func (s *NotificationService) WithDeploymentRepo(deploymentRepo *repository.DeploymentRepository) *NotificationService {
 	s.deploymentRepo = deploymentRepo
+	return s
+}
+
+func (s *NotificationService) WithIntegrationRepo(integrationRepo *repository.IntegrationRepository) *NotificationService {
+	s.integrationRepo = integrationRepo
+	return s
+}
+
+func (s *NotificationService) WithConnectorRegistry(registry *connector.Registry) *NotificationService {
+	s.connectorRegistry = registry
 	return s
 }
 
@@ -306,6 +319,166 @@ func (s *NotificationService) Dispatch(ctx context.Context, organizationID uuid.
 				NewValue:       eventType,
 			})
 		}
+	}
+
+	if s.integrationRepo != nil && s.connectorRegistry != nil {
+		s.dispatchToEligibleIntegrations(ctx, organizationID, eventType, msg, actorUserID)
+	}
+}
+
+func (s *NotificationService) dispatchToEligibleIntegrations(ctx context.Context, organizationID uuid.UUID, eventType string, msg notification.Message, actorUserID uint) {
+	destinationTypes := integrationDestinationTypes(eventType)
+	if len(destinationTypes) == 0 {
+		return
+	}
+
+	integrations, err := s.integrationRepo.ListActiveForDispatch(organizationID, destinationTypes)
+	if err != nil {
+		logger.Error(ctx, "notification integration dispatch: failed to list eligible integrations",
+			slog.String("event", eventType),
+			slog.String("organization_id", organizationID.String()),
+			slog.Any("error", err),
+		)
+		return
+	}
+	if len(integrations) == 0 {
+		logger.Info(ctx, "notification integration dispatch: no eligible integration destination",
+			slog.String("event", eventType),
+			slog.String("organization_id", organizationID.String()),
+		)
+		if s.auditService != nil {
+			_ = s.auditService.LogEvent(AuditEventInput{
+				UserID:         actorUserID,
+				OrganizationID: organizationID,
+				EntityType:     "notification_dispatch",
+				EntityID:       "integration:none",
+				Action:         models.AuditActionCreate,
+				Result:         models.AuditResultSuccess,
+				FieldName:      "destination",
+				NewValue:       "none",
+			})
+		}
+		return
+	}
+
+	seen := make(map[string]struct{}, len(integrations))
+	for _, integration := range integrations {
+		key := fmt.Sprintf("%s:%s:%s", organizationID.String(), eventType, integration.ID.String())
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		cfg, err := s.buildIntegrationConnectorConfig(&integration)
+		if err != nil {
+			logger.Error(ctx, "notification integration dispatch: failed to resolve connector config",
+				slog.String("event", eventType),
+				slog.String("integration_id", integration.ID.String()),
+				slog.String("integration_type", integration.Type),
+				slog.Any("error", err),
+			)
+			if s.auditService != nil {
+				_ = s.auditService.LogEvent(AuditEventInput{
+					UserID:         actorUserID,
+					OrganizationID: organizationID,
+					EntityType:     "notification_dispatch",
+					EntityID:       integration.ID.String(),
+					Action:         models.AuditActionCreate,
+					Result:         models.AuditResultFailure,
+					FieldName:      "integration_config",
+					NewValue:       "resolution_failed",
+				})
+			}
+			continue
+		}
+
+		connectorInstance := s.connectorRegistry.Resolve(integration.Type)
+		if !connectorInstance.Capabilities().Implemented {
+			if s.auditService != nil {
+				_ = s.auditService.LogEvent(AuditEventInput{
+					UserID:         actorUserID,
+					OrganizationID: organizationID,
+					EntityType:     "notification_dispatch",
+					EntityID:       integration.ID.String(),
+					Action:         models.AuditActionCreate,
+					Result:         models.AuditResultFailure,
+					FieldName:      "integration_type",
+					NewValue:       integration.Type + ":not_implemented",
+				})
+			}
+			continue
+		}
+
+		runtimeErr := connectorInstance.SendNotification(ctx, cfg, msg)
+		result := models.AuditResultSuccess
+		if runtimeErr != nil {
+			result = models.AuditResultFailure
+			logger.Error(ctx, "notification integration dispatch failed",
+				slog.String("event", eventType),
+				slog.String("integration_id", integration.ID.String()),
+				slog.String("integration_type", integration.Type),
+				slog.Any("error", runtimeErr),
+			)
+		}
+
+		if s.auditService != nil {
+			_ = s.auditService.LogEvent(AuditEventInput{
+				UserID:         actorUserID,
+				OrganizationID: organizationID,
+				EntityType:     "notification_dispatch",
+				EntityID:       integration.ID.String(),
+				Action:         models.AuditActionCreate,
+				Result:         result,
+				FieldName:      "integration_event",
+				NewValue:       eventType,
+			})
+		}
+	}
+}
+
+func (s *NotificationService) buildIntegrationConnectorConfig(integration *models.Integration) (connector.Config, error) {
+	if s.cipher == nil {
+		return connector.Config{}, apperrors.ErrIntegrationEncryptionUnavailable
+	}
+	credentials, err := s.decryptIntegrationCredentials(integration)
+	if err != nil {
+		return connector.Config{}, err
+	}
+	var metadata map[string]string
+	if err := json.Unmarshal([]byte(integration.ConfigMetadata), &metadata); err != nil {
+		metadata = map[string]string{}
+	}
+	return connector.Config{Metadata: metadata, Credentials: credentials}, nil
+}
+
+func (s *NotificationService) decryptIntegrationCredentials(integration *models.Integration) (map[string]string, error) {
+	if integration == nil {
+		return map[string]string{}, nil
+	}
+	if integration.EncryptedCredentials == "" {
+		return map[string]string{}, nil
+	}
+	decrypted, err := s.cipher.Decrypt(integration.EncryptedCredentials)
+	if err != nil {
+		return nil, err
+	}
+	var credentials map[string]string
+	if err := json.Unmarshal([]byte(decrypted), &credentials); err != nil {
+		return nil, err
+	}
+	return credentials, nil
+}
+
+func integrationDestinationTypes(eventType string) []string {
+	switch eventType {
+	case constants.NotificationEventCriticalAlert,
+		constants.NotificationEventSev1Incident,
+		constants.NotificationEventIncidentAssigned,
+		constants.NotificationEventDeploymentFailed,
+		constants.NotificationEventDeploymentRecovered:
+		return []string{constants.IntegrationTypeSlack, constants.IntegrationTypeEmail}
+	default:
+		return nil
 	}
 }
 

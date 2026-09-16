@@ -2,6 +2,15 @@ package dto
 
 import "time"
 
+// GitHubIdentityResponse deliberately contains only public account metadata.
+// The credential used to fetch it is never part of this DTO.
+type GitHubIdentityResponse struct {
+	ID         int64  `json:"id"`
+	Login      string `json:"login"`
+	AvatarURL  string `json:"avatarUrl,omitempty"`
+	ProfileURL string `json:"profileUrl,omitempty"`
+}
+
 // ─── Repositories ──────────────────────────────────────────────────────────
 
 // GitHubRepositoryResponse is the safe, stored-in-our-database shape for a
@@ -23,8 +32,11 @@ type GitHubRepositoryResponse struct {
 }
 
 type GitHubRepositoryListResponse struct {
-	Items []GitHubRepositoryResponse `json:"items"`
-	Total int                        `json:"total"`
+	Items      []GitHubRepositoryResponse `json:"items"`
+	Page       int                        `json:"page"`
+	Limit      int                        `json:"limit"`
+	Total      int64                      `json:"total"`
+	TotalPages int                        `json:"totalPages"`
 }
 
 type SelectGitHubRepositoryRequest struct {
@@ -57,7 +69,10 @@ type GitHubCommitResponse struct {
 }
 
 type GitHubCommitListResponse struct {
-	Items []GitHubCommitResponse `json:"items"`
+	Items   []GitHubCommitResponse `json:"items"`
+	Page    int                    `json:"page"`
+	Limit   int                    `json:"limit"`
+	HasMore bool                   `json:"hasMore"`
 }
 
 type GitHubPullRequestResponse struct {
@@ -74,7 +89,11 @@ type GitHubPullRequestResponse struct {
 }
 
 type GitHubPullRequestListResponse struct {
-	Items []GitHubPullRequestResponse `json:"items"`
+	Items   []GitHubPullRequestResponse `json:"items"`
+	Page    int                         `json:"page"`
+	Limit   int                         `json:"limit"`
+	State   string                      `json:"state"`
+	HasMore bool                        `json:"hasMore"`
 }
 
 // ─── Deployment correlation ─────────────────────────────────────────────────

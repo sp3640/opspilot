@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
 )
@@ -116,4 +117,22 @@ func (r *IntegrationRepository) UpdateCheckResult(id, organizationID uuid.UUID, 
 			"last_checked_at": checkedAt,
 			"last_error":      lastError,
 		}).Error
+}
+
+// ListActiveForDispatch returns every connected integration for an org that
+// can serve one of the destination types for an event. It intentionally
+// filters at the repository layer so the service can keep the rest of the
+// dispatch logic simple and deterministic.
+func (r *IntegrationRepository) ListActiveForDispatch(organizationID uuid.UUID, destinationTypes []string) ([]models.Integration, error) {
+	if len(destinationTypes) == 0 {
+		return nil, nil
+	}
+
+	var integrations []models.Integration
+	if err := r.db.Where("organization_id = ? AND status = ? AND type IN ?", organizationID, constants.IntegrationStatusConnected, destinationTypes).
+		Order("created_at DESC").
+		Find(&integrations).Error; err != nil {
+		return nil, err
+	}
+	return integrations, nil
 }

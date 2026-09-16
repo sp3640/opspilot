@@ -2,6 +2,7 @@ import { api } from "@/lib/api";
 import type {
   ApplicationRepositoryMappingResponse,
   DeploymentGitHubCorrelationResponse,
+  GitHubIdentityResponse,
   GitHubCommitListResponse,
   GitHubOAuthStartResponse,
   GitHubPullRequestListResponse,
@@ -21,9 +22,17 @@ export const githubService = {
     return response.data.data;
   },
 
-  async listRepositories(integrationId: string): Promise<GitHubRepositoryListResponse> {
+  async getIdentity(integrationId: string): Promise<GitHubIdentityResponse> {
+    const response = await api.get<APIResponse<GitHubIdentityResponse>>(
+      `/integrations/${integrationId}/github/identity`
+    );
+    return response.data.data;
+  },
+
+  async listRepositories(integrationId: string, params?: { page?: number; limit?: number }): Promise<GitHubRepositoryListResponse> {
     const response = await api.get<APIResponse<GitHubRepositoryListResponse>>(
-      `/integrations/${integrationId}/github/repositories`
+      `/integrations/${integrationId}/github/repositories`,
+      { params }
     );
     return response.data.data;
   },
@@ -43,7 +52,7 @@ export const githubService = {
     return response.data.data;
   },
 
-  async listCommits(repositoryId: string, params?: { branch?: string; limit?: number }): Promise<GitHubCommitListResponse> {
+  async listCommits(repositoryId: string, params?: { branch?: string; page?: number; limit?: number }): Promise<GitHubCommitListResponse> {
     const response = await api.get<APIResponse<GitHubCommitListResponse>>(
       `/github/repositories/${repositoryId}/commits`,
       { params }
@@ -51,7 +60,7 @@ export const githubService = {
     return response.data.data;
   },
 
-  async listPullRequests(repositoryId: string, params?: { limit?: number }): Promise<GitHubPullRequestListResponse> {
+  async listPullRequests(repositoryId: string, params?: { page?: number; limit?: number; state?: "open" | "closed" | "all" }): Promise<GitHubPullRequestListResponse> {
     const response = await api.get<APIResponse<GitHubPullRequestListResponse>>(
       `/github/repositories/${repositoryId}/pulls`,
       { params }

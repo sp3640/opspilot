@@ -2,6 +2,13 @@
 // backend-mapped shape - never GitHub's raw API JSON, and never a
 // credential (see internal/dto/github.go for the backend contract).
 
+export type GitHubIdentityResponse = {
+  id: number;
+  login: string;
+  avatarUrl?: string;
+  profileUrl?: string;
+};
+
 export type GitHubRepositoryResponse = {
   id: string;
   integrationId: string;
@@ -19,7 +26,10 @@ export type GitHubRepositoryResponse = {
 
 export type GitHubRepositoryListResponse = {
   items: GitHubRepositoryResponse[];
+  page: number;
+  limit: number;
   total: number;
+  totalPages: number;
 };
 
 export type ApplicationRepositoryMappingResponse = {
@@ -41,6 +51,9 @@ export type GitHubCommitResponse = {
 
 export type GitHubCommitListResponse = {
   items: GitHubCommitResponse[];
+  page: number;
+  limit: number;
+  hasMore: boolean;
 };
 
 export type GitHubPullRequestResponse = {
@@ -58,6 +71,10 @@ export type GitHubPullRequestResponse = {
 
 export type GitHubPullRequestListResponse = {
   items: GitHubPullRequestResponse[];
+  page: number;
+  limit: number;
+  state: "open" | "closed" | "all";
+  hasMore: boolean;
 };
 
 // Available=false covers every case where OpsPilot does not have enough
