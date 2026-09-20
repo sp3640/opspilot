@@ -117,8 +117,8 @@ export function EditClusterModal({ open, cluster, onClose }: EditClusterModalPro
             <div
               className="rounded-2xl p-3"
               style={{
-                color: "var(--warning)",
-                backgroundColor: "color-mix(in srgb, var(--warning) 12%, transparent)",
+                color: "var(--warning-text)",
+                backgroundColor: "var(--warning-bg)",
               }}
             >
               <Pencil aria-hidden="true" className="h-5 w-5" />
@@ -155,7 +155,7 @@ export function EditClusterModal({ open, cluster, onClose }: EditClusterModalPro
           />
 
           {submitError ? (
-            <p role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger)" }}>
+            <p role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger-text)" }}>
               {submitError}
             </p>
           ) : null}

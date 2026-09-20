@@ -177,12 +177,12 @@ function VerdictBanner({ result }: { result: DeploymentHealthCorrelationResult }
     return (
       <div
         className="rounded-2xl border p-4"
-        style={{ borderColor: "var(--danger)", backgroundColor: "color-mix(in srgb, var(--danger) 10%, transparent)" }}
+        style={{ borderColor: "var(--danger-border)", backgroundColor: "var(--danger-bg)" }}
       >
         <div className="flex items-start gap-3">
-          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--danger)" }} />
+          <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--danger-text)" }} />
           <div>
-            <p className="font-semibold" style={{ color: "var(--danger)" }}>
+            <p className="font-semibold" style={{ color: "var(--danger-text)" }}>
               Potential degradation detected after deployment.
             </p>
             <p className="mt-1 text-sm leading-6" style={{ color: "var(--foreground)" }}>
@@ -218,9 +218,9 @@ function VerdictBanner({ result }: { result: DeploymentHealthCorrelationResult }
   return (
     <div
       className="flex items-start gap-3 rounded-2xl border p-4"
-      style={{ borderColor: "var(--success)", backgroundColor: "color-mix(in srgb, var(--success) 10%, transparent)" }}
+      style={{ borderColor: "var(--success-border)", backgroundColor: "var(--success-bg)" }}
     >
-      <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--success)" }} />
+      <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" style={{ color: "var(--success-text)" }} />
       <p className="text-sm leading-6">
         No degradation detected in the {result.windowMinutes}-minute window after this deployment, based on alerts,
         incidents, and current pod health.

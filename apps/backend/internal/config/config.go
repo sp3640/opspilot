@@ -11,6 +11,12 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// defaultLocalOrigin is the local frontend origin every default in this file
+// falls back to when unset - both CORSAllowedOrigins and FrontendBaseURL, so
+// local development keeps working exactly as before this file introduced
+// production-specific validation for either one.
+const defaultLocalOrigin = "http://localhost:3000"
+
 type Config struct {
 	AppName         string
 	AppEnv          string
@@ -19,6 +25,14 @@ type Config struct {
 	DBURL           string
 	RateLimit       int
 	RateLimitWindow time.Duration
+
+	// CORSAllowedOrigins is the explicit allow-list of origins the API's
+	// CORS middleware accepts, parsed from a comma-separated
+	// CORS_ALLOWED_ORIGINS. Defaults to the local frontend origin so local
+	// development is unaffected when unset; production must set this
+	// explicitly (enforced in Validate) rather than silently keeping the
+	// localhost default.
+	CORSAllowedOrigins []string
 
 	DBHost     string
 	DBPort     string
@@ -61,6 +75,26 @@ type Config struct {
 	FrontendBaseURL string
 }
 
+// parseCORSOrigins splits a comma-separated origin list, trimming whitespace
+// and dropping empty entries - e.g. "https://a.example, https://b.example"
+// or a trailing/stray comma both parse cleanly.
+func parseCORSOrigins(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+	for _, part := range parts {
+		origin := strings.TrimSpace(part)
+		if origin == "" {
+			continue
+		}
+		origins = append(origins, origin)
+	}
+	return origins
+}
+
 // Load reads environment configuration and validates all startup-critical values.
 // DATABASE_URL is preferred, while the legacy DB_* variables remain supported for
 // backwards compatibility.
@@ -91,6 +125,8 @@ func Load() (*Config, error) {
 		RateLimit:       rateLimit,
 		RateLimitWindow: rateLimitWindow,
 
+		CORSAllowedOrigins: parseCORSOrigins(getEnv("CORS_ALLOWED_ORIGINS", defaultLocalOrigin)),
+
 		DBHost:     strings.TrimSpace(getEnv("DB_HOST", "")),
 		DBPort:     strings.TrimSpace(getEnv("DB_PORT", "5432")),
 		DBUser:     strings.TrimSpace(getEnv("DB_USER", "")),
@@ -111,7 +147,7 @@ func Load() (*Config, error) {
 		GitHubClientID:         strings.TrimSpace(getEnv("GITHUB_CLIENT_ID", "")),
 		GitHubClientSecret:     strings.TrimSpace(getEnv("GITHUB_CLIENT_SECRET", "")),
 		GitHubOAuthRedirectURL: strings.TrimSpace(getEnv("GITHUB_OAUTH_REDIRECT_URL", "")),
-		FrontendBaseURL:        strings.TrimSpace(getEnv("FRONTEND_BASE_URL", "http://localhost:3000")),
+		FrontendBaseURL:        strings.TrimSpace(getEnv("FRONTEND_BASE_URL", defaultLocalOrigin)),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -158,6 +194,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := validateProductionOrigins(c.AppEnv, c.CORSAllowedOrigins, c.FrontendBaseURL); err != nil {
+		return err
+	}
+
 	if c.DBURL != "" {
 		if err := validateDatabaseURL(c.DBURL); err != nil {
 			return err
@@ -171,6 +211,32 @@ func (c *Config) Validate() error {
 	if _, err := validatePort(c.DBPort, "DB_PORT"); err != nil {
 		return err
 	}
+	return nil
+}
+
+// validateProductionOrigins enforces that production deployments configure
+// their real origins explicitly rather than silently keeping the localhost
+// defaults meant for local development. Development/test/staging are left
+// alone - localhost remains a valid value there, and nothing here fails
+// startup for those environments.
+func validateProductionOrigins(appEnv string, corsAllowedOrigins []string, frontendBaseURL string) error {
+	if appEnv != "production" {
+		return nil
+	}
+
+	if len(corsAllowedOrigins) == 0 {
+		return fmt.Errorf("CORS_ALLOWED_ORIGINS must be set to at least one explicit origin when APP_ENV=production")
+	}
+	for _, origin := range corsAllowedOrigins {
+		if strings.Contains(origin, "*") {
+			return fmt.Errorf("CORS_ALLOWED_ORIGINS must not contain a wildcard (%q) when APP_ENV=production", origin)
+		}
+	}
+
+	if frontendBaseURL == defaultLocalOrigin {
+		return fmt.Errorf("FRONTEND_BASE_URL must be set to the real frontend URL when APP_ENV=production")
+	}
+
 	return nil
 }
 

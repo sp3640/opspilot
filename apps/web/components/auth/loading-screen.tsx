@@ -2,10 +2,20 @@
 
 export function LoadingScreen() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-900 to-gray-800">
+    <div
+      className="flex min-h-screen items-center justify-center"
+      style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
+    >
       <div className="text-center">
-        <div className="inline-flex items-center justify-center w-12 h-12 mb-4 border-4 border-gray-700 border-t-blue-500 rounded-full animate-spin" />
-        <p className="text-gray-400">Loading...</p>
+        <div
+          className="mb-4 inline-flex h-12 w-12 animate-spin rounded-full border-4"
+          style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)' }}
+          role="status"
+          aria-label="Loading"
+        />
+        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
+          Loading...
+        </p>
       </div>
     </div>
   );

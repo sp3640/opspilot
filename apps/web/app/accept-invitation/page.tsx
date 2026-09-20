@@ -1,37 +1,17 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { Link2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Logo } from '@/components/layout/logo';
 import { EmptyState, StatusBadge } from '@/components/common';
+import { AuthShell } from '@/components/auth/auth-shell';
 import { LoadingScreen } from '@/components/auth/loading-screen';
 import { authService } from '@/services/auth-service';
 import { useAcceptInvitation, useValidateInvitation } from '@/hooks/use-invitations';
 import { useAuthStore, useIsAuthenticated } from '@/store/auth-store';
-
-function AuthShell({ children }: { children: ReactNode }) {
-  return (
-    <div
-      className="flex min-h-screen flex-col items-center justify-center px-4 py-12"
-      style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-    >
-      <div className="mb-8">
-        <Logo />
-      </div>
-      <div
-        className="w-full max-w-md rounded-[var(--radius)] border p-6 sm:p-8"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-lg)' }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
 
 function getInvitationErrorMessage(error: unknown): string {
   if (axios.isAxiosError<{ message?: string }>(error) && error.response?.data?.message) {
@@ -137,9 +117,9 @@ function AcceptInvitationContent() {
           <div
             className="mx-auto mb-4 inline-flex rounded-2xl border p-3"
             style={{
-              color: 'var(--danger)',
-              backgroundColor: 'color-mix(in srgb, var(--danger) 10%, transparent)',
-              borderColor: 'color-mix(in srgb, var(--danger) 25%, var(--border))',
+              color: 'var(--danger-text)',
+              backgroundColor: 'var(--danger-bg)',
+              borderColor: 'var(--danger-border)',
             }}
           >
             <Link2 aria-hidden="true" className="h-6 w-6" />

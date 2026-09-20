@@ -14,13 +14,6 @@ export function Card({ children, className }: CardProps) {
         rounded-2xl
         border
         p-6
-
-        transition-all
-        duration-300
-
-        hover:-translate-y-1
-        hover:-translate-y-1
-
         `,
         className
       )}

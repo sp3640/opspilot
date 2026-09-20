@@ -13,7 +13,7 @@ import type { PodResponse } from "@/types/pod-api";
 const LIVE_TAIL_INTERVAL_MS = 5000;
 
 const selectClass =
-  "h-11 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]";
+  "h-10 rounded-xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]";
 
 /**
  * Live Kubernetes Pod Logs: fetched directly from the Kubernetes API for a

@@ -134,7 +134,7 @@ export function CreateDeploymentModal({
               role="alert"
               aria-live="assertive"
               className="rounded-2xl border p-3 text-sm"
-              style={{ backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)", borderColor: "var(--danger)", color: "var(--danger)" }}
+              style={{ backgroundColor: "var(--danger-bg)", borderColor: "var(--danger-border)", color: "var(--danger-text)" }}
             >
               {submitError}
             </div>
@@ -152,7 +152,7 @@ export function CreateDeploymentModal({
                 disabled={createDeployment.isPending}
                 aria-invalid={Boolean(errors.image)}
               />
-              {errors.image && <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{errors.image.message}</p>}
+              {errors.image && <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>{errors.image.message}</p>}
             </div>
 
             <div>
@@ -165,7 +165,7 @@ export function CreateDeploymentModal({
                 style={{ borderColor: errors.imageTag ? "var(--danger)" : "var(--border)" }}
                 disabled={createDeployment.isPending}
               />
-              {errors.imageTag && <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{errors.imageTag.message}</p>}
+              {errors.imageTag && <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>{errors.imageTag.message}</p>}
             </div>
 
             <div>
@@ -179,7 +179,7 @@ export function CreateDeploymentModal({
                 style={{ borderColor: errors.replicaCount ? "var(--danger)" : "var(--border)" }}
                 disabled={createDeployment.isPending}
               />
-              {errors.replicaCount && <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{errors.replicaCount.message}</p>}
+              {errors.replicaCount && <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>{errors.replicaCount.message}</p>}
             </div>
 
             <div>
@@ -222,7 +222,7 @@ export function CreateDeploymentModal({
                 style={{ borderColor: errors.namespace ? "var(--danger)" : "var(--border)" }}
                 disabled={createDeployment.isPending}
               />
-              {errors.namespace && <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{errors.namespace.message}</p>}
+              {errors.namespace && <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>{errors.namespace.message}</p>}
             </div>
 
             <div className="col-span-2">
@@ -236,7 +236,7 @@ export function CreateDeploymentModal({
                 style={{ borderColor: errors.targetClusterId ? "var(--danger)" : "var(--border)" }}
                 disabled={createDeployment.isPending}
               />
-              {errors.targetClusterId && <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{errors.targetClusterId.message}</p>}
+              {errors.targetClusterId && <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>{errors.targetClusterId.message}</p>}
             </div>
 
             <div>
@@ -249,7 +249,7 @@ export function CreateDeploymentModal({
                 style={{ borderColor: errors.commitSha ? "var(--danger)" : "var(--border)" }}
                 disabled={createDeployment.isPending}
               />
-              {errors.commitSha && <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{errors.commitSha.message}</p>}
+              {errors.commitSha && <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>{errors.commitSha.message}</p>}
             </div>
 
             <div>
@@ -262,7 +262,7 @@ export function CreateDeploymentModal({
                 style={{ borderColor: errors.author ? "var(--danger)" : "var(--border)" }}
                 disabled={createDeployment.isPending}
               />
-              {errors.author && <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>{errors.author.message}</p>}
+              {errors.author && <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>{errors.author.message}</p>}
             </div>
           </div>
         </div>

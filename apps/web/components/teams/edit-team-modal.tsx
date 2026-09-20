@@ -93,8 +93,8 @@ export function EditTeamModal({ open, team, onClose }: EditTeamModalProps) {
             <div
               className="rounded-2xl p-3"
               style={{
-                color: "var(--warning)",
-                backgroundColor: "color-mix(in srgb, var(--warning) 12%, transparent)",
+                color: "var(--warning-text)",
+                backgroundColor: "var(--warning-bg)",
               }}
             >
               <Pencil aria-hidden="true" className="h-5 w-5" />
@@ -136,7 +136,7 @@ export function EditTeamModal({ open, team, onClose }: EditTeamModalProps) {
               aria-describedby={errors.name ? "edit-team-name-error" : undefined}
             />
             {errors.name && (
-              <p id="edit-team-name-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-team-name-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.name.message}
               </p>
             )}
@@ -158,7 +158,7 @@ export function EditTeamModal({ open, team, onClose }: EditTeamModalProps) {
               aria-describedby={errors.description ? "edit-team-description-error" : undefined}
             />
             {errors.description && (
-              <p id="edit-team-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-team-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.description.message}
               </p>
             )}
@@ -170,7 +170,7 @@ export function EditTeamModal({ open, team, onClose }: EditTeamModalProps) {
               role="alert"
               aria-live="assertive"
               className="text-sm"
-              style={{ color: "var(--danger)" }}
+              style={{ color: "var(--danger-text)" }}
             >
               {submitError}
             </p>

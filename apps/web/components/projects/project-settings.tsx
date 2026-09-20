@@ -86,9 +86,9 @@ export function ProjectSettings({
       {isAdmin ? (
         <section
           className="rounded-2xl border p-5"
-          style={{ borderColor: "var(--danger)", backgroundColor: "color-mix(in srgb, var(--danger) 6%, transparent)" }}
+          style={{ borderColor: "var(--danger-border)", backgroundColor: "var(--danger-bg)" }}
         >
-          <h3 className="text-sm font-semibold" style={{ color: "var(--danger)" }}>Danger zone</h3>
+          <h3 className="text-sm font-semibold" style={{ color: "var(--danger-text)" }}>Danger zone</h3>
           <p className="mt-1 text-sm" style={{ color: "var(--muted-foreground)" }}>
             Permanently delete this project. This action cannot be undone.
           </p>

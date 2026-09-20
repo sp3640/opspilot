@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -349,6 +350,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	var hasClusterUpdate bool
 	var hasResourceCreate bool
 	var hasMetricSnapshot bool
+	var metricSnapshotLog models.AuditLog
 	var hasAlertCreate bool
 	var hasIncidentCreate bool
 
@@ -362,6 +364,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 			hasResourceCreate = true
 		case log.EntityType == "metric_snapshot" && log.Action == models.AuditActionCreate:
 			hasMetricSnapshot = true
+			metricSnapshotLog = log
 		case log.EntityType == "alert" && log.Action == models.AuditActionCreate:
 			hasAlertCreate = true
 		case log.EntityType == "incident" && log.Action == models.AuditActionCreate:
@@ -380,6 +383,29 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	}
 	if !hasMetricSnapshot {
 		t.Fatalf("expected metric snapshot audit log")
+	}
+
+	// A snapshot is identified as "<project uuid>:<RFC3339 time>", which is
+	// longer than a UUID. It must be stored whole (PostgreSQL rejects an
+	// over-long value; nothing may truncate it) and be retrievable through
+	// the same entity lookup the audit views use.
+	snapshotProjectID, snapshotTime, found := strings.Cut(metricSnapshotLog.EntityID, ":")
+	if !found || snapshotProjectID != projectID.String() {
+		t.Fatalf("metric snapshot audit entity id %q is not \"<project id>:<time>\"", metricSnapshotLog.EntityID)
+	}
+	if _, err := time.Parse(time.RFC3339, snapshotTime); err != nil {
+		t.Fatalf("metric snapshot audit entity id %q has an invalid time: %v", metricSnapshotLog.EntityID, err)
+	}
+	if metricSnapshotLog.OrganizationID != organizationID || metricSnapshotLog.UserID != owner.ID ||
+		metricSnapshotLog.ProjectID == nil || *metricSnapshotLog.ProjectID != projectID {
+		t.Fatalf("metric snapshot audit log has wrong ownership fields: %+v", metricSnapshotLog)
+	}
+	snapshotLogs, snapshotTotal, err := auditRepo.ListByEntity(&models.PaginationRequest{Page: 1, Limit: 10}, "metric_snapshot", metricSnapshotLog.EntityID, organizationID)
+	if err != nil {
+		t.Fatalf("list metric snapshot audit by entity: %v", err)
+	}
+	if snapshotTotal != 1 || len(snapshotLogs) != 1 || snapshotLogs[0].ID != metricSnapshotLog.ID {
+		t.Fatalf("metric snapshot audit entity lookup returned %d rows (total %d), want exactly the stored one", len(snapshotLogs), snapshotTotal)
 	}
 	if !hasAlertCreate {
 		t.Fatalf("expected alert create audit log")

@@ -43,7 +43,7 @@ export function PodContainers({ pod }: { pod: PodResponse }) {
             {container.stateMessage ? (
               <p
                 className="mt-3 rounded-xl border p-3 text-xs"
-                style={{ borderColor: "var(--danger)", color: "var(--danger)", backgroundColor: "color-mix(in srgb, var(--danger) 8%, transparent)" }}
+                style={{ borderColor: "var(--danger-border)", color: "var(--danger-text)", backgroundColor: "var(--danger-bg)" }}
               >
                 {container.stateMessage}
               </p>

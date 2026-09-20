@@ -131,7 +131,7 @@ export function CreateTeamModal({ open, onClose, onCreated }: CreateTeamModalPro
               aria-describedby={errors.name ? "team-name-error" : undefined}
             />
             {errors.name && (
-              <p id="team-name-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="team-name-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.name.message}
               </p>
             )}
@@ -153,7 +153,7 @@ export function CreateTeamModal({ open, onClose, onCreated }: CreateTeamModalPro
               aria-describedby={errors.description ? "team-description-error" : undefined}
             />
             {errors.description && (
-              <p id="team-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="team-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.description.message}
               </p>
             )}
@@ -165,7 +165,7 @@ export function CreateTeamModal({ open, onClose, onCreated }: CreateTeamModalPro
               role="alert"
               aria-live="assertive"
               className="text-sm"
-              style={{ color: "var(--danger)" }}
+              style={{ color: "var(--danger-text)" }}
             >
               {submitError}
             </p>

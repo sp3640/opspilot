@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -109,7 +108,7 @@ var organizationScopedTables = []organizationScopedTable{
 
 func runOrganizationBackfillMigration(db *gorm.DB) error {
 	return db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.AutoMigrate(&models.User{}, &models.Organization{}); err != nil {
+		if err := MigrateUserOrganizationFoundation(tx); err != nil {
 			return fmt.Errorf("migrate user and organization foundation: %w", err)
 		}
 

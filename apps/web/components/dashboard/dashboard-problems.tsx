@@ -29,7 +29,7 @@ function ProblemList({ items, tone, emptyLabel }: { items: ProblemItem[]; tone: 
   if (items.length === 0) {
     return (
       <div className="flex items-center gap-2 py-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
-        <CheckCircle2 aria-hidden="true" className="h-4 w-4" style={{ color: "var(--success)" }} />
+        <CheckCircle2 aria-hidden="true" className="h-4 w-4" style={{ color: "var(--success-text)" }} />
         {emptyLabel}
       </div>
     );

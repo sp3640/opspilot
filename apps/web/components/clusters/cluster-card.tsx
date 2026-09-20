@@ -34,7 +34,7 @@ export function ClusterCard({ cluster, projectName, onOpen }: ClusterCardProps) 
           <div className="flex items-center gap-2">
             <h2 className="truncate font-semibold tracking-tight">{cluster.name}</h2>
             {cluster.isDefault ? (
-              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--success)", backgroundColor: "color-mix(in srgb, var(--success) 12%, transparent)" }}>
+              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--success-text)", backgroundColor: "var(--success-bg)" }}>
                 <ShieldCheck aria-hidden={true} className="h-3 w-3" />
                 Default
               </span>

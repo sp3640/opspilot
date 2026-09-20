@@ -18,10 +18,11 @@ const incidentKeys = {
   detail: (id: number) => ["incidents", "detail", id] as const,
 };
 
-export function useIncidents(params: IncidentQueryParams) {
+export function useIncidents(params: IncidentQueryParams, queryEnabled = true) {
   return useQuery({
     queryKey: incidentKeys.list(params),
     queryFn: () => incidentService.listIncidents(params),
+    enabled: queryEnabled,
   });
 }
 

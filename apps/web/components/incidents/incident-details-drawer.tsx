@@ -190,7 +190,7 @@ export function IncidentDetailsDrawer({
                     type="button"
                     variant="ghost"
                     onClick={() => setDeleteDialogOpen(true)}
-                    className="px-3 text-[var(--danger)]"
+                    className="px-3 text-[var(--danger-text)]"
                     aria-label="Delete incident"
                   >
                     <Trash2 aria-hidden="true" className="h-4 w-4" />

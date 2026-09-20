@@ -31,6 +31,29 @@ const AUTH_TRANSITION_PATHS = ["/auth/login", "/auth/register", "/users/me"];
 
 const PUBLIC_AUTH_PAGES = ["/login", "/register"];
 
+// A GitHub proxy endpoint (every route containing "/github/" - identity,
+// repositories, commits, pulls, application mapping, deployment
+// correlation) calls out to GitHub on OpsPilot's behalf and can 401 for a
+// reason that has nothing to do with the caller's own OpsPilot session: the
+// *stored GitHub credential* was rejected or revoked (backend:
+// apperrors.ErrGitHubUnauthorized, "GitHub credentials are invalid or have
+// been revoked"). That must surface as an integration-specific error to the
+// component that asked for it, never as an OpsPilot session expiry - doing
+// the latter would incorrectly log the user out of OpsPilot over a GitHub-
+// side problem. OpsPilot's own auth middleware never produces this message,
+// so matching on it (scoped to /github/ paths, as defense in depth) safely
+// distinguishes the two without touching backend behavior.
+const GITHUB_CREDENTIAL_ERROR_MESSAGE = "GitHub credentials are invalid";
+
+export function isGitHubCredentialError(error: unknown): boolean {
+  if (!axios.isAxiosError<{ message?: string }>(error) || error.response?.status !== 401) {
+    return false;
+  }
+  const url = error.config?.url ?? "";
+  const message = error.response?.data?.message ?? "";
+  return url.includes("/github/") && message.includes(GITHUB_CREDENTIAL_ERROR_MESSAGE);
+}
+
 // Guards against every in-flight request rejecting at once (e.g. several
 // dashboard widgets losing their session together) from each independently
 // clearing state and redirecting.
@@ -68,11 +91,23 @@ function handleSessionExpired() {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401 && !isAuthTransitionRequest(error.config?.url)) {
+    if (
+      axios.isAxiosError(error) &&
+      error.response?.status === 401 &&
+      !isAuthTransitionRequest(error.config?.url) &&
+      !isGitHubCredentialError(error)
+    ) {
       handleSessionExpired();
     }
 
-    console.error("API Error:", error);
+    // Never log the raw error object: axios attaches the full request
+    // config to it, including the Authorization header (the OpsPilot JWT).
+    // Log only what's safe to see in a console.
+    if (axios.isAxiosError(error)) {
+      console.error("API Error:", error.config?.method?.toUpperCase(), error.config?.url, error.response?.status, error.response?.data?.message);
+    } else {
+      console.error("API Error:", error);
+    }
 
     return Promise.reject(error);
   }

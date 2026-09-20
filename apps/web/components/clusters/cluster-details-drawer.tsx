@@ -164,7 +164,7 @@ export function ClusterDetailsDrawer({
                   {cluster.name}
                 </h2>
                 {cluster.isDefault ? (
-                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--success)", backgroundColor: "color-mix(in srgb, var(--success) 12%, transparent)" }}>
+                  <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--success-text)", backgroundColor: "var(--success-bg)" }}>
                     <ShieldCheck aria-hidden={true} className="h-3 w-3" />
                     Default
                   </span>
@@ -191,7 +191,7 @@ export function ClusterDetailsDrawer({
                     type="button"
                     variant="ghost"
                     onClick={() => setDeleteDialogOpen(true)}
-                    className="px-3 text-[var(--danger)]"
+                    className="px-3 text-[var(--danger-text)]"
                     aria-label="Delete cluster"
                   >
                     <Trash2 aria-hidden="true" className="h-4 w-4" />

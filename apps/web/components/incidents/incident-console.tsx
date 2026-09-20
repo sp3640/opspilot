@@ -65,6 +65,8 @@ export function IncidentConsole({ incidentID }: { incidentID: number }) {
       <div className="mx-auto max-w-[1200px] space-y-6">
         <PageHeader
           title="Incident not found"
+          backHref="/incidents"
+          backLabel="Back to incidents"
           breadcrumb={[{ label: "Overview", href: "/" }, { label: "Incidents", href: "/incidents" }, { label: "Not found" }]}
         />
         <ErrorState
@@ -86,6 +88,8 @@ export function IncidentConsole({ incidentID }: { incidentID: number }) {
       <PageHeader
         title={incident.title}
         description="Incident investigation workspace"
+        backHref="/incidents"
+        backLabel="Back to incidents"
         breadcrumb={[
           { label: "Overview", href: "/" },
           { label: "Incidents", href: "/incidents" },
@@ -102,7 +106,7 @@ export function IncidentConsole({ incidentID }: { incidentID: number }) {
                 type="button"
                 variant="ghost"
                 onClick={() => setDeleteDialogOpen(true)}
-                className="text-[var(--danger)]"
+                className="text-[var(--danger-text)]"
               >
                 <Trash2 aria-hidden="true" className="h-4 w-4" />
                 Delete

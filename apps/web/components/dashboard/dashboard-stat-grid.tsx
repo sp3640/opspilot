@@ -33,12 +33,12 @@ export function DashboardStatGrid({ counts }: { counts: DashboardCounts }) {
             href={href}
             className="rounded-2xl border p-4 transition-colors hover:bg-[var(--muted)]"
             style={{
-              borderColor: isProblem ? "var(--danger)" : "var(--border)",
-              backgroundColor: isProblem ? "color-mix(in srgb, var(--danger) 6%, transparent)" : "var(--card)",
+              borderColor: isProblem ? "var(--danger-border)" : "var(--border)",
+              backgroundColor: isProblem ? "var(--danger-bg)" : "var(--card)",
             }}
           >
             <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{label}</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight" style={{ color: isProblem ? "var(--danger)" : "var(--foreground)" }}>
+            <p className="mt-1 text-2xl font-semibold tracking-tight" style={{ color: isProblem ? "var(--danger-text)" : "var(--foreground)" }}>
               {value === null ? "—" : value}
             </p>
           </Link>

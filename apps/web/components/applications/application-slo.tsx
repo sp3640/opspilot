@@ -69,7 +69,7 @@ export function ApplicationSLO({ applicationId }: { applicationId: string }) {
               Loading...
             </p>
           ) : isSLOError && !sloNotConfigured ? (
-            <p className="text-sm" style={{ color: "var(--danger)" }}>
+            <p className="text-sm" style={{ color: "var(--danger-text)" }}>
               {metricsError instanceof Error ? metricsError.message : "Unable to load SLO configuration."}
             </p>
           ) : (
@@ -129,7 +129,7 @@ export function ApplicationSLO({ applicationId }: { applicationId: string }) {
             </p>
           ) : isMetricsError ? (
             <div className="space-y-2">
-              <p className="text-sm" style={{ color: "var(--danger)" }}>
+              <p className="text-sm" style={{ color: "var(--danger-text)" }}>
                 {metricsError instanceof Error ? metricsError.message : "Unable to load SRE metrics."}
               </p>
               <Button type="button" variant="secondary" onClick={() => void refetchMetrics()}>

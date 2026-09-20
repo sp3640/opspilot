@@ -91,7 +91,7 @@ func (s *MetricService) StoreSnapshot(ctx context.Context, projectID uuid.UUID, 
 	}
 
 	if s.auditRepo != nil && len(stored) > 0 {
-		snapshotID := projectID.String() + ":" + time.Now().UTC().Format(time.RFC3339)
+		snapshotID := metricSnapshotEntityID(projectID, time.Now())
 		if organizationID != uuid.Nil {
 			if err := s.auditRepo.LogCreate(userID, organizationID, "metric_snapshot", snapshotID, &projectID, nil); err != nil {
 				logAuditFailure(ctx, "snapshot_store", "metric_snapshot", 0, err)
@@ -100,6 +100,14 @@ func (s *MetricService) StoreSnapshot(ctx context.Context, projectID uuid.UUID, 
 	}
 
 	return stored, nil
+}
+
+// metricSnapshotEntityID is the audit EntityID of one metric snapshot
+// ingestion: a snapshot has no row of its own, so it is identified by the
+// project it belongs to plus the moment it was stored. That composite is
+// longer than a UUID, which is why AuditLog.EntityID is not UUID-sized.
+func metricSnapshotEntityID(projectID uuid.UUID, at time.Time) string {
+	return projectID.String() + ":" + at.UTC().Format(time.RFC3339)
 }
 
 func (s *MetricService) GetMetrics(organizationID uuid.UUID, req *models.PaginationRequest) (*dto.MetricListResponse, error) {

@@ -156,7 +156,7 @@ function NotificationChannelRow({
             <Button
               type="button"
               variant="ghost"
-              className="text-[var(--danger)]"
+              className="text-[var(--danger-text)]"
               loading={deleteChannel.isPending}
               onClick={() => void deleteChannel.mutateAsync(channel.id)}
               aria-label={`Delete ${channel.name}`}

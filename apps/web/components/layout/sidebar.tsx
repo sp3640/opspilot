@@ -35,7 +35,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
     <>
       {mobileOpen ? (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-[var(--scrim)] lg:hidden"
           aria-hidden="true"
           onClick={onMobileClose}
         />
@@ -68,7 +68,8 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
         style={{
-          background: "#0d1117",
+          background: "var(--surface)",
+          color: "var(--surface-foreground)",
           borderColor: "var(--border)",
         }}
       >
@@ -79,13 +80,14 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
             type="button"
             onClick={onMobileClose}
             aria-label="Close navigation menu"
-            className="rounded-lg p-1.5 text-zinc-400 hover:text-white lg:hidden"
+            className="rounded-lg p-1.5 transition-colors hover:bg-[var(--surface-hover)] lg:hidden"
+            style={{ color: "var(--muted-foreground)" }}
           >
             <X aria-hidden="true" className="h-5 w-5" />
           </button>
         </div>
 
-        <nav className="mt-8 flex-1 space-y-8 overflow-y-auto">
+        <nav className="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
         {navigationGroups.map((group) => (
           <SidebarGroup
             key={group.title}
@@ -109,18 +111,20 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         "
         style={{
           borderColor: "var(--border)",
-          background: "rgba(255,255,255,0.03)",
+          background: "var(--surface-hover)",
         }}
       >
         <div className="flex items-center gap-2">
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          <div className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--success)]" />
 
           <span className="text-sm font-medium">
             Connected
           </span>
         </div>
 
-        <p className="mt-2 text-xs text-zinc-400">Workspace: {organizationName}</p>
+        <p className="mt-1.5 truncate text-xs" style={{ color: "var(--muted-foreground)" }} title={`Workspace: ${organizationName}`}>
+          Workspace: {organizationName}
+        </p>
       </div>
       </aside>
     </>

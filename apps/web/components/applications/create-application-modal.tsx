@@ -333,7 +333,7 @@ export function CreateApplicationModal({ open, projectId, onClose }: CreateAppli
           </div>
 
           {submitError ? (
-            <p id="create-application-submit-error" role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger)" }}>
+            <p id="create-application-submit-error" role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger-text)" }}>
               {submitError}
             </p>
           ) : null}
@@ -356,7 +356,7 @@ function FieldError({ message }: { message?: string }) {
   if (!message) return null;
 
   return (
-    <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+    <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
       {message}
     </p>
   );

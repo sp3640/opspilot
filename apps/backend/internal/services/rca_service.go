@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/sp3640/opspilot/backend/internal/apperrors"
+	"github.com/sp3640/opspilot/backend/internal/constants"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	k8sevents "github.com/sp3640/opspilot/backend/internal/kubernetes/events"
 	k8slogs "github.com/sp3640/opspilot/backend/internal/kubernetes/logs"
@@ -44,12 +46,16 @@ const (
 // absent, or when the live cluster call fails, the corresponding evidence
 // category simply becomes unavailable rather than failing the analysis.
 type RCAService struct {
-	incidentRepo    *repository.IncidentRepository
-	alertRepo       *repository.AlertRepository
-	metricRepo      *repository.MetricRepository
-	deploymentRepo  *repository.DeploymentRepository
-	auditRepo       *repository.AuditRepository
-	applicationRepo *repository.ApplicationRepository
+	incidentRepo     *repository.IncidentRepository
+	alertRepo        *repository.AlertRepository
+	metricRepo       *repository.MetricRepository
+	deploymentRepo   *repository.DeploymentRepository
+	auditRepo        *repository.AuditRepository
+	applicationRepo  *repository.ApplicationRepository
+	integrationRepo  *repository.IntegrationRepository
+	resourceRepo     *repository.ResourceRepository
+	integrationSvc   *IntegrationService
+	prometheusClient *PrometheusService
 
 	podService   *k8spods.PodService
 	eventService *k8sevents.EventService
@@ -72,6 +78,30 @@ func NewRCAService(
 		auditRepo:       auditRepo,
 		applicationRepo: applicationRepo,
 	}
+}
+
+func (s *RCAService) WithIntegrationRepo(integrationRepo *repository.IntegrationRepository) *RCAService {
+	s.integrationRepo = integrationRepo
+	return s
+}
+
+func (s *RCAService) WithResourceRepo(resourceRepo *repository.ResourceRepository) *RCAService {
+	s.resourceRepo = resourceRepo
+	return s
+}
+
+func (s *RCAService) WithIntegrationService(integrationSvc *IntegrationService) *RCAService {
+	s.integrationSvc = integrationSvc
+	return s
+}
+
+func (s *RCAService) WithPrometheusClient(prometheusClient *PrometheusService) *RCAService {
+	s.prometheusClient = prometheusClient
+	return s
+}
+
+func (s *RCAService) WithPrometheusService(prometheusService *PrometheusService) *RCAService {
+	return s.WithPrometheusClient(prometheusService)
 }
 
 func (s *RCAService) WithPodService(podService *k8spods.PodService) *RCAService {
@@ -135,6 +165,7 @@ func (s *RCAService) Analyze(ctx context.Context, incidentID uint, organizationI
 			input.ApplicationName = application.Name
 
 			namespace := s.gatherDeployments(&input, application.ID, organizationID)
+			s.gatherPrometheusEvidence(ctx, &input, incident, organizationID)
 			if namespace != "" {
 				pods := s.gatherPods(ctx, &input, application.ID, organizationID, namespace)
 				s.gatherK8sEvents(ctx, &input, application.ID, organizationID, namespace)
@@ -209,6 +240,116 @@ func (s *RCAService) gatherConfigChanges(input *rca.Input, projectID, organizati
 			ChangedAt:  log.CreatedAt,
 		})
 	}
+}
+
+func (s *RCAService) gatherPrometheusEvidence(ctx context.Context, input *rca.Input, incident *models.Incident, organizationID uuid.UUID) {
+	if s.integrationRepo == nil || s.integrationSvc == nil || s.resourceRepo == nil || s.prometheusClient == nil {
+		return
+	}
+	if incident == nil || incident.ProjectID == uuid.Nil || incident.ApplicationID == nil {
+		return
+	}
+
+	integrations, err := s.integrationRepo.ListActiveForDispatch(organizationID, []string{constants.IntegrationTypePrometheus})
+	if err != nil || len(integrations) == 0 {
+		return
+	}
+
+	for _, integration := range integrations {
+		if integration.OrganizationID != organizationID || integration.Type != constants.IntegrationTypePrometheus {
+			continue
+		}
+		_, cfg, err := s.integrationSvc.ResolveConnectorConfig(organizationID, integration.ID)
+		if err != nil {
+			continue
+		}
+
+		resources, err := s.resourceRepo.ListByProject(incident.ProjectID, organizationID)
+		if err != nil || len(resources) == 0 {
+			continue
+		}
+
+		applications, _, err := s.applicationRepo.ListApplicationsByProject(incident.ProjectID, organizationID, &models.PaginationRequest{Page: 1, Limit: 50, Sort: "name", Order: "asc"})
+		if err != nil {
+			continue
+		}
+		if len(applications) == 0 {
+			applications = append(applications, models.Application{ID: *incident.ApplicationID, Name: input.ApplicationName, OrganizationID: organizationID, ProjectID: incident.ProjectID})
+		}
+
+		deployments, _, err := s.deploymentRepo.ListByApplication(*incident.ApplicationID, organizationID, &models.PaginationRequest{Page: 1, Limit: 10, Sort: "created_at", Order: "desc"})
+		if err != nil {
+			continue
+		}
+		if len(deployments) == 0 {
+			continue
+		}
+
+		namespace := deployments[0].Namespace
+		if namespace == "" {
+			continue
+		}
+
+		queries := []struct {
+			query     string
+			metricKey string
+			unit      string
+		}{
+			{query: fmt.Sprintf(`sum by (pod, namespace) (container_memory_working_set_bytes{namespace="%s"})`, namespace), metricKey: "memory_usage", unit: "bytes"},
+			{query: fmt.Sprintf(`sum by (pod, namespace) (rate(container_cpu_usage_seconds_total{namespace="%s"}[5m]))`, namespace), metricKey: "cpu_usage", unit: "cores"},
+		}
+
+		for _, candidate := range queries {
+			result, err := s.prometheusClient.QueryRange(ctx, cfg, candidate.query, input.WindowStart, input.WindowEnd, "1m")
+			if err != nil || result == nil {
+				continue
+			}
+			for _, series := range result.Series {
+				if len(series.Values) == 0 {
+					continue
+				}
+				samples := make([]dto.PrometheusSample, 0, len(series.Values))
+				for _, value := range series.Values {
+					samples = append(samples, dto.PrometheusSample{
+						Timestamp: value.Timestamp,
+						Value:     value.Value,
+						Labels:    series.Metric,
+					})
+				}
+				match := CorrelatePrometheusSamplesToApplication(samples, resources, deployments, applications)
+				if !match.Available {
+					continue
+				}
+				prometheusPoints := prometheusMetricPointsFromSamples(samples, candidate.metricKey, candidate.unit)
+				if len(prometheusPoints) == 0 {
+					continue
+				}
+				input.MetricsAvailable = true
+				input.Metrics = append(input.Metrics, prometheusPoints...)
+				return
+			}
+		}
+	}
+}
+
+func prometheusMetricPointsFromSamples(samples []dto.PrometheusSample, metricName, unit string) []rca.MetricPoint {
+	if len(samples) == 0 {
+		return nil
+	}
+	points := make([]rca.MetricPoint, 0, len(samples))
+	for _, sample := range samples {
+		if sample.Timestamp.IsZero() {
+			continue
+		}
+		points = append(points, rca.MetricPoint{
+			MetricType: "PROMETHEUS",
+			MetricName: metricName,
+			Unit:       unit,
+			Value:      sample.Value,
+			Timestamp:  sample.Timestamp,
+		})
+	}
+	return points
 }
 
 // gatherDeployments loads the application's most recent deployments and

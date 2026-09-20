@@ -1,7 +1,8 @@
-// Integration type identifiers (Sprint 27: Integration Foundation). No real
-// connector exists yet for any of these - see the backend's
-// internal/connector package - so every integration created today reports
-// connectorImplemented=false until a future sprint wires one up.
+// Integration type identifiers (Sprint 27: Integration Foundation). GitHub
+// (Sprint 28) and Prometheus (Sprint 30) now have real connectors - see the
+// backend's internal/connector package - and report connectorImplemented=true;
+// every other type still reports connectorImplemented=false until a future
+// sprint wires one up.
 export type IntegrationType =
   | "github"
   | "slack"

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sp3640/opspilot/backend/internal/database"
 	"github.com/sp3640/opspilot/backend/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -48,6 +49,12 @@ func setupPostgresIntegrationDB(t *testing.T, dsn string) *gorm.DB {
 	})
 
 	resetPostgresIntegrationSchema(t, db)
+	// User and Organization reference each other, so PostgreSQL needs their
+	// foreign keys staged (see database.MigrateUserOrganizationFoundation).
+	// A plain AutoMigrate of that pair fails on an empty database.
+	if err := database.MigrateUserOrganizationFoundation(db); err != nil {
+		t.Fatalf("migrate user/organization foundation: %v", err)
+	}
 	migrateIntegrationSchema(t, db)
 
 	return db

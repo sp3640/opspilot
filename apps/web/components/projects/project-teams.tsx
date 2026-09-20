@@ -13,7 +13,7 @@ import { useIsPlatformAdmin } from "@/store/auth-store";
 const TEAM_LOOKUP_QUERY = { page: 1, limit: 100, sort: "name" as const, order: "asc" as const };
 
 const selectClass =
-  "mt-1 h-11 w-full rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]";
+  "mt-1 h-10 w-full rounded-xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]";
 
 /** Project ↔ Team assignment. Mounted only when the Members tab is active. */
 export function ProjectTeams({ projectId }: { projectId: string }) {
@@ -111,7 +111,7 @@ export function ProjectTeams({ projectId }: { projectId: string }) {
         </form>
       ) : null}
       {assignError ? (
-        <p className="text-xs" style={{ color: "var(--danger)" }}>
+        <p className="text-xs" style={{ color: "var(--danger-text)" }}>
           {assignError}
         </p>
       ) : null}
@@ -154,7 +154,7 @@ export function ProjectTeams({ projectId }: { projectId: string }) {
                       }}
                       loading={removeTeam.isPending && removeTeam.variables?.teamId === assignment.teamId}
                       disabled={removeTeam.isPending}
-                      className="h-9 w-9 shrink-0 rounded-xl p-0 text-[var(--danger)]"
+                      className="h-9 w-9 shrink-0 rounded-xl p-0 text-[var(--danger-text)]"
                       aria-label={`Remove ${team?.name ?? assignment.teamId} from project`}
                     >
                       <Trash2 aria-hidden="true" className="h-4 w-4" />

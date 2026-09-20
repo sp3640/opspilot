@@ -17,15 +17,15 @@ export function Logo() {
           background: "var(--primary)",
         }}
       >
-        <ShieldCheck className="h-6 w-6 text-white" />
+        <ShieldCheck className="h-6 w-6 text-[var(--primary-foreground)]" />
       </div>
 
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">
+      <div className="min-w-0">
+        <h1 className="truncate text-xl font-bold tracking-tight" style={{ color: "var(--surface-foreground)" }}>
           OpsPilot
         </h1>
 
-        <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+        <p className="truncate text-xs uppercase tracking-[0.18em]" style={{ color: "var(--subtle-foreground)" }}>
           Enterprise Platform
         </p>
       </div>

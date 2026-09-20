@@ -5,37 +5,78 @@
    ========================================== */
 
 :root {
-  /* Backgrounds */
-  --background: #09090b;
-  --foreground: #fafafa;
+  /* ------------------------------------------------------------------
+     OpsPilot theme - "premium dark enterprise control plane".
+     Midnight navy + slate + azure blue + subtle cyan, with semantic
+     green / amber / red. Every component reads these tokens; do not
+     hardcode hex values in components.
+     ------------------------------------------------------------------ */
 
-  /* Surfaces */
-  --card: #18181b;
-  --card-foreground: #fafafa;
+  /* Surface hierarchy: background < panel < card < card-hover */
+  --background: #080b12;
+  --foreground: #f8fafc;
 
-  /* Borders */
-  --border: rgba(255, 255, 255, 0.08);
+  --surface: #0b101a; /* sidebar + header chrome */
+  --surface-foreground: #f8fafc;
+  --surface-hover: rgba(148, 163, 184, 0.08);
+
+  --panel: #0e131d; /* main content panels (SectionCard) */
+  --card: #121925; /* cards and inner surfaces */
+  --card-foreground: #f8fafc;
+  --card-hover: #172131;
+
+  /* Borders stay subtle */
+  --border: #202b3a;
+  --input-border: #202b3a;
 
   /* Brand */
-  --primary: #4f8cff;
-  --primary-foreground: #ffffff;
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-foreground: #f8fafc;
+  --accent: #22d3ee; /* cyan: infrastructure / technical highlights, sparingly */
+  --accent-foreground: #080b12;
+  --accent-secondary: var(--accent);
+  --accent-secondary-foreground: var(--accent-foreground);
 
-  /* Muted */
-  --muted: #202024;
-  --muted-foreground: #a1a1aa;
+  /* Text hierarchy: foreground > muted-foreground > subtle-foreground */
+  --muted: #172131; /* hover / segmented-control surface (= card-hover) */
+  --muted-foreground: #94a3b8;
+  --subtle-foreground: #64748b;
 
-  /* Status */
+  /* Semantic: base color (icons, dots, solid fills), dark tinted
+     background, subtle border, readable text. */
   --success: #22c55e;
+  --success-bg: #07150d;
+  --success-border: #166534;
+  --success-text: #4ade80;
+
   --warning: #f59e0b;
+  --warning-bg: #171208;
+  --warning-border: #854d0e;
+  --warning-text: #fbbf24;
+
   --danger: #ef4444;
+  --danger-bg: #160d10;
+  --danger-border: #7f1d1d;
+  --danger-text: #f87171;
+
+  /* Info uses the blue system, not a new hue */
+  --info: #60a5fa;
+  --info-bg: #0a1424;
+  --info-border: #1e3a8a;
+  --info-text: #60a5fa;
+
+  /* Interaction */
+  --focus-ring: var(--primary);
+  --scrim: rgba(4, 7, 12, 0.62); /* modal/drawer backdrop */
 
   /* Radius */
   --radius: 16px;
 
-  /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.45);
+  /* Shadows (deep navy, never pure black) */
+  --shadow-sm: 0 2px 8px rgba(2, 6, 14, 0.28);
+  --shadow-md: 0 10px 30px rgba(2, 6, 14, 0.38);
+  --shadow-lg: 0 20px 60px rgba(2, 6, 14, 0.5);
 
   /* Motion */
   --transition-fast: 150ms ease;
@@ -43,23 +84,59 @@
 }
 
 .light {
-  --background: #ffffff;
-  --foreground: #111827;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 
+  --surface: #f1f5f9;
+  --surface-foreground: #0f172a;
+  --surface-hover: rgba(15, 23, 42, 0.05);
+
+  --panel: #ffffff;
   --card: #ffffff;
-  --card-foreground: #111827;
+  --card-foreground: #0f172a;
+  --card-hover: #f1f5f9;
 
-  --border: #e5e7eb;
+  --border: #e2e8f0;
+  --input-border: #cbd5e1;
 
   --primary: #2563eb;
+  --primary-hover: #1d4ed8;
   --primary-foreground: #ffffff;
+  --accent: #0891b2;
+  --accent-foreground: #ffffff;
+  --accent-secondary: var(--accent);
+  --accent-secondary-foreground: var(--accent-foreground);
 
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --subtle-foreground: #94a3b8;
 
   --success: #16a34a;
+  --success-bg: #f0fdf4;
+  --success-border: #bbf7d0;
+  --success-text: #15803d;
+
   --warning: #d97706;
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
+  --warning-text: #b45309;
+
   --danger: #dc2626;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --danger-text: #b91c1c;
+
+  --info: #2563eb;
+  --info-bg: #eff6ff;
+  --info-border: #bfdbfe;
+  --info-text: #1d4ed8;
+
+  --focus-ring: var(--primary);
+  --scrim: rgba(15, 23, 42, 0.45);
+
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 10px 30px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 20px 60px rgba(15, 23, 42, 0.16);
 }
 
 /* ==========================================
@@ -72,9 +149,11 @@
   box-sizing: border-box;
 }
 
-* {
-  margin: 0;
-}
+/* Margin reset intentionally NOT here: Tailwind's preflight (imported above)
+   already zeroes margins inside @layer base. An unlayered `* { margin: 0 }`
+   outranks every layered utility, which silently disabled all margin
+   utilities (mt, mb, mx, space-y) app-wide: content flush against toolbars,
+   logo colliding with nav labels, titles touching descriptions. */
 
 html,
 body {
@@ -112,12 +191,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2f2f35;
+  background: var(--border);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #44444a;
+  background: var(--subtle-foreground);
 }
 
 /* ==========================================
@@ -125,7 +204,7 @@ body {
    ========================================== */
 
 ::selection {
-  background: rgba(79, 140, 255, 0.35);
+  background: color-mix(in srgb, var(--primary) 35%, transparent);
 }
 
 /* ==========================================
@@ -133,7 +212,7 @@ body {
    ========================================== */
 
 :focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -141,11 +220,14 @@ body {
    Smooth Media
    ========================================== */
 
-img,
-svg,
-video {
-  display: block;
-  max-width: 100%;
+/* In @layer base so utilities like `hidden` / `lg:block` on icons still win. */
+@layer base {
+  img,
+  svg,
+  video {
+    display: block;
+    max-width: 100%;
+  }
 }
 
 /* ==========================================

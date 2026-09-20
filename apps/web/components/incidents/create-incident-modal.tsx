@@ -87,8 +87,8 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
             <div
               className="rounded-2xl p-3"
               style={{
-                color: "var(--danger)",
-                backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",
+                color: "var(--danger-text)",
+                backgroundColor: "var(--danger-bg)",
               }}
             >
               <AlertCircle aria-hidden="true" className="h-5 w-5" />
@@ -122,9 +122,9 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               aria-live="assertive"
               className="rounded-2xl border p-3 text-sm"
               style={{
-                backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",
-                borderColor: "var(--danger)",
-                color: "var(--danger)",
+                backgroundColor: "var(--danger-bg)",
+                borderColor: "var(--danger-border)",
+                color: "var(--danger-text)",
               }}
             >
               {submitError}
@@ -146,7 +146,7 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               aria-describedby={errors.title ? "incident-title-error" : undefined}
             />
             {errors.title && (
-              <p id="incident-title-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="incident-title-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.title.message}
               </p>
             )}
@@ -168,7 +168,7 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               aria-describedby={errors.description ? "incident-description-error" : undefined}
             />
             {errors.description && (
-              <p id="incident-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="incident-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.description.message}
               </p>
             )}
@@ -194,7 +194,7 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               ))}
             </select>
             {errors.severity && (
-              <p id="incident-severity-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="incident-severity-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.severity.message}
               </p>
             )}
@@ -215,7 +215,7 @@ export function CreateIncidentModal({ open, onClose }: CreateIncidentModalProps)
               aria-describedby={errors.project_id ? "incident-project-error" : undefined}
             />
             {errors.project_id && (
-              <p id="incident-project-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="incident-project-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.project_id.message}
               </p>
             )}

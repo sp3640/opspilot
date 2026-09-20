@@ -71,7 +71,7 @@ export function IncidentComments({ incidentId }: { incidentId: number }) {
             aria-describedby={errors.content ? "incident-comment-content-error" : undefined}
           />
           {errors.content && (
-            <p id="incident-comment-content-error" className="text-xs" style={{ color: "var(--danger)" }}>
+            <p id="incident-comment-content-error" className="text-xs" style={{ color: "var(--danger-text)" }}>
               {errors.content.message}
             </p>
           )}

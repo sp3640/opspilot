@@ -209,7 +209,6 @@ func run() error {
 	alertService.WithNotificationService(notificationService)
 	sreMetricsService := services.NewSREMetricsService(applicationRepo, incidentRepo, applicationSLORepo).
 		WithAuditService(auditService)
-	rcaService := services.NewRCAService(incidentRepo, alertRepo, metricRepo, deploymentRepo, auditRepo, applicationRepo)
 	// connectorRegistry has a real GitHub connector registered (Sprint 28) -
 	// every other integration type still resolves to a "not implemented"
 	// connector (see internal/connector) until a future sprint implements
@@ -224,7 +223,15 @@ func run() error {
 	connectorRegistry.Register(constants.IntegrationTypeEmail, emailconnector.NewConnector())
 	connectorRegistry.Register(constants.IntegrationTypePrometheus, prometheusconnector.NewConnector())
 	integrationService := services.NewIntegrationService(integrationRepo, clusterCredentialCipher, connectorRegistry).
-		WithAuditService(auditService)
+		WithAuditService(auditService).
+		WithResourceRepo(resourceRepo).
+		WithDeploymentRepo(deploymentRepo).
+		WithApplicationRepo(applicationRepo)
+	rcaService := services.NewRCAService(incidentRepo, alertRepo, metricRepo, deploymentRepo, auditRepo, applicationRepo).
+		WithIntegrationRepo(integrationRepo).
+		WithResourceRepo(resourceRepo).
+		WithIntegrationService(integrationService).
+		WithPrometheusService(services.NewPrometheusService())
 	githubOAuthConfig := githubconnector.NewOAuthConfig(cfg.GitHubClientID, cfg.GitHubClientSecret, cfg.GitHubOAuthRedirectURL)
 	githubService := services.NewGitHubService(
 		integrationService,
@@ -346,10 +353,11 @@ func run() error {
 	// -----------------------------
 	// CORS Middleware
 	// -----------------------------
+	// AllowOrigins comes from CORS_ALLOWED_ORIGINS (see internal/config) -
+	// defaults to the local frontend origin, and Validate() requires it be
+	// set explicitly (and never to a wildcard) whenever APP_ENV=production.
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"http://localhost:3000",
-		},
+		AllowOrigins: cfg.CORSAllowedOrigins,
 		AllowMethods: []string{
 			"GET",
 			"POST",

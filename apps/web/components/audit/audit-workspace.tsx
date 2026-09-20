@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ClipboardList, Search, X } from "lucide-react";
+import { ClipboardList, RefreshCw, X } from "lucide-react";
 import { useAuditLogs } from "@/hooks/use-audit";
 import { useIncidents } from "@/hooks/use-incidents";
 import { useProjects } from "@/hooks/use-projects";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/constants/pagination";
 import { ErrorState, EmptyState, PageHeader, StatusBadge, TableSkeleton } from "@/components/common";
 import { SectionCard } from "@/components/dashboard";
+import { Toolbar, ToolbarSearch, controlClass, controlStyle } from "@/components/common/toolbar";
 import { Button } from "@/components/ui/button";
 import type {
   AuditAction,
@@ -161,175 +162,21 @@ export function AuditWorkspace() {
       />
 
       <SectionCard>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterSelect
-              id="audit-scope"
-              value={filters.scope}
+        <Toolbar
+          search={
+            <ToolbarSearch
+              id="audit-search"
+              label="Search audit logs"
+              placeholder="Search entity type or action"
+              clearLabel="Clear audit search"
+              value={filters.search}
               onChange={(value) => {
-                setFilters((current) => ({ ...current, scope: value as ViewScope }));
+                setFilters((current) => ({ ...current, search: value }));
                 resetPage();
               }}
-            >
-              <option value="organization">Organization audit</option>
-              <option value="project">Project scope</option>
-              <option value="incident">Incident scope</option>
-            </FilterSelect>
-
-            {filters.scope === "project" ? (
-              <FilterSelect
-                id="audit-project"
-                value={selectedProjectId ?? ""}
-                onChange={(value) => {
-                  setSelectedProjectId(value || null);
-                  resetPage();
-                }}
-                disabled={isProjectsLoading || projects.length === 0}
-              >
-                {projects.length === 0 ? (
-                  <option value="">No projects available</option>
-                ) : (
-                  projects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))
-                )}
-              </FilterSelect>
-            ) : (
-              <FilterSelect
-                id="audit-incident"
-                value={selectedIncidentId?.toString() ?? ""}
-                onChange={(value) => {
-                  setSelectedIncidentId(value ? Number(value) : null);
-                  resetPage();
-                }}
-                disabled={isIncidentsLoading || incidents.length === 0}
-              >
-                {incidents.length === 0 ? (
-                  <option value="">No incidents available</option>
-                ) : (
-                  incidents.map((incident) => (
-                    <option key={incident.id} value={incident.id}>
-                      #{incident.id} {incident.title}
-                    </option>
-                  ))
-                )}
-              </FilterSelect>
-            )}
-
-            <FilterSelect
-              id="audit-action"
-              value={filters.action}
-              onChange={(value) => {
-                setFilters((current) => ({ ...current, action: value as AuditFilters["action"] }));
-                resetPage();
-              }}
-            >
-              <option value="all">All actions</option>
-              <option value="CREATE">Create</option>
-              <option value="UPDATE">Update</option>
-              <option value="DELETE">Delete</option>
-              <option value="LOGIN">Login</option>
-            </FilterSelect>
-
-            <FilterSelect
-              id="audit-result"
-              value={filters.result}
-              onChange={(value) => {
-                setFilters((current) => ({ ...current, result: value as AuditFilters["result"] }));
-                resetPage();
-              }}
-            >
-              <option value="all">All results</option>
-              <option value="SUCCESS">Success</option>
-              <option value="FAILURE">Failure</option>
-            </FilterSelect>
-
-            <FilterSelect
-              id="audit-application"
-              value={filters.applicationId}
-              onChange={(value) => {
-                setFilters((current) => ({ ...current, applicationId: value }));
-                resetPage();
-              }}
-              disabled={isApplicationsLoading}
-            >
-              <option value="">All applications</option>
-              {applications.map((application) => (
-                <option key={application.id} value={application.id}>
-                  {application.name}
-                </option>
-              ))}
-            </FilterSelect>
-
-            <FilterSelect
-              id="audit-sort"
-              value={filters.sort}
-              onChange={(value) => {
-                setFilters((current) => ({ ...current, sort: value as AuditFilters["sort"] }));
-                resetPage();
-              }}
-            >
-              <option value="created_at">Sort by time</option>
-              <option value="entity_type">Sort by entity</option>
-              <option value="action">Sort by action</option>
-            </FilterSelect>
-
-            <FilterSelect
-              id="audit-order"
-              value={filters.order}
-              onChange={(value) => {
-                setFilters((current) => ({ ...current, order: value as AuditFilters["order"] }));
-                resetPage();
-              }}
-            >
-              <option value="desc">Newest first</option>
-              <option value="asc">Oldest first</option>
-            </FilterSelect>
-          </div>
-
-          <div className="flex flex-1 items-center gap-2 lg:max-w-lg">
-            <div className="relative flex-1">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-                style={{ color: "var(--muted-foreground)" }}
-              />
-              <input
-                value={filters.search}
-                onChange={(event) => {
-                  setFilters((current) => ({ ...current, search: event.target.value }));
-                  resetPage();
-                }}
-                placeholder="Search entity type or action"
-                className="h-11 w-full rounded-2xl border bg-transparent py-2 pl-10 pr-10 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-                style={{ borderColor: "var(--border)" }}
-              />
-              {filters.search && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilters((current) => ({ ...current, search: "" }));
-                    resetPage();
-                  }}
-                  className="absolute right-2 top-1/2 rounded-lg p-1 -translate-y-1/2 hover:bg-[var(--muted)]"
-                  aria-label="Clear audit search"
-                >
-                  <X aria-hidden="true" className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            <input
-              value={filters.entityType}
-              onChange={(event) => {
-                setFilters((current) => ({ ...current, entityType: event.target.value }));
-                resetPage();
-              }}
-              placeholder="Resource type"
-              className="h-11 w-40 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-              style={{ borderColor: "var(--border)" }}
             />
+          }
+          actions={
             <Button
               type="button"
               variant="ghost"
@@ -337,11 +184,153 @@ export function AuditWorkspace() {
               onClick={() => {
                 void refetch();
               }}
+              className="px-3"
+              aria-label="Refresh audit logs"
             >
-              Refresh
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
-          </div>
-        </div>
+          }
+          filters={
+            <>
+        <FilterSelect
+          id="audit-scope"
+          value={filters.scope}
+          onChange={(value) => {
+            setFilters((current) => ({ ...current, scope: value as ViewScope }));
+            resetPage();
+          }}
+        >
+          <option value="organization">Organization audit</option>
+          <option value="project">Project scope</option>
+          <option value="incident">Incident scope</option>
+        </FilterSelect>
+
+        {filters.scope === "project" ? (
+          <FilterSelect
+            id="audit-project"
+            value={selectedProjectId ?? ""}
+            onChange={(value) => {
+              setSelectedProjectId(value || null);
+              resetPage();
+            }}
+            disabled={isProjectsLoading || projects.length === 0}
+          >
+            {projects.length === 0 ? (
+              <option value="">No projects available</option>
+            ) : (
+              projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))
+            )}
+          </FilterSelect>
+        ) : (
+          <FilterSelect
+            id="audit-incident"
+            value={selectedIncidentId?.toString() ?? ""}
+            onChange={(value) => {
+              setSelectedIncidentId(value ? Number(value) : null);
+              resetPage();
+            }}
+            disabled={isIncidentsLoading || incidents.length === 0}
+          >
+            {incidents.length === 0 ? (
+              <option value="">No incidents available</option>
+            ) : (
+              incidents.map((incident) => (
+                <option key={incident.id} value={incident.id}>
+                  #{incident.id} {incident.title}
+                </option>
+              ))
+            )}
+          </FilterSelect>
+        )}
+
+        <FilterSelect
+          id="audit-action"
+          value={filters.action}
+          onChange={(value) => {
+            setFilters((current) => ({ ...current, action: value as AuditFilters["action"] }));
+            resetPage();
+          }}
+        >
+          <option value="all">All actions</option>
+          <option value="CREATE">Create</option>
+          <option value="UPDATE">Update</option>
+          <option value="DELETE">Delete</option>
+          <option value="LOGIN">Login</option>
+        </FilterSelect>
+
+        <FilterSelect
+          id="audit-result"
+          value={filters.result}
+          onChange={(value) => {
+            setFilters((current) => ({ ...current, result: value as AuditFilters["result"] }));
+            resetPage();
+          }}
+        >
+          <option value="all">All results</option>
+          <option value="SUCCESS">Success</option>
+          <option value="FAILURE">Failure</option>
+        </FilterSelect>
+
+        <FilterSelect
+          id="audit-application"
+          value={filters.applicationId}
+          onChange={(value) => {
+            setFilters((current) => ({ ...current, applicationId: value }));
+            resetPage();
+          }}
+          disabled={isApplicationsLoading}
+        >
+          <option value="">All applications</option>
+          {applications.map((application) => (
+            <option key={application.id} value={application.id}>
+              {application.name}
+            </option>
+          ))}
+        </FilterSelect>
+
+        <FilterSelect
+          id="audit-sort"
+          value={filters.sort}
+          onChange={(value) => {
+            setFilters((current) => ({ ...current, sort: value as AuditFilters["sort"] }));
+            resetPage();
+          }}
+        >
+          <option value="created_at">Sort by time</option>
+          <option value="entity_type">Sort by entity</option>
+          <option value="action">Sort by action</option>
+        </FilterSelect>
+
+        <FilterSelect
+          id="audit-order"
+          value={filters.order}
+          onChange={(value) => {
+            setFilters((current) => ({ ...current, order: value as AuditFilters["order"] }));
+            resetPage();
+          }}
+        >
+          <option value="desc">Newest first</option>
+          <option value="asc">Oldest first</option>
+        </FilterSelect>
+              <input
+                aria-label="Resource type"
+                value={filters.entityType}
+                onChange={(event) => {
+                  setFilters((current) => ({ ...current, entityType: event.target.value }));
+                  resetPage();
+                }}
+                placeholder="Resource type"
+                className={controlClass}
+                style={controlStyle}
+              />
+            </>
+          }
+        />
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <input
@@ -352,8 +341,9 @@ export function AuditWorkspace() {
             }}
             placeholder="User ID"
             inputMode="numeric"
-            className="h-11 w-28 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-            style={{ borderColor: "var(--border)" }}
+            aria-label="User ID"
+            className={`${controlClass} !w-28`}
+            style={controlStyle}
           />
           <label className="flex items-center gap-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
             From
@@ -364,8 +354,8 @@ export function AuditWorkspace() {
                 setFilters((current) => ({ ...current, dateFrom: event.target.value }));
                 resetPage();
               }}
-              className="h-11 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
-              style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+              className={`${controlClass} !w-auto`}
+              style={controlStyle}
             />
           </label>
           <label className="flex items-center gap-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
@@ -377,8 +367,8 @@ export function AuditWorkspace() {
                 setFilters((current) => ({ ...current, dateTo: event.target.value }));
                 resetPage();
               }}
-              className="h-11 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
-              style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+              className={`${controlClass} !w-auto`}
+              style={controlStyle}
             />
           </label>
           {(filters.userId || filters.dateFrom || filters.dateTo) && (
@@ -458,8 +448,9 @@ function FilterSelect({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       disabled={disabled}
-      className="h-11 rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)] disabled:opacity-60"
-      style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
+      aria-label={id.replace("audit-", "Audit ")}
+      className={`${controlClass} disabled:opacity-60`}
+      style={controlStyle}
     >
       {children}
     </select>

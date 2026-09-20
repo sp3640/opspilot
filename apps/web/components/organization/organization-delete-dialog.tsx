@@ -21,7 +21,7 @@ export function OrganizationDeleteDialog({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)] px-4">
       <div
         role="dialog"
         aria-modal="true"
@@ -30,7 +30,7 @@ export function OrganizationDeleteDialog({
         style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
       >
         <div className="flex items-start gap-3">
-          <span className="rounded-full bg-red-500/15 p-2 text-red-500">
+          <span className="rounded-full bg-[var(--danger-bg)] p-2 text-[var(--danger-text)]">
             <AlertTriangle aria-hidden={true} className="h-5 w-5" />
           </span>
           <div>

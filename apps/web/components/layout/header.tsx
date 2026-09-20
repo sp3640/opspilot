@@ -28,7 +28,8 @@ export function Header({ onMenuClick }: HeaderProps) {
           sm:px-6
         "
         style={{
-          background: "rgba(24,24,27,0.75)",
+          background: "color-mix(in srgb, var(--surface) 85%, transparent)",
+          color: "var(--surface-foreground)",
           borderColor: "var(--border)",
           boxShadow: "var(--shadow-md)",
         }}
@@ -37,7 +38,8 @@ export function Header({ onMenuClick }: HeaderProps) {
           type="button"
           onClick={onMenuClick}
           aria-label="Open navigation menu"
-          className="rounded-xl p-2 text-zinc-400 hover:text-white lg:hidden"
+          className="rounded-xl p-2 transition-colors hover:bg-[var(--surface-hover)] lg:hidden"
+          style={{ color: "var(--muted-foreground)" }}
         >
           <Menu aria-hidden="true" className="h-5 w-5" />
         </button>

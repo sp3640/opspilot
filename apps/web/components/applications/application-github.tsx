@@ -42,7 +42,7 @@ export function ApplicationGitHub({ applicationId }: { applicationId: string }) 
 
   if (isMappingError && !notMapped) {
     return (
-      <p className="text-sm" style={{ color: "var(--danger)" }}>
+      <p className="text-sm" style={{ color: "var(--danger-text)" }}>
         {mappingError instanceof Error ? mappingError.message : "Unable to load the GitHub repository mapping."}
       </p>
     );
@@ -68,7 +68,7 @@ export function ApplicationGitHub({ applicationId }: { applicationId: string }) 
             <Button
               type="button"
               variant="ghost"
-              className="text-[var(--danger)]"
+              className="text-[var(--danger-text)]"
               loading={unmap.isPending}
               onClick={() => void unmap.mutateAsync(applicationId)}
             >

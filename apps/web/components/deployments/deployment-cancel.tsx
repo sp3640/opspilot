@@ -40,9 +40,9 @@ export function DeploymentCancel({ deployment }: { deployment: DeploymentRespons
       <div
         className="flex items-start gap-3 rounded-2xl border p-4 text-sm"
         style={{
-          backgroundColor: "color-mix(in srgb, var(--warning) 12%, transparent)",
-          borderColor: "var(--warning)",
-          color: "var(--warning)",
+          backgroundColor: "var(--warning-bg)",
+          borderColor: "var(--warning-border)",
+          color: "var(--warning-text)",
         }}
       >
         <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
@@ -55,7 +55,7 @@ export function DeploymentCancel({ deployment }: { deployment: DeploymentRespons
       {cancelled ? (
         <div
           className="flex items-start gap-3 rounded-2xl border p-4 text-sm"
-          style={{ backgroundColor: "color-mix(in srgb, var(--success) 12%, transparent)", borderColor: "var(--success)", color: "var(--success)" }}
+          style={{ backgroundColor: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success-text)" }}
         >
           <CheckCircle2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
           <p className="leading-6">Verified: this deployment&apos;s record now shows Cancelled.</p>

@@ -27,8 +27,8 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             justifyContent: "center",
             padding: "3rem 1rem",
             textAlign: "center",
-            backgroundColor: "var(--background, #0b0b0d)",
-            color: "var(--foreground, #f4f4f5)",
+            backgroundColor: "var(--background, #080b12)",
+            color: "var(--foreground, #f8fafc)",
           }}
         >
           <h1 style={{ fontSize: "1.25rem", fontWeight: 600 }}>Something went wrong</h1>

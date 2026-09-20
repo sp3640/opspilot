@@ -117,7 +117,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: CreateProjectMo
               aria-describedby={errors.name ? "project-name-error" : undefined}
             />
             {errors.name && (
-              <p id="project-name-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="project-name-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.name.message}
               </p>
             )}
@@ -139,7 +139,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: CreateProjectMo
               aria-describedby={errors.description ? "project-description-error" : undefined}
             />
             {errors.description && (
-              <p id="project-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="project-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.description.message}
               </p>
             )}
@@ -151,7 +151,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: CreateProjectMo
               role="alert"
               aria-live="assertive"
               className="text-sm"
-              style={{ color: "var(--danger)" }}
+              style={{ color: "var(--danger-text)" }}
             >
               {submitError}
             </p>

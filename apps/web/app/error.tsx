@@ -26,9 +26,9 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       <div
         className="rounded-2xl border p-4"
         style={{
-          color: "var(--danger)",
-          backgroundColor: "color-mix(in srgb, var(--danger) 10%, transparent)",
-          borderColor: "color-mix(in srgb, var(--danger) 25%, var(--border))",
+          color: "var(--danger-text)",
+          backgroundColor: "var(--danger-bg)",
+          borderColor: "var(--danger-border)",
         }}
       >
         <TriangleAlert aria-hidden="true" className="h-7 w-7" />

@@ -70,7 +70,30 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("run role normalization migration: %w", err)
 	}
 
-	err = db.AutoMigrate(
+	if err := runAuditEntityIDMigration(db); err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("run audit entity id migration: %w", err)
+	}
+
+	err = db.AutoMigrate(migrationModels()...)
+	if err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("migrate database models: %w", err)
+	}
+
+	dbMu.Lock()
+	DB = db
+	dbMu.Unlock()
+
+	return db, nil
+}
+
+// migrationModels is the complete, ordered list of persisted models. User and
+// Organization are already created (with their mutual foreign keys) by
+// MigrateUserOrganizationFoundation before this list is migrated; they stay
+// in the list so any later column changes to them are still applied.
+func migrationModels() []any {
+	return []any{
 		&models.User{},
 		&models.Organization{},
 		&models.Invitation{},
@@ -94,17 +117,7 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		&models.Integration{},
 		&models.GitHubRepository{},
 		&models.ApplicationGitHubRepository{},
-	)
-	if err != nil {
-		_ = sqlDB.Close()
-		return nil, fmt.Errorf("migrate database models: %w", err)
 	}
-
-	dbMu.Lock()
-	DB = db
-	dbMu.Unlock()
-
-	return db, nil
 }
 
 // Ping confirms that the configured PostgreSQL pool is able to serve a query.

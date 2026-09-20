@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          app: "prometheus"
+
+  - job_name: "kube-state-metrics"
+    static_configs:
+      - targets: ["172.18.0.2:31020"]
+
+  - job_name: "kubernetes-cadvisor"
+    scheme: https
+    metrics_path: /api/v1/nodes/zero-trust-control-plane/proxy/metrics/cadvisor
+    static_configs:
+      - targets: ["172.18.0.2:6443"]
+    bearer_token_file: /etc/prometheus/k8s-token
+    tls_config:
+      insecure_skip_verify: true

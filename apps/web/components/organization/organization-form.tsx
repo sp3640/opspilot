@@ -49,7 +49,7 @@ export function OrganizationForm({ organization, onSubmit, isSubmitting }: Organ
           autoComplete="organization"
           placeholder="Acme Operations"
           {...form.register("name")}
-          className="h-11 w-full rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
+          className="h-10 w-full rounded-xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
           style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
         />
       </Field>
@@ -65,7 +65,7 @@ export function OrganizationForm({ organization, onSubmit, isSubmitting }: Organ
           type="text"
           placeholder="acme-ops"
           {...form.register("slug")}
-          className="h-11 w-full rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
+          className="h-10 w-full rounded-xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
           style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
         />
       </Field>
@@ -110,7 +110,7 @@ function Field({ id, label, children, helper, error }: FieldProps) {
       </label>
       {children}
       {error ? (
-        <p className="text-xs text-red-500">{error}</p>
+        <p className="text-xs text-[var(--danger-text)]">{error}</p>
       ) : helper ? (
         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
           {helper}

@@ -9,7 +9,7 @@ export function SidebarGroup({
 }: SidebarGroupProps) {
   return (
     <div className="space-y-3">
-      <h3 className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+      <h3 className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: "var(--subtle-foreground)" }}>
         {title}
       </h3>
 

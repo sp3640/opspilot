@@ -126,8 +126,8 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
             <div
               className="rounded-2xl p-3"
               style={{
-                color: "var(--warning)",
-                backgroundColor: "color-mix(in srgb, var(--warning) 12%, transparent)",
+                color: "var(--warning-text)",
+                backgroundColor: "var(--warning-bg)",
               }}
             >
               <Pencil aria-hidden="true" className="h-5 w-5" />
@@ -168,7 +168,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
               aria-invalid={Boolean(errors.name)}
             />
             {errors.name && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.name.message}
               </p>
             )}
@@ -194,7 +194,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
                 ))}
               </select>
               {errors.runtime && (
-                <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                   {errors.runtime.message}
                 </p>
               )}
@@ -217,7 +217,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
                 aria-invalid={Boolean(errors.port)}
               />
               {errors.port && (
-                <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                   {errors.port.message}
                 </p>
               )}
@@ -239,7 +239,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
                 aria-invalid={Boolean(errors.slug)}
               />
               {errors.slug && (
-                <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                   {errors.slug.message}
                 </p>
               )}
@@ -259,7 +259,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
                 aria-invalid={Boolean(errors.default_branch)}
               />
               {errors.default_branch && (
-                <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                   {errors.default_branch.message}
                 </p>
               )}
@@ -280,7 +280,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
               aria-invalid={Boolean(errors.repository_url)}
             />
             {errors.repository_url && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.repository_url.message}
               </p>
             )}
@@ -301,7 +301,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
                 aria-invalid={Boolean(errors.build_command)}
               />
               {errors.build_command && (
-                <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                   {errors.build_command.message}
                 </p>
               )}
@@ -321,7 +321,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
                 aria-invalid={Boolean(errors.start_command)}
               />
               {errors.start_command && (
-                <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                   {errors.start_command.message}
                 </p>
               )}
@@ -348,7 +348,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
                 ))}
               </select>
               {errors.environment && (
-                <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                   {errors.environment.message}
                 </p>
               )}
@@ -373,7 +373,7 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
                 ))}
               </select>
               {errors.status && (
-                <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+                <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                   {errors.status.message}
                 </p>
               )}
@@ -395,14 +395,14 @@ export function EditApplicationModal({ open, application, onClose }: EditApplica
               aria-invalid={Boolean(errors.description)}
             />
             {errors.description && (
-              <p className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.description.message}
               </p>
             )}
           </div>
 
           {submitError ? (
-            <p id="edit-application-submit-error" role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger)" }}>
+            <p id="edit-application-submit-error" role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger-text)" }}>
               {submitError}
             </p>
           ) : null}

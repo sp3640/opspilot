@@ -34,6 +34,13 @@ type IntegrationService struct {
 	cipher            security.ClusterCredentialCipher
 	connectorRegistry *connector.Registry
 	auditService      *AuditService
+
+	// Optional - only needed for CorrelatePrometheusSamples. When any of
+	// these is nil, correlation is honestly reported unavailable rather
+	// than failing the query it enriches.
+	resourceRepo    *repository.ResourceRepository
+	deploymentRepo  *repository.DeploymentRepository
+	applicationRepo *repository.ApplicationRepository
 }
 
 func NewIntegrationService(
@@ -46,6 +53,21 @@ func NewIntegrationService(
 
 func (s *IntegrationService) WithAuditService(auditService *AuditService) *IntegrationService {
 	s.auditService = auditService
+	return s
+}
+
+func (s *IntegrationService) WithResourceRepo(resourceRepo *repository.ResourceRepository) *IntegrationService {
+	s.resourceRepo = resourceRepo
+	return s
+}
+
+func (s *IntegrationService) WithDeploymentRepo(deploymentRepo *repository.DeploymentRepository) *IntegrationService {
+	s.deploymentRepo = deploymentRepo
+	return s
+}
+
+func (s *IntegrationService) WithApplicationRepo(applicationRepo *repository.ApplicationRepository) *IntegrationService {
+	s.applicationRepo = applicationRepo
 	return s
 }
 
@@ -411,6 +433,62 @@ func (s *IntegrationService) ResolveConnectorConfig(organizationID, integrationI
 		return nil, connector.Config{}, err
 	}
 	return integration, cfg, nil
+}
+
+// CorrelatePrometheusSamples resolves organization-scoped resource/
+// application context for an already-fetched set of Prometheus samples,
+// reusing the same deterministic, non-guessing correlation rules RCA
+// evidence gathering uses (CorrelatePrometheusSamplesToApplication). Unlike
+// RCA gathering, an ad hoc integration query has no incident/project to
+// narrow the search, so candidates are loaded organization-wide. Never
+// returns an error: correlation is a best-effort enrichment, so any failure
+// to load candidates or resolve a match simply reports Available=false with
+// a reason, exactly like the underlying correlation functions do.
+func (s *IntegrationService) CorrelatePrometheusSamples(organizationID uuid.UUID, samples []dto.PrometheusSample) dto.PrometheusCorrelationResult {
+	if s.resourceRepo == nil || s.deploymentRepo == nil || s.applicationRepo == nil {
+		return dto.PrometheusCorrelationResult{Available: false, Reason: "correlation is not configured for this deployment"}
+	}
+	if len(samples) == 0 {
+		return dto.PrometheusCorrelationResult{Available: false, Reason: "no Prometheus samples were provided for correlation"}
+	}
+
+	resources, _, err := s.resourceRepo.List(&models.PaginationRequest{Page: 1, Limit: models.MaxLimit, Sort: "name", Order: "asc"}, organizationID)
+	if err != nil {
+		return dto.PrometheusCorrelationResult{Available: false, Reason: "unable to load resources for correlation"}
+	}
+	deployments, _, err := s.deploymentRepo.ListByOrganization(organizationID, &models.PaginationRequest{Page: 1, Limit: models.MaxLimit, Sort: "created_at", Order: "desc"})
+	if err != nil {
+		return dto.PrometheusCorrelationResult{Available: false, Reason: "unable to load deployments for correlation"}
+	}
+	applications, _, err := s.applicationRepo.ListApplicationsByOrganization(organizationID, &models.PaginationRequest{Page: 1, Limit: models.MaxLimit, Sort: "name", Order: "asc"})
+	if err != nil {
+		return dto.PrometheusCorrelationResult{Available: false, Reason: "unable to load applications for correlation"}
+	}
+
+	match := CorrelatePrometheusSamplesToApplication(samples, resources, deployments, applications)
+	result := dto.PrometheusCorrelationResult{Available: match.Available, Reason: match.Reason}
+	if !match.Available {
+		return result
+	}
+
+	if match.ResourceID != nil {
+		for _, resource := range resources {
+			if resource.ID == *match.ResourceID {
+				result.Resource = &dto.PrometheusResourceRef{
+					ID:        resource.ID,
+					Kind:      resource.Kind,
+					Name:      resource.Name,
+					Namespace: resource.Namespace,
+					Cluster:   resource.Cluster,
+				}
+				break
+			}
+		}
+	}
+	if match.ApplicationID != nil {
+		result.Application = &dto.PrometheusApplicationRef{ID: *match.ApplicationID, Name: match.ApplicationName}
+	}
+	return result
 }
 
 // RecordConnectionOutcome persists a connection status/lastError update and

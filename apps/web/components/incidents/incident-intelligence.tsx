@@ -31,9 +31,9 @@ import type { IncidentResponse } from "@/types/incident-api";
 
 const EVIDENCE_LEVEL_META: Record<RCAEvidenceLevel, { label: string; color: string; icon: LucideIcon }> = {
   INSUFFICIENT: { label: "Insufficient evidence", color: "var(--muted-foreground)", icon: HelpCircle },
-  WEAK: { label: "Weak signal", color: "var(--warning)", icon: AlertCircle },
-  MODERATE: { label: "Moderate signal", color: "var(--warning)", icon: AlertTriangle },
-  STRONG: { label: "Strong signal", color: "var(--danger)", icon: AlertOctagon },
+  WEAK: { label: "Weak signal", color: "var(--warning-text)", icon: AlertCircle },
+  MODERATE: { label: "Moderate signal", color: "var(--warning-text)", icon: AlertTriangle },
+  STRONG: { label: "Strong signal", color: "var(--danger-text)", icon: AlertOctagon },
 };
 
 const TIMELINE_ICONS: Record<RCATimelineEvent["type"], LucideIcon> = {
@@ -360,7 +360,7 @@ function EvidenceRow({
       {badge ? (
         <span
           className="mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase"
-          style={{ color: "var(--warning)", backgroundColor: "color-mix(in srgb, var(--warning) 12%, transparent)" }}
+          style={{ color: "var(--warning-text)", backgroundColor: "var(--warning-bg)" }}
         >
           {badge}
         </span>

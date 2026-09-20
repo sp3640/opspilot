@@ -2,6 +2,7 @@
 
 import { Plus, RefreshCw } from "lucide-react";
 
+import { Toolbar } from "@/components/common/toolbar";
 import { Button } from "@/components/ui/button";
 import { useHasPermission } from "@/store/auth-store";
 import type { ProjectResponse } from "@/types/project-api";
@@ -22,38 +23,15 @@ type ClusterToolbarProps = {
   refreshing?: boolean;
 };
 
-export function ClusterToolbar({
-  filters,
-  view,
-  projects,
-  onFiltersChange,
-  onViewChange,
-  onRefresh,
-  onCreate,
-  refreshing = false,
-}: ClusterToolbarProps) {
+export function ClusterToolbar({ filters, view, projects, onFiltersChange, onViewChange, onRefresh, onCreate, refreshing = false }: ClusterToolbarProps) {
   const canManageClusters = useHasPermission("cluster:manage");
   return (
-    <div className="space-y-3">
-      <div className="flex flex-col gap-3 lg:flex-row">
-        <ClusterSearch value={filters.query} onChange={(query) => onFiltersChange({ query })} />
-        <ClusterFilter
-          filters={filters}
-          projects={projects}
-          onFiltersChange={onFiltersChange}
-        />
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ClusterViewToggle view={view} onChange={onViewChange} />
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onRefresh}
-            loading={refreshing}
-            className="px-3"
-            aria-label="Refresh clusters"
-          >
+    <Toolbar
+      search={<ClusterSearch value={filters.query} onChange={(query) => onFiltersChange({ query })} />}
+      actions={
+        <>
+          <ClusterViewToggle view={view} onChange={onViewChange} />
+          <Button type="button" variant="ghost" onClick={onRefresh} loading={refreshing} className="px-3" aria-label="Refresh clusters">
             <RefreshCw aria-hidden="true" className="h-4 w-4" />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
@@ -63,8 +41,9 @@ export function ClusterToolbar({
               Create cluster
             </Button>
           ) : null}
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      filters={<ClusterFilter filters={filters} projects={projects} onFiltersChange={onFiltersChange} />}
+    />
   );
 }

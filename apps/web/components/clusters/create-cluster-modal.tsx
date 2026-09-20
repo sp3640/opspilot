@@ -140,7 +140,7 @@ export function CreateClusterModal({ open, onClose, onCreated }: CreateClusterMo
           />
 
           {submitError ? (
-            <p role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger)" }}>
+            <p role="alert" aria-live="assertive" className="text-sm" style={{ color: "var(--danger-text)" }}>
               {submitError}
             </p>
           ) : null}

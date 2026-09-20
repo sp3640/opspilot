@@ -21,7 +21,7 @@ export function SectionCard({
   return (
     <section
       className={cn("rounded-3xl border p-5 shadow-[var(--shadow-md)] sm:p-6", className)}
-      style={{ backgroundColor: "var(--card)", borderColor: "var(--border)" }}
+      style={{ backgroundColor: "var(--panel)", borderColor: "var(--border)" }}
     >
       {(title || action) && (
         <header className="mb-6 flex items-start justify-between gap-4">

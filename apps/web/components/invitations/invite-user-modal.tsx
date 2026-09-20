@@ -125,7 +125,7 @@ export function InviteUserModal({ open, onClose, onInvited }: InviteUserModalPro
               aria-describedby={errors.email ? "invite-email-error" : undefined}
             />
             {errors.email && (
-              <p id="invite-email-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="invite-email-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.email.message}
               </p>
             )}
@@ -150,7 +150,7 @@ export function InviteUserModal({ open, onClose, onInvited }: InviteUserModalPro
               <option value="Platform Admin">Platform Admin</option>
             </select>
             {errors.role && (
-              <p id="invite-role-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="invite-role-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.role.message}
               </p>
             )}
@@ -162,7 +162,7 @@ export function InviteUserModal({ open, onClose, onInvited }: InviteUserModalPro
               role="alert"
               aria-live="assertive"
               className="text-sm"
-              style={{ color: "var(--danger)" }}
+              style={{ color: "var(--danger-text)" }}
             >
               {submitError}
             </p>

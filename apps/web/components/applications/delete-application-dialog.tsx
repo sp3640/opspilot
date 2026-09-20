@@ -59,8 +59,8 @@ export function DeleteApplicationDialog({ open, application, onClose }: DeleteAp
             <div
               className="rounded-2xl p-3"
               style={{
-                color: "var(--danger)",
-                backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",
+                color: "var(--danger-text)",
+                backgroundColor: "var(--danger-bg)",
               }}
             >
               <AlertTriangle aria-hidden="true" className="h-5 w-5" />
@@ -94,9 +94,9 @@ export function DeleteApplicationDialog({ open, application, onClose }: DeleteAp
               aria-live="assertive"
               className="rounded-2xl border p-3 text-sm"
               style={{
-                backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",
-                borderColor: "var(--danger)",
-                color: "var(--danger)",
+                backgroundColor: "var(--danger-bg)",
+                borderColor: "var(--danger-border)",
+                color: "var(--danger-text)",
               }}
             >
               {submitError}

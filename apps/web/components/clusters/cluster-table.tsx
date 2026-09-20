@@ -73,7 +73,7 @@ export function ClusterTable({ clusters, projectNameById, onOpen }: ClusterTable
               </td>
               <td className="px-5 py-4">
                 {cluster.isDefault ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ color: "var(--success)", backgroundColor: "color-mix(in srgb, var(--success) 12%, transparent)" }}>
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold" style={{ color: "var(--success-text)", backgroundColor: "var(--success-bg)" }}>
                     <ShieldCheck aria-hidden={true} className="h-3.5 w-3.5" />
                     Default
                   </span>

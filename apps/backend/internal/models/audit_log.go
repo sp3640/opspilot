@@ -41,8 +41,16 @@ type AuditLog struct {
 	// "entity_type = ? AND entity_id = ? AND organization_id = ?" query -
 	// the most common "view this entity's history" lookup - more precisely
 	// than the two independent single-column indexes below could.
+	//
+	// EntityID is an identifier, not a UUID: writers store UUIDs, numeric
+	// ids, and composites such as a metric snapshot's "<project uuid>:<time>"
+	// or a synced resource's "<project uuid>:<kind>:<external id>" (up to
+	// 36+1+64+1+255 chars). 512 covers the widest of those with headroom
+	// while keeping the indexed value far below PostgreSQL's btree row
+	// limit. Existing databases are widened by the audit entity id
+	// migration in package database.
 	EntityType string      `json:"entity_type" gorm:"size:50;not null;index;index:idx_audit_logs_entity,priority:1"`
-	EntityID   string      `json:"entity_id" gorm:"size:36;not null;index;index:idx_audit_logs_entity,priority:2"`
+	EntityID   string      `json:"entity_id" gorm:"size:512;not null;index;index:idx_audit_logs_entity,priority:2"`
 	Action     AuditAction `json:"action" gorm:"size:20;not null;index"`
 	Result     AuditResult `json:"result" gorm:"size:20;not null;default:SUCCESS;index"`
 	FieldName  string      `json:"field_name" gorm:"size:100"`

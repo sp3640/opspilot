@@ -106,7 +106,7 @@ export function AlertDetailsDrawer({
   const activePanelId = `alert-details-panel-${activeTabKey}`;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/45" role="presentation" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 bg-[var(--scrim)]" role="presentation" onMouseDown={onClose}>
       <aside
         role="dialog"
         aria-modal="true"

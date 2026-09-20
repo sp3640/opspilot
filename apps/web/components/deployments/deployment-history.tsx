@@ -101,7 +101,7 @@ function RevisionSnapshot({ deploymentId, revision }: { deploymentId: string; re
   if (isError || !data) {
     return (
       <div className="mt-4 border-t pt-4" style={{ borderColor: "var(--border)" }}>
-        <p className="text-xs" style={{ color: "var(--danger)" }}>
+        <p className="text-xs" style={{ color: "var(--danger-text)" }}>
           {error instanceof Error ? error.message : "Unable to load this revision's snapshot."}
         </p>
       </div>

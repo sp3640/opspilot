@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, GitCommitHorizontal, GitPullRequest } from "lucide-react";
+import { AlertTriangle, ExternalLink, GitCommitHorizontal, GitPullRequest } from "lucide-react";
 
 import { EmptyState, StatusBadge } from "@/components/common";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   useSelectGitHubRepository,
   useSyncGitHubRepositories,
 } from "@/hooks/use-github";
+import { isGitHubCredentialError } from "@/lib/api";
 import type { GitHubRepositoryResponse } from "@/types/github-api";
 
 /**
@@ -22,7 +23,7 @@ import type { GitHubRepositoryResponse } from "@/types/github-api";
  * GitHub on its own render.
  */
 export function GitHubRepositoryPanel({ integrationId, canManage }: { integrationId: string; canManage: boolean }) {
-  const { data: identity } = useGitHubIdentity(integrationId);
+  const { data: identity, error: identityError } = useGitHubIdentity(integrationId);
   const { data, isLoading } = useGitHubRepositories(integrationId);
   const sync = useSyncGitHubRepositories();
   const [expandedRepositoryId, setExpandedRepositoryId] = useState<string | null>(null);
@@ -31,6 +32,12 @@ export function GitHubRepositoryPanel({ integrationId, canManage }: { integratio
 
   return (
     <div className="mt-3 space-y-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+      {isGitHubCredentialError(identityError) && (
+        <p className="flex items-center gap-1.5 text-sm" style={{ color: "var(--danger-text)" }} role="alert">
+          <AlertTriangle aria-hidden="true" className="h-4 w-4" />
+          GitHub credentials are invalid. Please reconnect the GitHub integration.
+        </p>
+      )}
       {identity && (
         <div className="flex items-center gap-2 text-sm" style={{ color: "var(--muted-foreground)" }}>
           {identity.avatarUrl && <img src={identity.avatarUrl} alt="" className="h-6 w-6 rounded-full" />}

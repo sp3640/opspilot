@@ -192,7 +192,7 @@ export function TeamDetailsDrawer({
                     type="button"
                     variant="ghost"
                     onClick={() => setDeleteDialogOpen(true)}
-                    className="px-3 text-[var(--danger)]"
+                    className="px-3 text-[var(--danger-text)]"
                     aria-label="Delete team"
                   >
                     <Trash2 aria-hidden="true" className="h-4 w-4" />
@@ -253,7 +253,7 @@ export function TeamDetailsDrawer({
               </form>
             ) : null}
             {memberError ? (
-              <p className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
+              <p className="mt-2 text-xs" style={{ color: "var(--danger-text)" }}>
                 {memberError}
               </p>
             ) : null}
@@ -297,7 +297,7 @@ export function TeamDetailsDrawer({
                           }}
                           loading={removeMember.isPending && removeMember.variables?.userId === member.userId}
                           disabled={removeMember.isPending}
-                          className="h-9 w-9 shrink-0 rounded-xl p-0 text-[var(--danger)]"
+                          className="h-9 w-9 shrink-0 rounded-xl p-0 text-[var(--danger-text)]"
                           aria-label={`Remove ${member.name} from team`}
                         >
                           <Trash2 aria-hidden="true" className="h-4 w-4" />

@@ -54,7 +54,7 @@ export function ClusterPods({ clusterId }: { clusterId: string }) {
               <StatusBadge variant={health.variant}>{health.state}</StatusBadge>
             </div>
             {health.reason ? (
-              <p className="mt-1 text-xs" style={{ color: "var(--danger)" }}>{health.reason}</p>
+              <p className="mt-1 text-xs" style={{ color: "var(--danger-text)" }}>{health.reason}</p>
             ) : null}
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div>

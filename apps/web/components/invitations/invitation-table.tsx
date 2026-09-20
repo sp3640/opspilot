@@ -90,7 +90,7 @@ export function InvitationTable({ invitations, onRevoke }: InvitationTableProps)
                         type="button"
                         variant="ghost"
                         onClick={() => onRevoke(invitation)}
-                        className="h-9 w-9 rounded-xl p-0 text-[var(--danger)]"
+                        className="h-9 w-9 rounded-xl p-0 text-[var(--danger-text)]"
                         aria-label={`Revoke invitation for ${invitation.email}`}
                       >
                         <Trash2 aria-hidden="true" className="h-4 w-4" />

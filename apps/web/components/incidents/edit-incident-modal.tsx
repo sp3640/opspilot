@@ -113,8 +113,8 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
             <div
               className="rounded-2xl p-3"
               style={{
-                color: "var(--danger)",
-                backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",
+                color: "var(--danger-text)",
+                backgroundColor: "var(--danger-bg)",
               }}
             >
               <AlertCircle aria-hidden="true" className="h-5 w-5" />
@@ -148,9 +148,9 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               aria-live="assertive"
               className="rounded-2xl border p-3 text-sm"
               style={{
-                backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)",
-                borderColor: "var(--danger)",
-                color: "var(--danger)",
+                backgroundColor: "var(--danger-bg)",
+                borderColor: "var(--danger-border)",
+                color: "var(--danger-text)",
               }}
             >
               {submitError}
@@ -172,7 +172,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               aria-describedby={errors.title ? "edit-incident-title-error" : undefined}
             />
             {errors.title && (
-              <p id="edit-incident-title-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-title-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.title.message}
               </p>
             )}
@@ -194,7 +194,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               aria-describedby={errors.description ? "edit-incident-description-error" : undefined}
             />
             {errors.description && (
-              <p id="edit-incident-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-description-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.description.message}
               </p>
             )}
@@ -220,7 +220,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               ))}
             </select>
             {errors.severity && (
-              <p id="edit-incident-severity-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-severity-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.severity.message}
               </p>
             )}
@@ -242,7 +242,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               aria-describedby={errors.project_id ? "edit-incident-project-error" : undefined}
             />
             {errors.project_id && (
-              <p id="edit-incident-project-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-project-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.project_id.message}
               </p>
             )}
@@ -268,7 +268,7 @@ export function EditIncidentModal({ open, incident, onClose }: EditIncidentModal
               ))}
             </select>
             {errors.status && (
-              <p id="edit-incident-status-error" className="mt-1.5 text-xs" style={{ color: "var(--danger)" }}>
+              <p id="edit-incident-status-error" className="mt-1.5 text-xs" style={{ color: "var(--danger-text)" }}>
                 {errors.status.message}
               </p>
             )}

@@ -355,6 +355,8 @@ func RegisterRoutes(
 				integrationRoutes.DELETE("/:id", integrationHandler.Delete)
 				integrationRoutes.POST("/:id/test", integrationHandler.Test)
 				integrationRoutes.POST("/:id/check", integrationHandler.Check)
+				integrationRoutes.GET("/:id/prometheus/query", integrationHandler.PrometheusQuery)
+				integrationRoutes.GET("/:id/prometheus/query_range", integrationHandler.PrometheusQueryRange)
 				if githubHandler != nil {
 					integrationRoutes.GET("/:id/github/identity", githubHandler.GetIdentity)
 					integrationRoutes.GET("/:id/github/repositories", githubHandler.ListRepositories)

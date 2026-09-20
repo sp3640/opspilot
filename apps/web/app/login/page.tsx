@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -12,10 +11,10 @@ import axios from 'axios';
 import { Eye, EyeOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Logo } from '@/components/layout/logo';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/auth-service';
 import { useAuthStore } from '@/store/auth-store';
+import { AuthShell } from '@/components/auth/auth-shell';
 import { GuestGuard } from '@/components/auth/guest-guard';
 import { LoadingScreen } from '@/components/auth/loading-screen';
 
@@ -28,25 +27,6 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 const inputClass =
   'mt-2 h-12 w-full rounded-2xl border bg-transparent px-4 text-base outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50';
-
-function AuthShell({ children }: { children: ReactNode }) {
-  return (
-    <div
-      className="flex min-h-screen flex-col items-center justify-center px-4 py-12"
-      style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-    >
-      <div className="mb-8">
-        <Logo />
-      </div>
-      <div
-        className="w-full max-w-md rounded-[var(--radius)] border p-6 sm:p-8"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-lg)' }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
 
 function LoginPageContent() {
   const router = useRouter();
@@ -111,9 +91,9 @@ function LoginPageContent() {
           role="status"
           className="mb-6 rounded-2xl border p-3 text-sm"
           style={{
-            backgroundColor: 'color-mix(in srgb, var(--warning) 12%, transparent)',
-            borderColor: 'var(--warning)',
-            color: 'var(--warning)',
+            backgroundColor: 'var(--warning-bg)',
+            borderColor: 'var(--warning-border)',
+            color: 'var(--warning-text)',
           }}
         >
           Your session has expired. Please sign in again.
@@ -126,9 +106,9 @@ function LoginPageContent() {
           aria-live="assertive"
           className="mb-6 rounded-2xl border p-3 text-sm"
           style={{
-            backgroundColor: 'color-mix(in srgb, var(--danger) 12%, transparent)',
-            borderColor: 'var(--danger)',
-            color: 'var(--danger)',
+            backgroundColor: 'var(--danger-bg)',
+            borderColor: 'var(--danger-border)',
+            color: 'var(--danger-text)',
           }}
         >
           {submitError}
@@ -154,7 +134,7 @@ function LoginPageContent() {
             aria-describedby={errors.email ? 'email-error' : undefined}
           />
           {errors.email && (
-            <p id="email-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger)' }}>
+            <p id="email-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger-text)' }}>
               {errors.email.message}
             </p>
           )}
@@ -193,7 +173,7 @@ function LoginPageContent() {
             </button>
           </div>
           {errors.password && (
-            <p id="password-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger)' }}>
+            <p id="password-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger-text)' }}>
               {errors.password.message}
             </p>
           )}

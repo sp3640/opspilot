@@ -34,19 +34,16 @@ export function NavItem({
         rounded-2xl
 
         px-4
-        py-3
+        py-2.5
 
         transition-all
         duration-200
         `,
-        active
-          ? "text-white"
-          : "text-zinc-400 hover:text-white"
+        active ? "" : "hover:text-[var(--surface-foreground)]"
       )}
       style={{
-        background: active
-          ? "rgba(79,140,255,.15)"
-          : "transparent",
+        background: active ? "color-mix(in srgb, var(--primary) 15%, transparent)" : "transparent",
+        color: active ? "var(--surface-foreground)" : "var(--muted-foreground)",
       }}
     >
       {active && (
@@ -54,15 +51,11 @@ export function NavItem({
       )}
 
       <Icon
-        className={cn(
-          "h-5 w-5 transition-all",
-          active
-            ? "text-[var(--primary)]"
-            : "group-hover:text-white"
-        )}
+        className="h-5 w-5 shrink-0 transition-all"
+        style={{ color: active ? "var(--primary)" : "currentColor" }}
       />
 
-      <span className="font-medium">
+      <span className="truncate font-medium">
         {title}
       </span>
     </Link>

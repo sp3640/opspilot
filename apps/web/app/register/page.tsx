@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -12,9 +11,9 @@ import axios from 'axios';
 import { CheckCircle2, Eye, EyeOff, XCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Logo } from '@/components/layout/logo';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/auth-service';
+import { AuthShell } from '@/components/auth/auth-shell';
 import { GuestGuard } from '@/components/auth/guest-guard';
 import { LoadingScreen } from '@/components/auth/loading-screen';
 
@@ -35,25 +34,6 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 const inputClass =
   'mt-2 h-12 w-full rounded-2xl border bg-transparent px-4 text-base outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50';
-
-function AuthShell({ children }: { children: ReactNode }) {
-  return (
-    <div
-      className="flex min-h-screen flex-col items-center justify-center px-4 py-12"
-      style={{ backgroundColor: 'var(--background)', color: 'var(--foreground)' }}
-    >
-      <div className="mb-8">
-        <Logo />
-      </div>
-      <div
-        className="w-full max-w-md rounded-[var(--radius)] border p-6 sm:p-8"
-        style={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)', boxShadow: 'var(--shadow-lg)' }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
 
 function RegisterPageContent() {
   const router = useRouter();
@@ -151,9 +131,9 @@ function RegisterPageContent() {
           aria-live="assertive"
           className="mb-6 rounded-2xl border p-3 text-sm"
           style={{
-            backgroundColor: 'color-mix(in srgb, var(--danger) 12%, transparent)',
-            borderColor: 'var(--danger)',
-            color: 'var(--danger)',
+            backgroundColor: 'var(--danger-bg)',
+            borderColor: 'var(--danger-border)',
+            color: 'var(--danger-text)',
           }}
         >
           {submitError}
@@ -179,7 +159,7 @@ function RegisterPageContent() {
             aria-describedby={errors.name ? 'name-error' : undefined}
           />
           {errors.name && (
-            <p id="name-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger)' }}>
+            <p id="name-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger-text)' }}>
               {errors.name.message}
             </p>
           )}
@@ -202,7 +182,7 @@ function RegisterPageContent() {
             aria-describedby={errors.email ? 'email-error' : undefined}
           />
           {errors.email && (
-            <p id="email-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger)' }}>
+            <p id="email-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger-text)' }}>
               {errors.email.message}
             </p>
           )}
@@ -226,7 +206,7 @@ function RegisterPageContent() {
               aria-describedby={errors.organizationName ? 'organization-name-error' : 'organization-name-hint'}
             />
             {errors.organizationName ? (
-              <p id="organization-name-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger)' }}>
+              <p id="organization-name-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger-text)' }}>
                 {errors.organizationName.message}
               </p>
             ) : (
@@ -270,7 +250,7 @@ function RegisterPageContent() {
             </button>
           </div>
           {errors.password ? (
-            <p id="password-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger)' }}>
+            <p id="password-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger-text)' }}>
               {errors.password.message}
             </p>
           ) : (
@@ -326,7 +306,7 @@ function RegisterPageContent() {
             </button>
           </div>
           {errors.confirmPassword && (
-            <p id="confirm-password-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger)' }}>
+            <p id="confirm-password-error" className="mt-1.5 text-xs" style={{ color: 'var(--danger-text)' }}>
               {errors.confirmPassword.message}
             </p>
           )}

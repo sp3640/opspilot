@@ -29,11 +29,11 @@ export const INCIDENT_STATUS_OPTIONS: ReadonlyArray<{
 ];
 
 export const INCIDENT_SEVERITY_COLORS: Record<IncidentSeverity, string> = {
-  P0: "#dc2626",
-  P1: "#ea580c",
-  P2: "#f59e0b",
-  P3: "#eab308",
-  P4: "#84cc16",
+  P0: "var(--danger)",
+  P1: "var(--danger-text)",
+  P2: "var(--warning)",
+  P3: "var(--warning-text)",
+  P4: "var(--info)",
 };
 
 export const INCIDENT_STATUS_LABELS: Record<IncidentStatus, string> = {

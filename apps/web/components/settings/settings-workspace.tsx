@@ -102,7 +102,7 @@ export function SettingsWorkspace() {
               id="theme-select"
               value={activeTheme}
               onChange={(event) => setTheme(event.target.value)}
-              className="h-11 w-full max-w-xs rounded-2xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
+              className="h-10 w-full max-w-xs rounded-xl border bg-transparent px-3 text-sm outline-none transition-colors focus:border-[var(--primary)]"
               style={{ borderColor: "var(--border)", color: "var(--foreground)" }}
             >
               <option value="system">System</option>

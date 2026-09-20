@@ -69,7 +69,7 @@ export function DeleteDeploymentDialog({ open, deployment, onClose, onSuccess }:
           <div className="flex items-center gap-3">
             <div
               className="rounded-2xl p-3"
-              style={{ color: "var(--danger)", backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)" }}
+              style={{ color: "var(--danger-text)", backgroundColor: "var(--danger-bg)" }}
             >
               <AlertTriangle aria-hidden="true" className="h-5 w-5" />
             </div>
@@ -101,7 +101,7 @@ export function DeleteDeploymentDialog({ open, deployment, onClose, onSuccess }:
               role="alert"
               aria-live="assertive"
               className="rounded-2xl border p-3 text-sm"
-              style={{ backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)", borderColor: "var(--danger)", color: "var(--danger)" }}
+              style={{ backgroundColor: "var(--danger-bg)", borderColor: "var(--danger-border)", color: "var(--danger-text)" }}
             >
               {submitError}
             </div>

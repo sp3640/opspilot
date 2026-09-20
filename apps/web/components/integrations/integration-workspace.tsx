@@ -25,13 +25,14 @@ import {
 } from "@/types/integration-api";
 
 import { GitHubRepositoryPanel } from "./github-repository-panel";
+import { PrometheusQueryPanel } from "./prometheus-query-panel";
 
 /**
- * Organization-level integration management. GitHub (Sprint 28) has a real,
- * read-only connector - repository discovery, commits, and pull requests -
- * and is the recommended "Connect with GitHub" OAuth flow rather than
- * pasting a personal access token. Every other type (Slack/Email/
- * Prometheus/Loki/OpenTelemetry/Azure/Teams/Webhook) still has no connector
+ * Organization-level integration management. GitHub (Sprint 28) and
+ * Prometheus (Sprint 30) have real connectors - GitHub via the recommended
+ * "Connect with GitHub" OAuth flow, Prometheus via an API URL + optional
+ * bearer token entered in the generic form below. Every other type (Slack/
+ * Email/Loki/OpenTelemetry/Azure/Teams/Webhook) still has no connector
  * implemented (Sprint 27 foundation only) and is honestly labeled "Not yet
  * supported". Read is available to every organization member; create/
  * update/delete/test/check/sync require organization:manage
@@ -161,7 +162,7 @@ function IntegrationRow({
               : " · Never checked"}
           </p>
           {integration.lastError && (
-            <p className="mt-1 text-xs" style={{ color: "var(--danger)" }}>
+            <p className="mt-1 text-xs" style={{ color: "var(--danger-text)" }}>
               {integration.lastError}
             </p>
           )}
@@ -188,7 +189,7 @@ function IntegrationRow({
             <Button
               type="button"
               variant="ghost"
-              className="text-[var(--danger)]"
+              className="text-[var(--danger-text)]"
               loading={deleteIntegration.isPending}
               onClick={() => void deleteIntegration.mutateAsync(integration.id)}
               aria-label={`Delete ${integration.name}`}
@@ -200,6 +201,9 @@ function IntegrationRow({
       </div>
 
       {integration.type === "github" && <GitHubRepositoryPanel integrationId={integration.id} canManage={canManage} />}
+      {integration.type === "prometheus" && (
+        <PrometheusQueryPanel integrationId={integration.id} integrationStatus={integration.status} />
+      )}
     </li>
   );
 }
@@ -222,15 +226,29 @@ function IntegrationForm({ onClose }: { onClose: () => void }) {
 
   const [type, setType] = useState<IntegrationType>(INTEGRATION_TYPES[0] ?? "webhook");
   const [name, setName] = useState("");
+  const [prometheusApiUrl, setPrometheusApiUrl] = useState("");
+  const [prometheusBearerToken, setPrometheusBearerToken] = useState("");
+
+  const isPrometheus = type === "prometheus";
+  const canSubmit = name.trim().length > 0 && (!isPrometheus || prometheusApiUrl.trim().length > 0);
 
   const handleSubmit = () => {
-    if (!name.trim()) return;
+    if (!canSubmit) return;
+
+    const metadata = isPrometheus && prometheusApiUrl.trim() ? { api_url: prometheusApiUrl.trim() } : undefined;
+    // Credentials are write-only from here on: this form never receives
+    // them back (CreateIntegrationRequest's credentials field is the only
+    // place a token this session knows about ever exists on the client).
+    const credentials =
+      isPrometheus && prometheusBearerToken.trim() ? { bearer_token: prometheusBearerToken.trim() } : undefined;
 
     void createIntegration.mutateAsync(
-      { type, name: name.trim() },
+      { type, name: name.trim(), metadata, credentials },
       {
         onSuccess: () => {
           setName("");
+          setPrometheusApiUrl("");
+          setPrometheusBearerToken("");
           onClose();
         },
       }
@@ -267,6 +285,34 @@ function IntegrationForm({ onClose }: { onClose: () => void }) {
         </label>
       </div>
 
+      {isPrometheus && (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-sm">
+            <span style={{ color: "var(--muted-foreground)" }}>API URL</span>
+            <input
+              value={prometheusApiUrl}
+              onChange={(event) => setPrometheusApiUrl(event.target.value)}
+              placeholder="https://prometheus.example.com"
+              autoComplete="off"
+              className="h-10 rounded-xl border bg-transparent px-3 text-sm outline-none focus:border-[var(--primary)]"
+              style={{ borderColor: "var(--border)" }}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span style={{ color: "var(--muted-foreground)" }}>Bearer token (optional)</span>
+            <input
+              type="password"
+              value={prometheusBearerToken}
+              onChange={(event) => setPrometheusBearerToken(event.target.value)}
+              placeholder="Leave blank if Prometheus requires no auth"
+              autoComplete="new-password"
+              className="h-10 rounded-xl border bg-transparent px-3 text-sm outline-none focus:border-[var(--primary)]"
+              style={{ borderColor: "var(--border)" }}
+            />
+          </label>
+        </div>
+      )}
+
       <div
         className="mt-3 rounded-xl border p-3 text-xs"
         style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
@@ -276,6 +322,12 @@ function IntegrationForm({ onClose }: { onClose: () => void }) {
             GitHub has a real connector, but &quot;Connect with GitHub&quot; above (OAuth) is the recommended way to
             connect it - this generic form only creates a connection record with no credentials attached, which
             cannot do anything until credentials are added.
+          </>
+        ) : isPrometheus ? (
+          <>
+            Prometheus has a real, read-only connector. The API URL is required; the bearer token is only needed if
+            your Prometheus API requires authentication. Once saved, the token is encrypted and never shown again -
+            use &quot;Test connection&quot; below to verify Prometheus is reachable.
           </>
         ) : (
           <>
@@ -288,7 +340,7 @@ function IntegrationForm({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="mt-4 flex items-center gap-2">
-        <Button type="button" loading={createIntegration.isPending} onClick={handleSubmit}>
+        <Button type="button" loading={createIntegration.isPending} disabled={!canSubmit} onClick={handleSubmit}>
           Create integration
         </Button>
         <Button type="button" variant="ghost" onClick={onClose}>

@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -209,6 +211,117 @@ func (h *IntegrationHandler) Check(c *gin.Context) {
 	}
 
 	response.OK(c, "Status check completed", result)
+}
+
+func (h *IntegrationHandler) PrometheusQuery(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+	integrationID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid integration id")
+		return
+	}
+	query := strings.TrimSpace(c.Query("query"))
+	if query == "" {
+		response.BadRequest(c, "query is required")
+		return
+	}
+	integration, cfg, err := h.service.ResolveConnectorConfig(organizationID, integrationID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	if integration.Type != "prometheus" {
+		response.BadRequest(c, "integration type must be prometheus")
+		return
+	}
+	service := services.NewPrometheusService()
+	result, err := service.QueryInstant(c.Request.Context(), cfg, query)
+	if err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error())
+		return
+	}
+	correlation := h.service.CorrelatePrometheusSamples(organizationID, result.Samples)
+	response.OK(c, "Prometheus query completed", dto.PrometheusQueryResponse{
+		Query:       result.Query,
+		Samples:     result.Samples,
+		Correlation: correlation,
+	})
+}
+
+func (h *IntegrationHandler) PrometheusQueryRange(c *gin.Context) {
+	if !authorization.RequireOrganizationMember(c) {
+		return
+	}
+
+	organizationID, ok := parseOrganizationIDFromContext(c)
+	if !ok {
+		return
+	}
+	integrationID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "invalid integration id")
+		return
+	}
+	query := strings.TrimSpace(c.Query("query"))
+	if query == "" {
+		response.BadRequest(c, "query is required")
+		return
+	}
+	startValue := strings.TrimSpace(c.Query("start"))
+	if startValue == "" {
+		response.BadRequest(c, "start is required")
+		return
+	}
+	endValue := strings.TrimSpace(c.Query("end"))
+	if endValue == "" {
+		response.BadRequest(c, "end is required")
+		return
+	}
+	start, err := time.Parse(time.RFC3339, startValue)
+	if err != nil {
+		startUnix, parseErr := strconv.ParseFloat(startValue, 64)
+		if parseErr != nil {
+			response.BadRequest(c, "start must be a unix timestamp or RFC3339 value")
+			return
+		}
+		start = time.Unix(int64(startUnix), 0).UTC()
+	}
+	end, err := time.Parse(time.RFC3339, endValue)
+	if err != nil {
+		endUnix, parseErr := strconv.ParseFloat(endValue, 64)
+		if parseErr != nil {
+			response.BadRequest(c, "end must be a unix timestamp or RFC3339 value")
+			return
+		}
+		end = time.Unix(int64(endUnix), 0).UTC()
+	}
+	step := strings.TrimSpace(c.Query("step"))
+	if step == "" {
+		step = "60s"
+	}
+	integration, cfg, err := h.service.ResolveConnectorConfig(organizationID, integrationID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	if integration.Type != "prometheus" {
+		response.BadRequest(c, "integration type must be prometheus")
+		return
+	}
+	service := services.NewPrometheusService()
+	result, err := service.QueryRange(c.Request.Context(), cfg, query, start, end, step)
+	if err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error())
+		return
+	}
+	response.OK(c, "Prometheus range query completed", result)
 }
 
 func (h *IntegrationHandler) handleServiceError(c *gin.Context, err error) {

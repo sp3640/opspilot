@@ -48,9 +48,9 @@ export function DeploymentRedeploy({ deployment }: { deployment: DeploymentRespo
       <div
         className="flex items-start gap-3 rounded-2xl border p-4 text-sm"
         style={{
-          backgroundColor: "color-mix(in srgb, var(--warning) 12%, transparent)",
-          borderColor: "var(--warning)",
-          color: "var(--warning)",
+          backgroundColor: "var(--warning-bg)",
+          borderColor: "var(--warning-border)",
+          color: "var(--warning-text)",
         }}
       >
         <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0" />
@@ -64,9 +64,9 @@ export function DeploymentRedeploy({ deployment }: { deployment: DeploymentRespo
           className="flex items-start gap-3 rounded-2xl border p-4 text-sm"
           style={
             result.status === "Succeeded"
-              ? { backgroundColor: "color-mix(in srgb, var(--success) 12%, transparent)", borderColor: "var(--success)", color: "var(--success)" }
+              ? { backgroundColor: "var(--success-bg)", borderColor: "var(--success-border)", color: "var(--success-text)" }
               : result.status === "Failed"
-                ? { backgroundColor: "color-mix(in srgb, var(--danger) 12%, transparent)", borderColor: "var(--danger)", color: "var(--danger)" }
+                ? { backgroundColor: "var(--danger-bg)", borderColor: "var(--danger-border)", color: "var(--danger-text)" }
                 : { backgroundColor: "color-mix(in srgb, var(--muted) 45%, transparent)", borderColor: "var(--border)", color: "var(--foreground)" }
           }
         >
