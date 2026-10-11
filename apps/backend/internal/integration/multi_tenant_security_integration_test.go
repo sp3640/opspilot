@@ -299,7 +299,9 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	auditRepo := repository.NewAuditRepository(db)
 	dashboardRepo := repository.NewDashboardRepository(db)
 
-	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg)
+	emailVerification, mailbox := newTestEmailVerification(db, userRepo, nil)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg).
+		WithEmailVerification(emailVerification)
 	organizationService := services.NewOrganizationService(organizationRepo)
 	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
@@ -319,7 +321,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
-	authHandler := handlers.NewAuthHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService).WithEmailVerification(emailVerification)
 	userHandler := handlers.NewUserHandler(userService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService)
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
@@ -343,6 +345,7 @@ func setupMultiTenantSecurityApp(t *testing.T) *mtTestApp {
 	collector := metrics.NewCollector()
 
 	r := gin.New()
+	attachMailbox(r, mailbox)
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -420,6 +423,10 @@ func registerAndLogin(t *testing.T, r *gin.Engine, name, email, password string)
 		"password": password,
 	})
 	assertStatus(t, registerRec, http.StatusCreated)
+
+	// Registration leaves the account unverified; follow the emailed link
+	// through the real endpoint before logging in.
+	verifyEmailViaHTTP(t, r, email)
 
 	return loginOnly(t, r, email, password)
 }

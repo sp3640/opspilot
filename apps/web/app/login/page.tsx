@@ -12,9 +12,11 @@ import { Eye, EyeOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { AUTH_ERROR_CODES, getApiErrorCode } from '@/lib/auth-errors';
 import { authService } from '@/services/auth-service';
 import { useAuthStore } from '@/store/auth-store';
 import { AuthShell } from '@/components/auth/auth-shell';
+import { ResendVerification } from '@/components/auth/resend-verification';
 import { GuestGuard } from '@/components/auth/guest-guard';
 import { LoadingScreen } from '@/components/auth/loading-screen';
 
@@ -36,6 +38,9 @@ function LoginPageContent() {
   const { setAccessToken, setCurrentUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Set when the credentials were right but the email is not verified yet:
+  // a distinct state (not "invalid credentials") with a way to get a new link.
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const {
@@ -49,6 +54,7 @@ function LoginPageContent() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     setSubmitError(null);
+    setUnverifiedEmail(null);
 
     try {
       // Login and get access token
@@ -62,6 +68,11 @@ function LoginPageContent() {
       toast.success('Welcome back!');
       router.replace(redirectTo);
     } catch (error) {
+      if (getApiErrorCode(error) === AUTH_ERROR_CODES.emailNotVerified) {
+        setUnverifiedEmail(data.email.trim().toLowerCase());
+        return;
+      }
+
       let message = 'Login failed. Please try again.';
 
       if (axios.isAxiosError(error) && error.response?.data?.message) {
@@ -97,6 +108,22 @@ function LoginPageContent() {
           }}
         >
           Your session has expired. Please sign in again.
+        </div>
+      )}
+
+      {unverifiedEmail && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="mb-6 space-y-3 rounded-2xl border p-3 text-sm"
+          style={{
+            backgroundColor: 'var(--warning-bg)',
+            borderColor: 'var(--warning-border)',
+            color: 'var(--warning-text)',
+          }}
+        >
+          <p>Please verify your email before signing in. We sent a verification link to {unverifiedEmail}.</p>
+          <ResendVerification email={unverifiedEmail} />
         </div>
       )}
 

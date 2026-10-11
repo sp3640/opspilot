@@ -1,12 +1,23 @@
 package router
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/sp3640/opspilot/backend/internal/config"
 	"github.com/sp3640/opspilot/backend/internal/handlers"
 	"github.com/sp3640/opspilot/backend/internal/metrics"
 	"github.com/sp3640/opspilot/backend/internal/middleware"
+)
+
+// Per-IP limits for the endpoints that send email (token bucket: this many
+// requests, refilled evenly over the window).
+const (
+	registerRateLimit                 = 20
+	registerRateLimitWindow           = time.Hour
+	resendVerificationRateLimit       = 5
+	resendVerificationRateLimitWindow = 15 * time.Minute
 )
 
 func RegisterRoutes(
@@ -65,10 +76,20 @@ func RegisterRoutes(
 		// =========================
 		// Public Routes
 		// =========================
+		//
+		// Registration and resend each cause an email to be sent, so they
+		// get their own, much stricter per-IP limits on top of the global
+		// one. (In-memory per instance; the per-account resend cooldown is
+		// enforced in the database and holds across instances.)
+		registerLimiter := middleware.RateLimit(middleware.NewIPRateLimiterWithWindow(registerRateLimit, registerRateLimitWindow))
+		resendLimiter := middleware.RateLimit(middleware.NewIPRateLimiterWithWindow(resendVerificationRateLimit, resendVerificationRateLimitWindow))
+
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", authHandler.Register)
+			auth.POST("/register", registerLimiter, authHandler.Register)
 			auth.POST("/login", authHandler.Login)
+			auth.POST("/verify-email", authHandler.VerifyEmail)
+			auth.POST("/resend-verification", resendLimiter, authHandler.ResendVerification)
 		}
 
 		// =========================

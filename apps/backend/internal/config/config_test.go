@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConfigValidate(t *testing.T) {
@@ -15,6 +16,8 @@ func TestConfigValidate(t *testing.T) {
 		ClusterCredentialEncryptionKey: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
 		CORSAllowedOrigins:             []string{"https://app.example.com"},
 		FrontendBaseURL:                "https://app.example.com",
+		SMTPHost:                       "smtp.mail.example.com",
+		SMTPFrom:                       "OpsPilot <no-reply@example.com>",
 	}
 
 	tests := []struct {
@@ -62,6 +65,38 @@ func TestConfigValidate(t *testing.T) {
 		{
 			name: "rejects production FRONTEND_BASE_URL left at the localhost default",
 			edit: func(cfg *Config) { cfg.FrontendBaseURL = defaultLocalOrigin },
+		},
+		{
+			name: "rejects an SMTP_FROM that is not an email address",
+			edit: func(cfg *Config) { cfg.SMTPFrom = "OpsPilot no-reply" },
+		},
+		{
+			name: "rejects a non-HTTPS FRONTEND_BASE_URL in production (verification links carry a token)",
+			edit: func(cfg *Config) { cfg.FrontendBaseURL = "http://app.example.com" },
+		},
+		{
+			name: "rejects production without SMTP_HOST (nobody could verify an account)",
+			edit: func(cfg *Config) { cfg.SMTPHost = "" },
+		},
+		{
+			name: "rejects production without SMTP_FROM",
+			edit: func(cfg *Config) { cfg.SMTPFrom = "  " },
+		},
+		{
+			name: "rejects a negative email verification token TTL",
+			edit: func(cfg *Config) { cfg.EmailVerificationTokenTTL = -time.Hour },
+		},
+		{
+			name: "rejects a negative HTTP write timeout",
+			edit: func(cfg *Config) { cfg.HTTPWriteTimeout = -time.Second },
+		},
+		{
+			name: "rejects an HTTP write timeout equal to the deployment execution timeout",
+			edit: func(cfg *Config) { cfg.HTTPWriteTimeout = DeploymentExecutionTimeout },
+		},
+		{
+			name: "rejects an HTTP write timeout shorter than the deployment execution timeout",
+			edit: func(cfg *Config) { cfg.HTTPWriteTimeout = DeploymentExecutionTimeout - time.Second },
 		},
 	}
 
@@ -119,6 +154,8 @@ func TestConfigValidateProductionAcceptsMultipleExplicitOrigins(t *testing.T) {
 		ClusterCredentialEncryptionKey: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
 		CORSAllowedOrigins:             []string{"https://app.example.com", "https://admin.example.com"},
 		FrontendBaseURL:                "https://app.example.com",
+		SMTPHost:                       "smtp.mail.example.com",
+		SMTPFrom:                       "OpsPilot <no-reply@example.com>",
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("expected multiple explicit production origins to be valid, got: %v", err)
@@ -197,5 +234,184 @@ func TestDatabaseDSN(t *testing.T) {
 	want := "host=db user=opspilot password=password dbname=opspilot port=5432 sslmode=require"
 	if got := cfg.DatabaseDSN(); got != want {
 		t.Fatalf("DatabaseDSN() = %q, want %q", got, want)
+	}
+}
+
+func TestConfigValidateDefaultsEmailVerificationTokenTTL(t *testing.T) {
+	cfg := Config{
+		AppEnv:                         "development",
+		Port:                           "8080",
+		DBHost:                         "localhost",
+		DBUser:                         "opspilot",
+		DBName:                         "opspilot",
+		DBPort:                         "5432",
+		JWTSecret:                      strings.Repeat("a", 32),
+		ClusterCredentialEncryptionKey: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
+		CORSAllowedOrigins:             []string{defaultLocalOrigin},
+		FrontendBaseURL:                defaultLocalOrigin,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+	if cfg.EmailVerificationTokenTTL != 24*time.Hour {
+		t.Fatalf("default verification token TTL = %s, want 24h", cfg.EmailVerificationTokenTTL)
+	}
+}
+
+// TestConfigValidateDefaultsHTTPWriteTimeout covers the "deployment
+// creation/rollback must not be cut off" fix: with HTTP_WRITE_TIMEOUT unset,
+// the default must stay greater than DeploymentExecutionTimeout, the executor
+// timeout the deployment service runs synchronously in the request.
+func TestConfigValidateDefaultsHTTPWriteTimeout(t *testing.T) {
+	cfg := Config{
+		AppEnv:                         "development",
+		Port:                           "8080",
+		DBHost:                         "localhost",
+		DBUser:                         "opspilot",
+		DBName:                         "opspilot",
+		DBPort:                         "5432",
+		JWTSecret:                      strings.Repeat("a", 32),
+		ClusterCredentialEncryptionKey: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
+		CORSAllowedOrigins:             []string{defaultLocalOrigin},
+		FrontendBaseURL:                defaultLocalOrigin,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+	if cfg.HTTPWriteTimeout != DefaultHTTPWriteTimeout {
+		t.Fatalf("default HTTP write timeout = %s, want %s", cfg.HTTPWriteTimeout, DefaultHTTPWriteTimeout)
+	}
+	if cfg.HTTPWriteTimeout <= DeploymentExecutionTimeout {
+		t.Fatalf("default HTTP write timeout (%s) is not greater than the deployment execution timeout (%s)", cfg.HTTPWriteTimeout, DeploymentExecutionTimeout)
+	}
+}
+
+// TestConfigValidateAcceptsAnExplicitlyLongerHTTPWriteTimeout covers a real
+// production override, e.g. a deliberately generous HTTP_WRITE_TIMEOUT.
+func TestConfigValidateAcceptsAnExplicitlyLongerHTTPWriteTimeout(t *testing.T) {
+	cfg := Config{
+		AppEnv:                         "production",
+		Port:                           "8080",
+		DBURL:                          "postgres://opspilot:password@db:5432/opspilot?sslmode=require",
+		JWTSecret:                      strings.Repeat("a", 32),
+		ClusterCredentialEncryptionKey: base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))),
+		CORSAllowedOrigins:             []string{"https://app.example.com"},
+		FrontendBaseURL:                "https://app.example.com",
+		SMTPHost:                       "smtp.mail.example.com",
+		SMTPFrom:                       "OpsPilot <no-reply@example.com>",
+		HTTPWriteTimeout:               5 * time.Minute,
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected a longer explicit HTTP write timeout to be valid, got: %v", err)
+	}
+	if cfg.HTTPWriteTimeout != 5*time.Minute {
+		t.Fatalf("HTTPWriteTimeout was altered: got %s, want 5m", cfg.HTTPWriteTimeout)
+	}
+}
+
+// TestParseTrustedProxies covers TRUSTED_PROXIES parsing: splitting,
+// trimming, empty-entry handling (mirroring parseCORSOrigins), and the extra
+// validation step CORS origins don't need - every entry must be exactly what
+// gin.Engine.SetTrustedProxies accepts, so a config-time typo is caught here
+// rather than only failing (or silently doing nothing) later.
+func TestParseTrustedProxies(t *testing.T) {
+	okTests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{name: "empty string yields no proxies", raw: "", want: nil},
+		{name: "whitespace-only string yields no proxies", raw: "   ", want: nil},
+		{name: "single bare IPv4 address", raw: "203.0.113.9", want: []string{"203.0.113.9"}},
+		{name: "single IPv4 CIDR", raw: "10.0.0.0/8", want: []string{"10.0.0.0/8"}},
+		{name: "single IPv6 address", raw: "::1", want: []string{"::1"}},
+		{name: "single IPv6 CIDR", raw: "2001:db8::/32", want: []string{"2001:db8::/32"}},
+		{
+			name: "the documented Cloud Run 'trust the immediate peer' configuration",
+			raw:  "0.0.0.0/0,::/0",
+			want: []string{"0.0.0.0/0", "::/0"},
+		},
+		{
+			name: "whitespace around entries and separators is trimmed",
+			raw:  "  10.0.0.0/8 , 192.168.1.1  ",
+			want: []string{"10.0.0.0/8", "192.168.1.1"},
+		},
+		{
+			name: "empty entries from stray/trailing commas are dropped",
+			raw:  "10.0.0.0/8,,192.168.1.1,",
+			want: []string{"10.0.0.0/8", "192.168.1.1"},
+		},
+	}
+	for _, test := range okTests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := parseTrustedProxies(test.raw)
+			if err != nil {
+				t.Fatalf("parseTrustedProxies(%q) returned an unexpected error: %v", test.raw, err)
+			}
+			if len(got) != len(test.want) {
+				t.Fatalf("parseTrustedProxies(%q) = %#v, want %#v", test.raw, got, test.want)
+			}
+			for i := range got {
+				if got[i] != test.want[i] {
+					t.Fatalf("parseTrustedProxies(%q) = %#v, want %#v", test.raw, got, test.want)
+				}
+			}
+		})
+	}
+
+	invalidTests := []struct {
+		name string
+		raw  string
+	}{
+		{name: "not an IP address at all", raw: "not-an-ip"},
+		{name: "an out-of-range IPv4 octet", raw: "999.0.0.1"},
+		{name: "a CIDR with a malformed prefix", raw: "10.0.0.0/abc"},
+		{name: "a CIDR with an out-of-range prefix length", raw: "10.0.0.0/99"},
+		{name: "one invalid entry among otherwise valid ones", raw: "10.0.0.0/8,not-an-ip"},
+		{name: "a hostname is not accepted (gin.SetTrustedProxies needs IPs/CIDRs)", raw: "proxy.internal.example.com"},
+	}
+	for _, test := range invalidTests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := parseTrustedProxies(test.raw); err == nil {
+				t.Fatalf("parseTrustedProxies(%q) did not return an error", test.raw)
+			}
+		})
+	}
+}
+
+// TestConfigLoadRejectsInvalidTrustedProxies exercises the full Load() path
+// (env var -> parseTrustedProxies -> Validate), confirming a malformed
+// TRUSTED_PROXIES fails startup with a clear error rather than being
+// silently accepted or only failing later inside gin.
+func TestConfigLoadRejectsInvalidTrustedProxies(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("JWT_SECRET", strings.Repeat("a", 32))
+	t.Setenv("CLUSTER_CREDENTIAL_ENCRYPTION_KEY", base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))))
+	t.Setenv("DATABASE_URL", "postgres://opspilot:password@db:5432/opspilot?sslmode=disable")
+	t.Setenv("TRUSTED_PROXIES", "not-an-ip")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected Load() to reject an invalid TRUSTED_PROXIES entry")
+	} else if !strings.Contains(err.Error(), "TRUSTED_PROXIES") {
+		t.Fatalf("expected the error to mention TRUSTED_PROXIES, got: %v", err)
+	}
+}
+
+// TestConfigLoadDefaultsTrustedProxiesToNone confirms local/development
+// behavior is unaffected when TRUSTED_PROXIES is unset: ClientIP() should
+// keep resolving to the raw TCP peer (see the ClientIP-level coverage in
+// internal/middleware for the behavioral proof).
+func TestConfigLoadDefaultsTrustedProxiesToNone(t *testing.T) {
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("JWT_SECRET", strings.Repeat("a", 32))
+	t.Setenv("CLUSTER_CREDENTIAL_ENCRYPTION_KEY", base64.StdEncoding.EncodeToString([]byte(strings.Repeat("k", 32))))
+	t.Setenv("DATABASE_URL", "postgres://opspilot:password@db:5432/opspilot?sslmode=disable")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected Load() error: %v", err)
+	}
+	if cfg.TrustedProxies != nil {
+		t.Fatalf("TrustedProxies = %#v, want nil when TRUSTED_PROXIES is unset", cfg.TrustedProxies)
 	}
 }

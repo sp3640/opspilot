@@ -64,6 +64,7 @@ func resetPostgresIntegrationSchema(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
 	if err := db.Migrator().DropTable(
+		&models.EmailVerificationToken{},
 		&models.AuditLog{},
 		&models.Comment{},
 		&models.Metric{},

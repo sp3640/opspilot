@@ -27,6 +27,11 @@ type Message struct {
 	// Fields are structured key/value context (Application, Project,
 	// Resource, ...) rendered alongside Title/Body.
 	Fields map[string]string
+	// HTML is an optional rich alternative to Body. Only the Email provider
+	// uses it (sent as multipart/alternative next to the plain-text body);
+	// every other provider ignores it, and a Message without it renders
+	// exactly as before.
+	HTML string
 }
 
 // Provider sends one Message to one resolved target (a decrypted email

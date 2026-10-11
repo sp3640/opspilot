@@ -29,6 +29,7 @@ func TestRegistrationWorkspaceIntegration(t *testing.T) {
 		})
 		assertStatus(t, rec, http.StatusCreated)
 
+		verifyEmailViaHTTP(t, app.router, "priya-founder@opspilot.dev")
 		token := loginOnly(t, app.router, "priya-founder@opspilot.dev", "password123")
 		me := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/users/me", token, nil)
 		assertStatus(t, me, http.StatusOK)
@@ -50,6 +51,7 @@ func TestRegistrationWorkspaceIntegration(t *testing.T) {
 		})
 		assertStatus(t, rec, http.StatusCreated)
 
+		verifyEmailViaHTTP(t, app.router, "quentin-founder@opspilot.dev")
 		token := loginOnly(t, app.router, "quentin-founder@opspilot.dev", "password123")
 		me := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/users/me", token, nil)
 		assertStatus(t, me, http.StatusOK)
@@ -84,6 +86,7 @@ func TestRegistrationWorkspaceIntegration(t *testing.T) {
 		})
 		assertStatus(t, registerRec, http.StatusCreated)
 
+		verifyEmailViaHTTP(t, app.router, "invited-founder@opspilot.dev")
 		token := loginOnly(t, app.router, "invited-founder@opspilot.dev", "password123")
 		me := doJSONRequest(t, app.router, http.MethodGet, "/api/v1/users/me", token, nil)
 		assertStatus(t, me, http.StatusOK)

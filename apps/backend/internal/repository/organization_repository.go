@@ -18,6 +18,11 @@ func NewOrganizationRepository(db *gorm.DB) *OrganizationRepository {
 	return &OrganizationRepository{db: db}
 }
 
+// WithTx returns a repository whose queries run inside tx.
+func (r *OrganizationRepository) WithTx(tx *gorm.DB) *OrganizationRepository {
+	return &OrganizationRepository{db: tx}
+}
+
 func (r *OrganizationRepository) Create(organization *models.Organization) error {
 	if err := r.db.Create(organization).Error; err != nil {
 		if isDuplicateOrganizationSlugError(err) {

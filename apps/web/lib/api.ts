@@ -27,9 +27,15 @@ api.interceptors.request.use((config) => {
 // check on a stale/missing token, a register call that never 401s). A 401
 // from anywhere else means a previously-authenticated session's token has
 // become invalid mid-use, which the global handler below reacts to.
-const AUTH_TRANSITION_PATHS = ["/auth/login", "/auth/register", "/users/me"];
+const AUTH_TRANSITION_PATHS = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/verify-email",
+  "/auth/resend-verification",
+  "/users/me",
+];
 
-const PUBLIC_AUTH_PAGES = ["/login", "/register"];
+const PUBLIC_AUTH_PAGES = ["/login", "/register", "/verify-email"];
 
 // A GitHub proxy endpoint (every route containing "/github/" - identity,
 // repositories, commits, pulls, application mapping, deployment

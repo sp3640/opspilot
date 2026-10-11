@@ -98,7 +98,9 @@ func setupResourceDiscoveryApp(t *testing.T) *resourceDiscoveryTestApp {
 	clusterRepo := repository.NewClusterRepository(db)
 	auditRepo := repository.NewAuditRepository(db)
 
-	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg)
+	emailVerification, mailbox := newTestEmailVerification(db, userRepo, nil)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg).
+		WithEmailVerification(emailVerification)
 	organizationService := services.NewOrganizationService(organizationRepo)
 	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo)
@@ -119,7 +121,7 @@ func setupResourceDiscoveryApp(t *testing.T) *resourceDiscoveryTestApp {
 	namespaceService := k8snamespaces.NewNamespaceService(clusterRepo, testClusterCredentialCipher(t)).
 		WithClientsetFactory(fakes.factory)
 
-	authHandler := handlers.NewAuthHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService).WithEmailVerification(emailVerification)
 	userHandler := handlers.NewUserHandler(userService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService)
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
@@ -135,6 +137,7 @@ func setupResourceDiscoveryApp(t *testing.T) *resourceDiscoveryTestApp {
 	collector := metrics.NewCollector()
 
 	r := gin.New()
+	attachMailbox(r, mailbox)
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},

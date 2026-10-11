@@ -21,6 +21,29 @@ export interface RegisterResponse {
   data: null;
 }
 
+export interface ResendVerificationRequest {
+  email: string;
+}
+
+export interface ResendVerificationResponse {
+  success: boolean;
+  message: string;
+  data: null;
+}
+
+export interface VerifyEmailRequest {
+  token: string;
+}
+
+/** "verified": this request activated the account. "already_verified": it was already active. */
+export type VerifyEmailStatus = "verified" | "already_verified";
+
+export interface VerifyEmailResponse {
+  success: boolean;
+  message: string;
+  data: { status: VerifyEmailStatus };
+}
+
 export interface LoginResponse {
   success: boolean;
   message: string;

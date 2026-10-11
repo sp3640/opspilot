@@ -5,6 +5,10 @@ import type {
   MeResponse,
   RegisterRequest,
   RegisterResponse,
+  ResendVerificationRequest,
+  ResendVerificationResponse,
+  VerifyEmailRequest,
+  VerifyEmailResponse,
 } from "@/types/auth";
 
 export const authService = {
@@ -15,6 +19,25 @@ export const authService = {
 
   login: async (payload: LoginRequest): Promise<LoginResponse> => {
     const response = await api.post<LoginResponse>("/auth/login", payload);
+    return response.data;
+  },
+
+  /**
+   * Redeems the token from an emailed verification link. Sent in the body
+   * (never the URL) so it does not end up in request logs.
+   */
+  verifyEmail: async (payload: VerifyEmailRequest): Promise<VerifyEmailResponse> => {
+    const response = await api.post<VerifyEmailResponse>("/auth/verify-email", payload);
+    return response.data;
+  },
+
+  /**
+   * Asks for a new verification email. The backend answers identically for
+   * unknown, verified and unverified addresses, so a success only means
+   * "the request was accepted".
+   */
+  resendVerification: async (payload: ResendVerificationRequest): Promise<ResendVerificationResponse> => {
+    const response = await api.post<ResendVerificationResponse>("/auth/resend-verification", payload);
     return response.data;
   },
 

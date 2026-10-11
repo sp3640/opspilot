@@ -164,8 +164,25 @@ func run() error {
 	auditService := services.NewAuditService(auditRepo).
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
+	// One SMTP-backed email provider serves both alert notifications and
+	// account emails (verification), so there is a single email path and a
+	// single SMTP configuration.
+	emailProvider := notification.NewEmailProvider(notification.EmailConfig{
+		Host:     cfg.SMTPHost,
+		Port:     cfg.SMTPPort,
+		Username: cfg.SMTPUsername,
+		Password: cfg.SMTPPassword,
+		From:     cfg.SMTPFrom,
+	})
+	emailVerificationService := services.NewEmailVerificationService(
+		repository.NewEmailVerificationTokenRepository(database.DB),
+		userRepo,
+		services.NewEmailService(emailProvider, cfg.FrontendBaseURL),
+		cfg.EmailVerificationTokenTTL,
+	).WithAuditService(auditService)
 	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg).
-		WithAuditService(auditService)
+		WithAuditService(auditService).
+		WithEmailVerification(emailVerificationService)
 	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo).
 		WithAuditService(auditService)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
@@ -190,13 +207,7 @@ func run() error {
 		return fmt.Errorf("initialize cluster credential cipher: %w", err)
 	}
 	notificationProviders := map[string]notification.Provider{
-		constants.NotificationChannelEmail: notification.NewEmailProvider(notification.EmailConfig{
-			Host:     cfg.SMTPHost,
-			Port:     cfg.SMTPPort,
-			Username: cfg.SMTPUsername,
-			Password: cfg.SMTPPassword,
-			From:     cfg.SMTPFrom,
-		}),
+		constants.NotificationChannelEmail:   emailProvider,
 		constants.NotificationChannelSlack:   notification.NewSlackProvider(),
 		constants.NotificationChannelTeams:   notification.NewTeamsProvider(),
 		constants.NotificationChannelWebhook: notification.NewWebhookProvider(),
@@ -277,7 +288,7 @@ func run() error {
 		deploymentManifestBuilder,
 		deploymentStatusUpdater,
 		k8sexecutor.NewClientsetFactory(),
-		90*time.Second,
+		config.DeploymentExecutionTimeout,
 	)
 	deploymentService.WithExecutor(deploymentExecutor)
 	resourceSyncEngine := resourcesync.NewSyncEngine(resourceRepo)
@@ -303,7 +314,7 @@ func run() error {
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
-	authHandler := handlers.NewAuthHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService).WithEmailVerification(emailVerificationService)
 	userHandler := handlers.NewUserHandler(userService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService)
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
@@ -346,7 +357,18 @@ func run() error {
 
 	r := gin.New()
 
-	if err := r.SetTrustedProxies(nil); err != nil {
+	// cfg.TrustedProxies (TRUSTED_PROXIES) defaults to nil, which disables
+	// proxy trust entirely - c.ClientIP() then returns the raw TCP peer, the
+	// same behavior this had before the option existed. Set it explicitly
+	// (e.g. TRUSTED_PROXIES=0.0.0.0/0,::/0 behind Cloud Run, where nothing
+	// but Cloud Run's own request-routing layer can ever reach this
+	// process) to recover the real client IP from X-Forwarded-For for rate
+	// limiting and audit logging. See the field's doc comment in
+	// internal/config for the full explanation and why no CIDR is
+	// hardcoded here. config.Load already rejected a malformed entry before
+	// this point; SetTrustedProxies's own error is still checked here as a
+	// second, independent guard.
+	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
 		return fmt.Errorf("configure trusted proxies: %w", err)
 	}
 
@@ -453,8 +475,18 @@ func run() error {
 		Handler:           r,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		// WriteTimeout is configurable (HTTP_WRITE_TIMEOUT, default
+		// config.DefaultHTTPWriteTimeout) and validated in
+		// config.Config.Validate to always stay greater than
+		// config.DeploymentExecutionTimeout: deployment creation/rollback
+		// run the executor synchronously in the request goroutine (see
+		// DeploymentService.CreateDeployment/Rollback), so a shorter write
+		// timeout would truncate the HTTP response out from under an
+		// in-progress, legitimately long-running deployment before the
+		// executor's own timeout ever fires. ReadHeaderTimeout, ReadTimeout,
+		// and IdleTimeout are unrelated to that and are unaffected.
+		WriteTimeout: cfg.HTTPWriteTimeout,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	serverErrors := make(chan error, 1)

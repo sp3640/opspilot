@@ -77,7 +77,9 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 
 	testConfig := &config.Config{JWTSecret: "this-is-a-very-long-test-jwt-secret-1234567890", ClusterCredentialEncryptionKey: testClusterEncryptionKey()}
 
-	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, testConfig)
+	emailVerification, mailbox := newTestEmailVerification(db, userRepo, nil)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, testConfig).
+		WithEmailVerification(emailVerification)
 	auditService := services.NewAuditService(auditRepo).
 		WithProjectRepo(projectRepo).
 		WithIncidentRepo(incidentRepo)
@@ -90,9 +92,7 @@ func runCompleteWorkflowIntegration(t *testing.T, db *gorm.DB) {
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
 	// 1) User authentication
-	if err := userService.Register("Ops Owner", "owner@opspilot.dev", "password123", ""); err != nil {
-		t.Fatalf("register user: %v", err)
-	}
+	registerVerified(t, userService, emailVerification, mailbox, "Ops Owner", "owner@opspilot.dev", "password123", "")
 	token, err := userService.Login("owner@opspilot.dev", "password123", "", "")
 	if err != nil {
 		t.Fatalf("login user: %v", err)
@@ -440,6 +440,7 @@ func migrateIntegrationSchema(t *testing.T, db *gorm.DB) {
 	err := db.AutoMigrate(
 		&models.User{},
 		&models.Organization{},
+		&models.EmailVerificationToken{},
 		&models.Invitation{},
 		&models.Project{},
 		&models.Application{},

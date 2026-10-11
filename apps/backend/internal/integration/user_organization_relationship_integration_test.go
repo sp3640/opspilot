@@ -33,7 +33,9 @@ func TestUserOrganizationRelationshipIntegration(t *testing.T) {
 	invitationRepo := repository.NewInvitationRepository(db)
 	testConfig := &config.Config{JWTSecret: "this-is-a-very-long-test-jwt-secret-1234567890"}
 
-	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, testConfig)
+	emailVerification, mailbox := newTestEmailVerification(db, userRepo, nil)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, testConfig).
+		WithEmailVerification(emailVerification)
 	userHandler := handlers.NewUserHandler(userService)
 
 	if err := userService.Register("Alice", "alice@opspilot.dev", "password123", ""); err != nil {
@@ -64,9 +66,7 @@ func TestUserOrganizationRelationshipIntegration(t *testing.T) {
 
 	// A second, later, entirely uninvited registrant must get their OWN new
 	// workspace — not silently join Alice's — and may name it explicitly.
-	if err := userService.Register("Bob", "bob@opspilot.dev", "password123", "Bob's Team"); err != nil {
-		t.Fatalf("register second user: %v", err)
-	}
+	registerVerified(t, userService, emailVerification, mailbox, "Bob", "bob@opspilot.dev", "password123", "Bob's Team")
 
 	secondUser, err := userRepo.GetByEmail("bob@opspilot.dev")
 	if err != nil {

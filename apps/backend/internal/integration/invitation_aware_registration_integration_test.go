@@ -1,13 +1,11 @@
 package integration
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sp3640/opspilot/backend/internal/apperrors"
 	"github.com/sp3640/opspilot/backend/internal/config"
 	"github.com/sp3640/opspilot/backend/internal/dto"
 	"github.com/sp3640/opspilot/backend/internal/models"
@@ -35,7 +33,9 @@ func TestInvitationAwareRegistrationIntegration(t *testing.T) {
 	organizationRepo := repository.NewOrganizationRepository(db)
 	invitationRepo := repository.NewInvitationRepository(db)
 	cfg := &config.Config{JWTSecret: "this-is-a-very-long-test-jwt-secret-1234567890"}
-	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg)
+	emailVerification, mailbox := newTestEmailVerification(db, userRepo, nil)
+	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg).
+		WithEmailVerification(emailVerification)
 	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo)
 
 	var firstOrgID uuid.UUID
@@ -297,10 +297,31 @@ func TestInvitationAwareRegistrationIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Email uniqueness behavior is unchanged", func(t *testing.T) {
-		err := userService.Register("Alice Duplicate", "alice-first@opspilot.dev", "password123", "")
-		if !errors.Is(err, apperrors.ErrEmailAlreadyExists) {
-			t.Fatalf("expected ErrEmailAlreadyExists, got %v", err)
+	t.Run("Registering an address that already has a verified account changes nothing and reveals nothing", func(t *testing.T) {
+		// alice-first was never verified above; verify her so this covers
+		// the verified-account branch.
+		if _, err := emailVerification.Verify(mailbox.latestToken(t, "alice-first@opspilot.dev"), "", ""); err != nil {
+			t.Fatalf("verify alice: %v", err)
+		}
+		before, err := userRepo.GetByEmail("alice-first@opspilot.dev")
+		if err != nil {
+			t.Fatalf("load alice: %v", err)
+		}
+		emailsBefore := mailbox.total()
+
+		if err := userService.Register("Mallory", "alice-first@opspilot.dev", "attacker-password", ""); err != nil {
+			t.Fatalf("registering an existing address must look like any other registration, got %v", err)
+		}
+
+		after, err := userRepo.GetByEmail("alice-first@opspilot.dev")
+		if err != nil {
+			t.Fatalf("load alice again: %v", err)
+		}
+		if after.PasswordHash != before.PasswordHash || after.Name != before.Name {
+			t.Fatalf("registering an existing verified address altered the account")
+		}
+		if got := mailbox.total(); got != emailsBefore {
+			t.Fatalf("registering a verified address sent %d email(s), want none", got-emailsBefore)
 		}
 	})
 }

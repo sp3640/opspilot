@@ -60,25 +60,9 @@ func Connect(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
 	}
 
-	if err := runOrganizationBackfillMigration(db); err != nil {
+	if err := runStartupMigrations(db); err != nil {
 		_ = sqlDB.Close()
-		return nil, fmt.Errorf("run organization backfill migration: %w", err)
-	}
-
-	if err := runRoleNormalizationMigration(db); err != nil {
-		_ = sqlDB.Close()
-		return nil, fmt.Errorf("run role normalization migration: %w", err)
-	}
-
-	if err := runAuditEntityIDMigration(db); err != nil {
-		_ = sqlDB.Close()
-		return nil, fmt.Errorf("run audit entity id migration: %w", err)
-	}
-
-	err = db.AutoMigrate(migrationModels()...)
-	if err != nil {
-		_ = sqlDB.Close()
-		return nil, fmt.Errorf("migrate database models: %w", err)
+		return nil, err
 	}
 
 	dbMu.Lock()
@@ -96,6 +80,7 @@ func migrationModels() []any {
 	return []any{
 		&models.User{},
 		&models.Organization{},
+		&models.EmailVerificationToken{},
 		&models.Invitation{},
 		&models.Project{},
 		&models.Application{},

@@ -10,7 +10,11 @@ import (
 )
 
 type APIResponse struct {
-	Success bool        `json:"success"`
+	Success bool `json:"success"`
+	// Code is an optional stable, machine-readable reason (for example
+	// "email_not_verified") that clients branch on instead of parsing
+	// Message. Omitted from every response that does not set one.
+	Code    string      `json:"code,omitempty"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
@@ -45,6 +49,26 @@ func Error(
 
 	c.JSON(status, APIResponse{
 		Success: false,
+		Message: message,
+	})
+}
+
+// ErrorWithCode is Error plus a machine-readable Code.
+func ErrorWithCode(c *gin.Context, status int, code, message string) {
+	if status >= http.StatusInternalServerError {
+		logger.Error(
+			c.Request.Context(),
+			"HTTP error response",
+			slog.Int("status", status),
+			slog.String("method", c.Request.Method),
+			slog.String("path", c.Request.URL.Path),
+			slog.String("code", code),
+		)
+	}
+
+	c.JSON(status, APIResponse{
+		Success: false,
+		Code:    code,
 		Message: message,
 	})
 }

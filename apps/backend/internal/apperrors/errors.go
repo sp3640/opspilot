@@ -6,6 +6,14 @@ var (
 	// Authentication errors
 	ErrInvalidCredentials = errors.New("invalid email or password")
 
+	// Email verification errors. ErrEmailNotVerified is only ever returned
+	// after the password has been proven correct, so it never reveals
+	// whether an arbitrary email has an account.
+	ErrEmailNotVerified         = errors.New("email verification required")
+	ErrVerificationTokenInvalid = errors.New("verification link is invalid")
+	ErrVerificationTokenExpired = errors.New("verification link has expired")
+	ErrEmailDeliveryUnavailable = errors.New("email delivery is not available")
+
 	// User errors
 	ErrEmailAlreadyExists = errors.New("email already exists")
 	ErrUserNotFound       = errors.New("user not found")

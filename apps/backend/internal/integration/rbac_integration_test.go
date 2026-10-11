@@ -281,8 +281,10 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 
 	organizationService := services.NewOrganizationService(organizationRepo)
 	auditService := services.NewAuditService(auditRepo).WithProjectRepo(projectRepo).WithIncidentRepo(incidentRepo)
+	emailVerification, mailbox := newTestEmailVerification(db, userRepo, nil)
 	userService := services.NewUserService(userRepo, organizationRepo, invitationRepo, cfg).
-		WithAuditService(auditService)
+		WithAuditService(auditService).
+		WithEmailVerification(emailVerification)
 	invitationService := services.NewInvitationService(invitationRepo, userRepo, organizationRepo).
 		WithAuditService(auditService)
 	projectService := services.NewProjectService(projectRepo, userRepo, auditService)
@@ -338,7 +340,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	commentService := services.NewCommentService(commentRepo, incidentRepo, auditService)
 	dashboardService := services.NewDashboardService(dashboardRepo)
 
-	authHandler := handlers.NewAuthHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService).WithEmailVerification(emailVerification)
 	userHandler := handlers.NewUserHandler(userService)
 	organizationHandler := handlers.NewOrganizationHandler(organizationService)
 	invitationHandler := handlers.NewInvitationHandler(invitationService)
@@ -368,6 +370,7 @@ func setupRBACApp(t *testing.T) *rbacTestApp {
 	collector := metrics.NewCollector()
 
 	r := gin.New()
+	attachMailbox(r, mailbox)
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},

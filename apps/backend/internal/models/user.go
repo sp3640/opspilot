@@ -30,6 +30,17 @@ type User struct {
 	Role           string        `gorm:"size:50;not null;default:'Viewer'"`
 	OrganizationID *uuid.UUID    `gorm:"type:uuid;index:idx_users_organization_id"`
 	Organization   *Organization `gorm:"foreignKey:OrganizationID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT"`
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// EmailVerifiedAt is when the account owner proved control of Email by
+	// following the single-use link mailed to it. NULL means unverified:
+	// such an account cannot log in or obtain a token. Accounts that
+	// predate email verification are stamped once by the startup migration
+	// (see database.runEmailVerificationMigration) so they keep working.
+	EmailVerifiedAt *time.Time `gorm:"index:idx_users_email_verified_at"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// IsEmailVerified reports whether the account's email has been verified.
+func (u *User) IsEmailVerified() bool {
+	return u.EmailVerifiedAt != nil
 }

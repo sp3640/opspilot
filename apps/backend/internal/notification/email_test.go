@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -39,5 +40,61 @@ func TestBuildEmailMessageIncludesHeadersAndBody(t *testing.T) {
 	}
 	if !strings.Contains(raw, "image pull error") || !strings.Contains(raw, "Environment: production") {
 		t.Fatalf("expected body and fields in message, got %q", raw)
+	}
+}
+
+func TestBuildEmailMessageWithHTMLIsMultipartAlternative(t *testing.T) {
+	msg := Message{Title: "Hi", Body: "plain body", HTML: "<p>html body</p>"}
+	raw := string(buildEmailMessage("OpsPilot <no-reply@mail.example.com>", "user@example.com", msg))
+
+	if !strings.Contains(raw, "Content-Type: multipart/alternative; boundary=") {
+		t.Fatalf("expected multipart/alternative, got %q", raw)
+	}
+	plainAt := strings.Index(raw, "plain body")
+	htmlAt := strings.Index(raw, "<p>html body</p>")
+	if plainAt < 0 || htmlAt < 0 || plainAt > htmlAt {
+		t.Fatalf("expected plain part before html part (least to most preferred), got %q", raw)
+	}
+	if !strings.Contains(raw, "Message-ID: <") || !strings.Contains(raw, "@mail.example.com>") {
+		t.Fatalf("expected Message-ID on the sender's domain, got %q", raw)
+	}
+	if !strings.Contains(raw, "\r\nDate: ") {
+		t.Fatalf("expected Date header, got %q", raw)
+	}
+	if strings.Count(raw, "--opspilot-") != 3 {
+		t.Fatalf("expected two parts and a closing boundary, got %q", raw)
+	}
+}
+
+func TestBuildEmailMessageWithoutHTMLStaysPlainText(t *testing.T) {
+	raw := string(buildEmailMessage("a@b.example", "c@d.example", Message{Title: "t", Body: "b"}))
+	if !strings.Contains(raw, "Content-Type: text/plain; charset=\"UTF-8\"") || strings.Contains(raw, "multipart") {
+		t.Fatalf("a message without HTML must remain a single plain-text part, got %q", raw)
+	}
+}
+
+func TestBuildEmailMessageStripsHeaderInjection(t *testing.T) {
+	raw := string(buildEmailMessage(
+		"a@b.example",
+		"victim@example.com\r\nBcc: attacker@example.com",
+		Message{Title: "Hello\r\nBcc: attacker@example.com", Body: "b"},
+	))
+	headers := raw[:strings.Index(raw, "\r\n\r\n")]
+	for _, line := range strings.Split(headers, "\r\n") {
+		if strings.HasPrefix(line, "Bcc:") {
+			t.Fatalf("a caller-supplied value injected a header: %q", headers)
+		}
+	}
+}
+
+func TestEmailProviderConfigured(t *testing.T) {
+	if NewEmailProvider(EmailConfig{}).Configured() {
+		t.Fatalf("provider with no host must not report configured")
+	}
+	if !NewEmailProvider(EmailConfig{Host: "smtp.example.com"}).Configured() {
+		t.Fatalf("provider with a host must report configured")
+	}
+	if err := NewEmailProvider(EmailConfig{}).Send(context.Background(), "u@example.com", Message{}); !errors.Is(err, ErrEmailNotConfigured) {
+		t.Fatalf("expected ErrEmailNotConfigured, got %v", err)
 	}
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/auth-service';
 import { AuthShell } from '@/components/auth/auth-shell';
+import { CheckEmailPanel } from '@/components/auth/check-email-panel';
 import { GuestGuard } from '@/components/auth/guest-guard';
 import { LoadingScreen } from '@/components/auth/loading-screen';
 
@@ -36,13 +37,16 @@ const inputClass =
   'mt-2 h-12 w-full rounded-2xl border bg-transparent px-4 text-base outline-none transition-colors placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50';
 
 function RegisterPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '';
   const isInvitedFlow = redirectTo.startsWith('/accept-invitation');
   const loginHref = redirectTo ? `/login?redirect=${encodeURIComponent(redirectTo)}` : '/login';
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Set once the account has been created: the user must now verify their
+  // email before they can sign in, so the form is replaced by the
+  // "Check your email" state instead of redirecting to login.
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -76,12 +80,7 @@ function RegisterPageContent() {
         organizationName: isInvitedFlow ? undefined : data.organizationName,
       });
 
-      toast.success(
-        isInvitedFlow
-          ? 'Account created successfully. Please sign in to accept your invitation.'
-          : 'Account created successfully. Please sign in.'
-      );
-      router.replace(loginHref);
+      setRegisteredEmail(data.email.trim().toLowerCase());
     } catch (error) {
       let message = 'Registration failed. Please try again.';
 
@@ -97,6 +96,14 @@ function RegisterPageContent() {
       setIsLoading(false);
     }
   };
+
+  if (registeredEmail) {
+    return (
+      <AuthShell>
+        <CheckEmailPanel email={registeredEmail} loginHref={loginHref} />
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell>

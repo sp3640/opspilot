@@ -3,6 +3,8 @@ package config
 import (
 	"encoding/base64"
 	"fmt"
+	"net"
+	"net/mail"
 	"net/url"
 	"strconv"
 	"strings"
@@ -16,6 +18,32 @@ import (
 // local development keeps working exactly as before this file introduced
 // production-specific validation for either one.
 const defaultLocalOrigin = "http://localhost:3000"
+
+// DefaultEmailVerificationTokenTTL is the lifetime of a verification link
+// when EMAIL_VERIFICATION_TOKEN_TTL is unset.
+const DefaultEmailVerificationTokenTTL = 24 * time.Hour
+
+// DeploymentExecutionTimeout bounds how long one synchronous Kubernetes
+// deployment rollout may run
+// (internal/kubernetes/executor.DeploymentExecutor, wired up in
+// cmd/server/main.go). It is not itself environment-configurable - changing
+// how long a deployment is allowed to run is an application change, not a
+// per-deployment tuning knob - but DefaultHTTPWriteTimeout is derived from
+// it below, and Validate rejects an explicitly configured HTTPWriteTimeout
+// that isn't longer than it. That keeps the two values from silently
+// drifting apart the way they did before this constant existed: a
+// synchronous request that legitimately runs for up to this long must never
+// be cut off by the HTTP server's own write timeout first.
+const DeploymentExecutionTimeout = 90 * time.Second
+
+// httpWriteTimeoutMargin covers the non-executor work sharing the same
+// request as a deployment execution (repository writes, audit logging,
+// response encoding) on top of DeploymentExecutionTimeout.
+const httpWriteTimeoutMargin = 30 * time.Second
+
+// DefaultHTTPWriteTimeout is used when HTTP_WRITE_TIMEOUT is unset. It must
+// stay greater than DeploymentExecutionTimeout - see the comment there.
+const DefaultHTTPWriteTimeout = DeploymentExecutionTimeout + httpWriteTimeoutMargin
 
 type Config struct {
 	AppName         string
@@ -33,6 +61,46 @@ type Config struct {
 	// explicitly (enforced in Validate) rather than silently keeping the
 	// localhost default.
 	CORSAllowedOrigins []string
+
+	// TrustedProxies is the explicit set of proxy IPs/CIDR blocks (IPv4 or
+	// IPv6) whose X-Forwarded-For/X-Real-IP headers Gin's c.ClientIP() may
+	// trust (gin.Engine.SetTrustedProxies) - used for per-IP rate limiting
+	// (general, registration, resend-verification) and for the IP address
+	// recorded on login audit events.
+	//
+	// Defaults to none: with TRUSTED_PROXIES unset, ClientIP() falls back to
+	// the raw TCP peer address, exactly as it did before this option
+	// existed. That is the safe choice whenever this process can be reached
+	// directly (a raw port exposed to the internet), where a caller could
+	// otherwise forge X-Forwarded-For to spoof their IP.
+	//
+	// Behind a reverse proxy or load balancer that is the ONLY way to reach
+	// this process - Google Cloud Run's request-routing layer, for example
+	// - the immediate TCP peer is always that proxy, and trusting its
+	// X-Forwarded-For is what recovers the real client IP. Cloud Run does
+	// not publish a fixed, documented CIDR range for that layer, so there is
+	// no single narrow CIDR to hardcode here as "the Cloud Run range" -
+	// operators who have confirmed their own deployment topology set this
+	// explicitly instead, e.g.:
+	//
+	//	TRUSTED_PROXIES=0.0.0.0/0,::/0
+	//
+	// (trust the immediate peer unconditionally - appropriate ONLY when
+	// nothing but that proxy can ever reach this process directly, which is
+	// the case for a Cloud Run service, but is an explicit, operator-made
+	// decision rather than an application default).
+	TrustedProxies []string
+
+	// HTTPWriteTimeout bounds how long the HTTP server will spend writing a
+	// single response (net/http.Server.WriteTimeout). It must stay longer
+	// than DeploymentExecutionTimeout - see its comment - since deployment
+	// creation/rollback run the executor synchronously in the request
+	// goroutine. Configurable via HTTP_WRITE_TIMEOUT; defaults to
+	// DefaultHTTPWriteTimeout when unset. This is the only server timeout
+	// this option affects: ReadHeaderTimeout, ReadTimeout, and IdleTimeout
+	// are unrelated to how long a handler takes to produce its response and
+	// are left as fixed values in cmd/server/main.go.
+	HTTPWriteTimeout time.Duration
 
 	DBHost     string
 	DBPort     string
@@ -56,6 +124,10 @@ type Config struct {
 	SMTPUsername string
 	SMTPPassword string
 	SMTPFrom     string
+
+	// EmailVerificationTokenTTL is how long an emailed verification link
+	// stays valid (EMAIL_VERIFICATION_TOKEN_TTL, default 24h).
+	EmailVerificationTokenTTL time.Duration
 
 	// GitHub OAuth App credentials (Sprint 28). All optional: an unset
 	// GitHubClientID/Secret simply means "connect with GitHub" is
@@ -95,6 +167,55 @@ func parseCORSOrigins(raw string) []string {
 	return origins
 }
 
+// parseTrustedProxies splits TRUSTED_PROXIES the same way CORS_ALLOWED_ORIGINS
+// is split (comma-separated, trimmed, empty entries dropped), then validates
+// each entry is exactly what gin.Engine.SetTrustedProxies accepts (a bare
+// IPv4/IPv6 address, or an IPv4/IPv6 CIDR block). Validating here, at
+// config-load time, means a typo produces a clear "TRUSTED_PROXIES entry ...
+// is invalid" error immediately at startup rather than being silently
+// accepted here and only failing (or not) later when SetTrustedProxies is
+// actually called in cmd/server/main.go.
+func parseTrustedProxies(raw string) ([]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(trimmed, ",")
+	proxies := make([]string, 0, len(parts))
+	for _, part := range parts {
+		proxy := strings.TrimSpace(part)
+		if proxy == "" {
+			continue
+		}
+		if err := validateTrustedProxyEntry(proxy); err != nil {
+			return nil, fmt.Errorf("TRUSTED_PROXIES entry %q is invalid: %w", proxy, err)
+		}
+		proxies = append(proxies, proxy)
+	}
+	if len(proxies) == 0 {
+		return nil, nil
+	}
+	return proxies, nil
+}
+
+// validateTrustedProxyEntry mirrors gin's own prepareTrustedCIDRs parsing
+// exactly (a bare IP is treated as a /32 or /128, otherwise the entry must
+// be a valid CIDR block), so a value this function accepts can never later
+// be rejected by SetTrustedProxies, and vice versa.
+func validateTrustedProxyEntry(proxy string) error {
+	if !strings.Contains(proxy, "/") {
+		if net.ParseIP(proxy) == nil {
+			return fmt.Errorf("not a valid IP address or CIDR block")
+		}
+		return nil
+	}
+	if _, _, err := net.ParseCIDR(proxy); err != nil {
+		return fmt.Errorf("not a valid CIDR block: %w", err)
+	}
+	return nil
+}
+
 // Load reads environment configuration and validates all startup-critical values.
 // DATABASE_URL is preferred, while the legacy DB_* variables remain supported for
 // backwards compatibility.
@@ -116,6 +237,21 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	emailVerificationTTL, err := getDurationEnv("EMAIL_VERIFICATION_TOKEN_TTL", DefaultEmailVerificationTokenTTL)
+	if err != nil {
+		return nil, err
+	}
+
+	trustedProxies, err := parseTrustedProxies(getEnv("TRUSTED_PROXIES", ""))
+	if err != nil {
+		return nil, err
+	}
+
+	httpWriteTimeout, err := getDurationEnv("HTTP_WRITE_TIMEOUT", DefaultHTTPWriteTimeout)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		AppName:         getEnv("APP_NAME", "OpsPilot Backend"),
 		AppEnv:          getEnv("APP_ENV", "development"),
@@ -126,6 +262,8 @@ func Load() (*Config, error) {
 		RateLimitWindow: rateLimitWindow,
 
 		CORSAllowedOrigins: parseCORSOrigins(getEnv("CORS_ALLOWED_ORIGINS", defaultLocalOrigin)),
+		TrustedProxies:     trustedProxies,
+		HTTPWriteTimeout:   httpWriteTimeout,
 
 		DBHost:     strings.TrimSpace(getEnv("DB_HOST", "")),
 		DBPort:     strings.TrimSpace(getEnv("DB_PORT", "5432")),
@@ -143,6 +281,8 @@ func Load() (*Config, error) {
 		SMTPUsername: strings.TrimSpace(getEnv("SMTP_USERNAME", "")),
 		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
 		SMTPFrom:     strings.TrimSpace(getEnv("SMTP_FROM", "")),
+
+		EmailVerificationTokenTTL: emailVerificationTTL,
 
 		GitHubClientID:         strings.TrimSpace(getEnv("GITHUB_CLIENT_ID", "")),
 		GitHubClientSecret:     strings.TrimSpace(getEnv("GITHUB_CLIENT_SECRET", "")),
@@ -194,6 +334,30 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if c.EmailVerificationTokenTTL == 0 {
+		c.EmailVerificationTokenTTL = DefaultEmailVerificationTokenTTL
+	}
+	if c.EmailVerificationTokenTTL < 0 {
+		return fmt.Errorf("EMAIL_VERIFICATION_TOKEN_TTL must be a positive duration")
+	}
+
+	if c.HTTPWriteTimeout == 0 {
+		c.HTTPWriteTimeout = DefaultHTTPWriteTimeout
+	}
+	if c.HTTPWriteTimeout < 0 {
+		return fmt.Errorf("HTTP_WRITE_TIMEOUT must be a positive duration")
+	}
+	if c.HTTPWriteTimeout <= DeploymentExecutionTimeout {
+		return fmt.Errorf(
+			"HTTP_WRITE_TIMEOUT (%s) must be greater than the deployment execution timeout (%s), or a legitimately long-running deployment request would be cut off by the HTTP server before it can finish",
+			c.HTTPWriteTimeout, DeploymentExecutionTimeout,
+		)
+	}
+
+	if err := validateProductionEmail(c.AppEnv, c.SMTPHost, c.SMTPFrom, c.FrontendBaseURL); err != nil {
+		return err
+	}
+
 	if err := validateProductionOrigins(c.AppEnv, c.CORSAllowedOrigins, c.FrontendBaseURL); err != nil {
 		return err
 	}
@@ -237,6 +401,32 @@ func validateProductionOrigins(appEnv string, corsAllowedOrigins []string, front
 		return fmt.Errorf("FRONTEND_BASE_URL must be set to the real frontend URL when APP_ENV=production")
 	}
 
+	return nil
+}
+
+// validateProductionEmail refuses to start a production deployment that
+// cannot send email: account registration requires a verification email, so
+// without SMTP nobody could ever activate an account. Other environments
+// may run without SMTP (registration then reports email as unavailable).
+//
+// Verification links carry a secret token, so in production they must be
+// HTTPS links: FRONTEND_BASE_URL must use https://.
+func validateProductionEmail(appEnv, smtpHost, smtpFrom, frontendBaseURL string) error {
+	if appEnv != "production" {
+		return nil
+	}
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(frontendBaseURL)), "https://") {
+		return fmt.Errorf("FRONTEND_BASE_URL must be an https:// URL when APP_ENV=production: verification emails link to it")
+	}
+	if strings.TrimSpace(smtpHost) == "" {
+		return fmt.Errorf("SMTP_HOST must be set when APP_ENV=production: account registration requires email verification")
+	}
+	if strings.TrimSpace(smtpFrom) == "" {
+		return fmt.Errorf("SMTP_FROM must be set when APP_ENV=production: account registration requires email verification")
+	}
+	if _, err := mail.ParseAddress(smtpFrom); err != nil {
+		return fmt.Errorf("SMTP_FROM must be an email address such as no-reply@example.com or OpsPilot <no-reply@example.com>: %w", err)
+	}
 	return nil
 }
 
